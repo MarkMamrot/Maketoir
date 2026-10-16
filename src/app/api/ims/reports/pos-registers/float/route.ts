@@ -60,9 +60,9 @@ export async function PATCH(request: Request) {
           await connection.rollback();
           return NextResponse.json({ error: 'The register changed. Reload the report before editing its float.' }, { status: 409 });
         }
-        if (register.status === 'closed' && body.acknowledgeAccounting !== true) {
+        if (register.status !== 'open') {
           await connection.rollback();
-          return NextResponse.json({ error: 'Acknowledge that the bookkeeper must manually correct affected accounting syncs.' }, { status: 400 });
+          return NextResponse.json({ error: 'Opening float can only be edited while the register session is open.' }, { status: 409 });
         }
         if (savedFloat === amount) {
           await connection.rollback();

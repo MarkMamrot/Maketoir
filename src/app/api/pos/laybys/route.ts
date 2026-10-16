@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, ...result, transaction });
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'ConsignmentConflict') return NextResponse.json({ error: error.message }, { status: 409 });
     if (error instanceof LaybyValidationError || error instanceof FifoCostingConflict) return NextResponse.json({ error: error.message }, { status: error.status });
     await reportRuntimeIssue({ businessId: session.businessId, source: 'pos_layby', operation: String(body.action), title: 'POS layby action failed', error, reference: { type: 'pos_sale', id: body.sale_id ?? 'preflight' }, context: { locationId: session.locationId } });
     return NextResponse.json({ error: 'The layby action could not be confirmed. Retry the same action without charging or refunding again.' }, { status: 500 });

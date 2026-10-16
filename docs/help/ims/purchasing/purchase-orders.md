@@ -7,6 +7,8 @@ When FIFO is active, receiving a stock line creates a location-owned cost layer.
 
 A purchase order records what you intend to buy from a supplier and where it should arrive. Confirmation makes the quantity incoming; receiving records the physical delivery.
 
+For a **Consignment supplier**, the purchase order is **stock-only**. Normal confirmation, partial receiving and completion move quantities, but do not create a supplier invoice, payment or accounting bill. A supplier invoice number is not required to complete stock-only receiving. Review the consignment notice and settle supplier costs separately through consignment activity or optional statements.
+
 ## Main operations
 
 | Action | Use it when | Stock effect |

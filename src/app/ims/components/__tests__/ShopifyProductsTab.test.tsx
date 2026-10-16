@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -111,5 +111,108 @@ describe('ShopifyProductsTab', () => {
       .map(([, init]) => JSON.parse(String(init?.body)));
     expect(bodies.find(body => body.mode === 'preview').mappings).toEqual([{ shopifyLocationId: 10, solvantisLocationId: 1 }]);
     expect(bodies.find(body => body.mode === 'apply')).toMatchObject({ confirmation: 'REPLACE SOLVANTIS STOCK', channelInstanceId: 'shopify-1' });
+  });
+
+  async function prepareOpeningStock() {
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(await screen.findByRole('button', { name: 'Load Shopify and Solvantis Locations' }));
+    await user.selectOptions(await screen.findByRole('combobox', { name: 'Solvantis location for Shop Main' }), '1');
+    await user.click(screen.getByRole('button', { name: 'Preview Inventory Download' }));
+    await user.type(await screen.findByRole('textbox', { name: 'Inventory safety phrase' }), 'REPLACE SOLVANTIS STOCK');
+    return user;
+  }
+
+  function openingStockFetch(apply: () => Promise<Response>, batches = 1) {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      if (url !== '/api/ims/shopify/opening-stock') return jsonResponse({ success: true, data: [] });
+      const body = JSON.parse(String(init?.body));
+      if (body.mode === 'locations') return jsonResponse({
+        success: true, shopifyLocations: [{ id: 10, name: 'Shop Main' }], solvantisLocations: [{ id: 1, name: 'Retail' }],
+      });
+      if (body.mode === 'preview') return jsonResponse({
+        success: true, total_variants: batches, has_more: false,
+        apply_batches: Array.from({ length: batches }, (_, offset) => ({ offset, variant_ids: [`v${offset}`], snapshot: 'signed' })),
+        lines: [{ locationName: 'Retail', quantity: 8, currentQuantity: 1, adjustment: 7, wasNegative: false }],
+      });
+      if (body.mode === 'prepare') return jsonResponse({ success: true, stocktakes: [{ id: 123 }] });
+      return apply();
+    });
+  }
+
+  it('shows batch progress and clears the busy state when the last batch finishes', async () => {
+    let finish!: (response: Response) => void;
+    const apply = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ success: true, variants: 1, stocktakes: [{ id: 123 }] }))
+      .mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    openingStockFetch(apply, 2);
+    const user = await prepareOpeningStock();
+
+    await user.click(screen.getByRole('button', { name: 'Replace Solvantis Stock' }));
+
+    await screen.findByText('Applying batch 2 of 2');
+    expect(screen.getByText('1 variant confirmed applied. Keep this page open.')).toBeTruthy();
+    const progress = screen.getByRole('progressbar', { name: 'Opening stock import progress' });
+    expect(progress.getAttribute('value')).toBe('1');
+    expect(progress.getAttribute('max')).toBe('2');
+    await waitFor(() => expect(apply).toHaveBeenCalledTimes(2));
+    await act(async () => finish(jsonResponse({ success: true, variants: 1, stocktakes: [{ id: 123 }] })));
+
+    expect(await screen.findByText(/Opening stock applied for 2 variants/)).toBeTruthy();
+    expect(screen.getByText('Stocktakes: 123')).toBeTruthy();
+    expect(screen.getByText('View 1 stocktake')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Applying…' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Preview Inventory Download' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it.each(['timeout', 'proxy timeout', 'server error'])('recovers from %s without silently retrying or leaving Applying stuck', async failure => {
+    const timeout = vi.spyOn(AbortSignal, 'timeout');
+    const apply = vi.fn(async () => {
+      if (failure === 'timeout') throw Object.assign(new Error('Timed out'), { name: 'TimeoutError' });
+      if (failure === 'proxy timeout') return new Response('Gateway timeout', { status: 524 });
+      return jsonResponse({ success: false, error: 'Stocktake apply failed.' }, 500);
+    });
+    openingStockFetch(apply);
+    const user = await prepareOpeningStock();
+    await user.click(screen.getByRole('button', { name: 'Replace Solvantis Stock' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('retry this prepared import without duplicating adjustments');
+    if (failure !== 'server error') expect(alert.textContent).toContain('server may still finish');
+    expect(timeout).toHaveBeenCalledWith(60_000);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Applying…' })).toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Inventory safety phrase' }).getAttribute('value')).toBe('');
+    expect(screen.getByRole('button', { name: 'Replace Solvantis Stock' }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Preview Inventory Download' }).hasAttribute('disabled')).toBe(false);
+  });
+
+  it('retains confirmed stocktake references after an interruption partway through', async () => {
+    const apply = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ success: true, variants: 1, stocktakes: [{ id: 123 }] }))
+      .mockRejectedValueOnce(new Error('Connection lost'));
+    openingStockFetch(apply, 2);
+    const user = await prepareOpeningStock();
+    await user.click(screen.getByRole('button', { name: 'Replace Solvantis Stock' }));
+
+    expect((await screen.findByRole('alert')).textContent).toContain('Confirmed batches are safe');
+    expect(screen.getByText(/1 variant confirmed applied before the interruption/)).toBeTruthy();
+    expect(screen.getByText('Stocktakes: 123')).toBeTruthy();
+    expect(apply).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('progressbar')).toBeNull();
+
+    apply.mockImplementation(async () => jsonResponse({ success: true, variants: 1, stocktakes: [{ id: 123 }] }));
+    await user.type(screen.getByRole('textbox', { name: 'Inventory safety phrase' }), 'REPLACE SOLVANTIS STOCK');
+    await user.click(screen.getByRole('button', { name: 'Replace Solvantis Stock' }));
+    expect(await screen.findByText(/Opening stock applied for 2 variants/)).toBeTruthy();
+    const preparations = vi.mocked(fetch).mock.calls
+      .filter(([url]) => url === '/api/ims/shopify/opening-stock')
+      .map(([, init]) => JSON.parse(String(init?.body)))
+      .filter(body => body.mode === 'prepare');
+    expect(preparations).toHaveLength(2);
+    expect(preparations[1]).toEqual(preparations[0]);
+    expect(screen.getByText('Stocktakes: 123')).toBeTruthy();
   });
 });

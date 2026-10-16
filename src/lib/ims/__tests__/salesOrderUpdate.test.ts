@@ -321,6 +321,9 @@ describe('ImsSORepo.changeStatus partial fulfilment safety', () => {
 
   it('completes an already fully shipped order without another stock movement', async () => {
     execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('SELECT active_method, active_epoch_id, revision')) {
+        return [[{ active_method: 'average_cost', active_epoch_id: null, revision: 1 }]];
+      }
       if (sql.includes('SELECT * FROM ims_sales_orders')) {
         return [[{
           id: 42, status: 'partially_fulfilled', location_id: 4, business_id: 'biz-1', so_type: 'b2b', is_historical: 0,

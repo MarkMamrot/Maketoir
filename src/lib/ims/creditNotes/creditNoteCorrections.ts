@@ -1,4 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { reverseConsignmentRefunds, reverseConsignmentSupplierReturn } from '../consignment/sourceCapture';
+import { snapshotMovementOwnership } from '../consignment/ownership';
 
 import { getIMSPool, imsExecute } from '@/services/IMSMySQLService';
 import { assertExpectedInventoryDocumentRevision } from '../creditNoteStatusCommands';
@@ -29,6 +31,7 @@ interface MovementEvidence extends RowDataPacket {
   source_line_id: number | null;
   cost_method_snapshot: 'average_cost' | 'fifo';
   cost_epoch_id: number | null;
+  consignment_supplier_id: number | null;
 }
 
 export interface CreditNoteReversalResult {
@@ -63,7 +66,7 @@ async function lockMovementEvidence(
 ): Promise<MovementEvidence[]> {
   const [rows] = await connection.execute<MovementEvidence[]>(
         `SELECT id, variant_id, location_id, qty_change, unit_cost, source_line_id,
-          cost_method_snapshot, cost_epoch_id
+          cost_method_snapshot, cost_epoch_id, consignment_supplier_id
        FROM ims_stock_movements
       WHERE business_id = ? AND reference_id = ? AND movement_type = ?
       ORDER BY id
@@ -187,6 +190,7 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
         [input.businessId, movement.variant_id, movement.location_id, input.documentId, movement.source_line_id,
           -quantity, resultingOnHand, movement.unit_cost, costingState.method, costingState.epochId, reason],
       );
+      await snapshotMovementOwnership(connection, input.businessId, Number(reversalMovementResult.insertId), movement.variant_id, movement.consignment_supplier_id ?? null);
       if (costingState.method === 'fifo') {
         await reverseFifoStockMovementLayers(connection, {
           businessId: input.businessId,
@@ -199,6 +203,11 @@ export async function reverseCustomerCreditNote(input: ReversalInput): Promise<C
     }
 
     const balanceAfter = Math.round((currentCredit - issuedCredit) * 100) / 100;
+    await reverseConsignmentRefunds(connection, {
+      businessId: input.businessId, sourceId: input.documentId, channel: 'sales_order',
+      eventDate: new Date().toLocaleDateString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }),
+      eventKey: `customer-credit-reversal:${input.documentId}`,
+    });
     await connection.execute(
       `INSERT INTO store_credit_transactions
          (contact_id, type, amount, balance_after, credit_note_id, idempotency_key, notes)
@@ -275,6 +284,8 @@ export async function reverseSupplierCreditNote(input: ReversalInput): Promise<C
     const costingState = await lockInventoryCostState(connection, input.businessId);
 
     const movements = await lockMovementEvidence(connection, input.businessId, input.documentId, 'scn_returned', 'negative');
+    await reverseConsignmentSupplierReturn(connection, input.businessId, input.documentId,
+      new Date().toLocaleDateString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }));
     for (const movement of movements) {
       const quantity = -Number(movement.qty_change);
       const originalMethod = movement.cost_method_snapshot ?? 'average_cost';
@@ -301,6 +312,7 @@ export async function reverseSupplierCreditNote(input: ReversalInput): Promise<C
         [input.businessId, movement.variant_id, movement.location_id, input.documentId, movement.source_line_id,
           quantity, resultingOnHand, movement.unit_cost, costingState.method, costingState.epochId, reason],
       );
+      await snapshotMovementOwnership(connection, input.businessId, Number(reversalMovementResult.insertId), movement.variant_id, movement.consignment_supplier_id ?? null);
       if (costingState.method === 'fifo') {
         await reverseFifoStockMovementLayers(connection, {
           businessId: input.businessId,

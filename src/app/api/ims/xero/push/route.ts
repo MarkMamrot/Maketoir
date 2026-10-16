@@ -10,6 +10,7 @@ import { triggerPOXeroSync, triggerSOXeroSync, triggerCNXeroSync, triggerSupplie
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { assertXeroPostingEnabled, isXeroPostingDisabledError } from '@/lib/xero/postingPolicy';
+import { isConsignmentPurchase, CONSIGNMENT_XERO_EXCLUSION } from '@/lib/xero/consignmentEligibility';
 import {
   syncGiftCardIssueInvoice,
   syncGiftCardRedemptionReclass,
@@ -70,6 +71,13 @@ export async function POST(req: Request) {
       invoiceNumberSuffix?: string;
     };
     if (!type || !id) return NextResponse.json({ error: 'type and id required' }, { status: 400 });
+    if ((type === 'po_payment' || type === 'so_payment') && !parentId) {
+      return NextResponse.json({ error: 'parentId is required for payment replay.' }, { status: 400 });
+    }
+    if ((type === 'po' || type === 'scn' || type === 'po_payment')
+      && await isConsignmentPurchase(businessId, type === 'scn' ? 'supplier_credit_note' : 'purchase_order', type === 'po_payment' ? Number(parentId) : id)) {
+      return NextResponse.json({ success: false, status: 'excluded', reason: CONSIGNMENT_XERO_EXCLUSION }, { status: 409 });
+    }
     if (session.tier === 'Advisor' && invoiceNumberSuffix !== undefined) {
       return NextResponse.json({ error: 'Advisors cannot change invoice numbers.' }, { status: 403 });
     }

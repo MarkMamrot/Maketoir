@@ -4,6 +4,20 @@ import { getHelpTopic, listHelpLibraryTopics, listHelpTopics, resolveHelpContext
 import { searchHelpTopics } from '../searchHelpTopics';
 
 describe('resolveHelpContext', () => {
+  it.each([
+    ['report-consignment-activity', 'Consignment Activity'],
+    ['consignment-statements', 'Managed settlement statements'],
+  ])('opens independent consignment guidance for %s without accounting', (context, heading) => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'ims', context, availableCapabilities: { xero: false } });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'ims-consignment' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe(heading);
+  });
+  it('opens Feature Toggle help from the owning Settings context', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'ims', context: 'settings-feature-toggle' });
+    expect(result?.exact).toBe(true);
+    expect(result?.topic.id).toBe('ims-feature-toggle');
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Main operations');
+  });
   it.each([true, false])('opens dedicated POS report procedures with accounting enabled=%s', xero => {
     for (const [context, heading] of [
       ['report-pos-price-changes', 'POS price changes: review recorded unit-price overrides'],

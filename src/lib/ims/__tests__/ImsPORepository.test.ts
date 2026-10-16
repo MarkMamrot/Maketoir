@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../consignment/ownership', () => ({
+  ConsignmentConflict: class ConsignmentConflict extends Error {},
+  assertConsignmentDocument: vi.fn().mockResolvedValue(null),
+  snapshotMovementOwnership: vi.fn(),
+}));
+
 const { mockGetIMSPool, mockImsExecute, mockImsQuery, mockLockInventoryCostState, mockCreateFifoCostLayer, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockImsExecute: vi.fn(),
@@ -32,8 +38,13 @@ beforeEach(() => {
 
 describe('ImsPORepo.create', () => {
   it('stamps new purchase-order lines with the owning business', async () => {
-    mockImsExecute.mockResolvedValueOnce({ insertId: 42 }).mockResolvedValueOnce({ insertId: 11 });
-    mockImsQuery.mockResolvedValueOnce([{ variant_id: 'v-1', is_stock_item: 1 }]);
+    const execute = vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('INSERT INTO ims_purchase_orders')) return [{ insertId: 42 }];
+      if (sql.includes('SELECT v.variant_id')) return [[{ variant_id: 'v-1', is_stock_item: 1 }]];
+      return [{ insertId: 11 }];
+    });
+    const connection = { beginTransaction: vi.fn(), execute, commit: vi.fn(), rollback: vi.fn(), release: vi.fn() };
+    mockGetIMSPool.mockReturnValue({ getConnection: vi.fn().mockResolvedValue(connection) });
 
     await ImsPORepo.create({
       po_number: 'PO-42', location_id: 4, status: 'draft', order_date: '2026-09-29',
@@ -43,10 +54,11 @@ describe('ImsPORepo.create', () => {
       tax_rate: 0.1, line_total: 5, notes: null,
     }], undefined, 'biz-1');
 
-    expect(mockImsExecute).toHaveBeenNthCalledWith(2,
+    expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('(business_id,po_id,variant_id'),
       ['biz-1', 42, 'v-1', 1, 5, 0, 0.1, 5, null, 1],
     );
+    expect(connection.commit).toHaveBeenCalledOnce();
   });
 });
 

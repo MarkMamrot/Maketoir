@@ -1,5 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/lib/ims/consignment/ownership', () => ({
+  ConsignmentConflict: class ConsignmentConflict extends Error {},
+  resolveCurrentOwnership: vi.fn().mockResolvedValue({ ownership: 'owned', supplierId: null }),
+  snapshotMovementOwnership: vi.fn(),
+}));
+vi.mock('@/lib/ims/consignment/sourceCapture', () => ({
+  assertConsignmentPosMutationAllowed: vi.fn().mockResolvedValue(false),
+  captureConsignmentSale: vi.fn(), captureConsignmentRefund: vi.fn(), reverseConsignmentRefunds: vi.fn(),
+}));
+
 const { mockGetIMSPool, mockApplyTransaction, mockReserveReward, mockReversePosSale, mockReversePosReturn, mockReconcilePosSaleEarn, mockUnwindGiftCards, mockSyncConfiguredCustomer, mockGetPosStockQtyChange, mockLockInventoryCostState, mockConsumeFifoCostLayers, mockReverseFifoStockMovementLayers } = vi.hoisted(() => ({
   mockGetIMSPool: vi.fn(),
   mockApplyTransaction: vi.fn(),
@@ -47,6 +57,8 @@ vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
 
 import { PosEodRepo, PosSalesRepo } from '@/lib/db/PosRepository';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { resolveCurrentOwnership } from '@/lib/ims/consignment/ownership';
+import { captureConsignmentSale } from '@/lib/ims/consignment/sourceCapture';
 
 describe('PosEodRepo layby deposits', () => {
   beforeEach(() => vi.mocked(imsQuery).mockReset());
@@ -76,7 +88,7 @@ describe('PosEodRepo layby deposits', () => {
   });
 });
 
-function saleData() {
+function saleData(): Parameters<typeof PosSalesRepo.complete>[0] {
   return {
     business_id: 'business-1',
     local_id: 'local-1',
@@ -138,6 +150,7 @@ function setupConnections(settings: Array<{ key: string; value: string }>, conta
 describe('PosSalesRepo loyalty earning', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(resolveCurrentOwnership).mockResolvedValue({ ownership: 'owned', supplierId: null });
     mockApplyTransaction.mockResolvedValue({ transactionId: 8, accountId: 9, balanceAfter: 100, duplicate: false });
     mockReserveReward.mockResolvedValue({
       transactionId: 10,
@@ -225,6 +238,38 @@ describe('PosSalesRepo loyalty earning', () => {
     );
     expect(saleConnection.commit).toHaveBeenCalledOnce();
     expect(stockConnection.beginTransaction).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('captures Average Cost consignment stock and source in the sale transaction (source failure=%s)', async sourceFailure => {
+    const data = saleData();
+    data.customer_id = null;
+    data.items[0].variant_id = 'variant-1';
+    vi.mocked(resolveCurrentOwnership).mockResolvedValue({ ownership: 'consignment', supplierId: 8 });
+    const connection = {
+      beginTransaction: vi.fn(), commit: vi.fn(), rollback: vi.fn(), release: vi.fn(),
+      execute: vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('INSERT INTO pos_sales')) return [{ insertId: 101 }];
+        if (sql.includes('INSERT INTO pos_sale_items')) return [{ insertId: 202 }];
+        if (sql.includes('FROM ims_product_variants pv')) return [[{ stock_variant_id: 'variant-1', qty_on_hand: 5, qty_committed: 0, avg_cost: 20, is_stock_item: 1 }]];
+        return [{ insertId: 501, affectedRows: 1 }];
+      }),
+    };
+    const getConnection = vi.fn().mockResolvedValue(connection);
+    mockGetIMSPool.mockReturnValue({ getConnection });
+    if (sourceFailure) vi.mocked(captureConsignmentSale).mockRejectedValueOnce(new Error('Missing original supplier evidence'));
+    const completion = PosSalesRepo.complete(data);
+    if (sourceFailure) {
+      await expect(completion).rejects.toThrow(/original supplier evidence/);
+      expect(connection.rollback).toHaveBeenCalledOnce();
+      expect(connection.commit).not.toHaveBeenCalled();
+    } else {
+      await expect(completion).resolves.toMatchObject({ saleId: 101, stockError: undefined });
+      expect(captureConsignmentSale).toHaveBeenCalledWith(connection, expect.objectContaining({
+        sourceId: 101, sourceLineId: 202, quantity: 1, unitCost: 20, channel: 'pos',
+      }));
+      expect(vi.mocked(captureConsignmentSale).mock.invocationCallOrder[0]).toBeLessThan(connection.commit.mock.invocationCallOrder[0]);
+    }
+    expect(getConnection).toHaveBeenCalledOnce();
   });
 
   it('allows an oversell while warning and marking received allocations at risk', async () => {

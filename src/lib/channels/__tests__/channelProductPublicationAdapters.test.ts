@@ -73,13 +73,18 @@ describe('channel product publication adapters', () => {
     expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'active' });
   });
 
-  it('creates and exactly maps an unmapped Shopify product before publishing it', async () => {
+  it.each([
+    { option1_name: null, option1_value: null },
+    { option1_name: 'Size', option1_value: 'Default', option2_name: 'Colour', option2_value: null },
+    { option1_name: 'Size', option1_value: 'Default', option2_name: 'Colour', option2_value: 'Default' },
+    { option1_name: 'Title', option1_value: 'Default' },
+  ])('creates a simple Shopify product for the internal default row: %j', async defaultOptions => {
     mocks.query.mockResolvedValue([]);
     mocks.productGet.mockResolvedValue({
       product_id: 'product-1', name: 'Blue Vase', website_title: 'Blue Vase', description: 'Glazed vase',
       brand: 'Example', product_type: 'Homewares', tags: 'blue', is_active: 1, is_stock_item: 1,
       variants: [{ variant_id: 'variant-1', is_active: 1, sku: 'BLUE-1', barcode: null, price_rrp: 29.95,
-        price_rrp_sale: null, weight_kg: 0.5, option1_name: null, option1_value: null }],
+        price_rrp_sale: null, weight_kg: 0.5, ...defaultOptions }],
     });
     mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
     mocks.shopifyCreate.mockResolvedValue({ id: 9988, variants: [{ id: 7766, inventory_item_id: 5544 }] });
@@ -87,12 +92,33 @@ describe('channel product publication adapters', () => {
       businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'product-1', desiredState: 'published',
     })).resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '9988' });
     expect(mocks.query.mock.calls[1]?.[0]).toContain('BINARY variant.variant_id = BINARY mapping.variant_id');
-    expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+    expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'draft', options: undefined,
+      variants: [expect.objectContaining({ sku: 'BLUE-1', price: '29.95', option1: 'Default Title' })],
+    }));
+    expect(mocks.shopifyCreate.mock.calls[0][0].variants[0]).not.toHaveProperty('option2');
     expect(mocks.syncSkus).toHaveBeenCalledWith('9988', [{ id: '7766', sku: 'BLUE-1' }]);
     expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('ims_sales_channel_product_mappings'),
       expect.arrayContaining(['business-1', 'shopify-2', 'variant-1', '9988', '7766', '5544']));
     expect(mocks.inventoryPush).toHaveBeenCalledWith(expect.objectContaining({ channelInstanceId: 'shopify-2' }));
     expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'active' });
+  });
+
+  it('preserves a genuine single option instead of treating every singleton as default', async () => {
+    mocks.query.mockResolvedValue([]);
+    mocks.productGet.mockResolvedValue({
+      name: 'Vase', is_active: 1,
+      variants: [{ variant_id: 'v1', sku: 'RED', price_rrp: 20,
+        option1_name: 'Size', option1_value: 'Default', option2_name: 'Colour', option2_value: 'Red' }],
+    });
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
+    mocks.shopifyCreate.mockResolvedValue({ id: 9988, variants: [{ id: 7766, inventory_item_id: 5544 }] });
+    await publishShopifyProduct({
+      businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'p1', desiredState: 'published',
+    });
+    expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({
+      options: [{ name: 'Colour' }], variants: [expect.objectContaining({ option1: 'Red', sku: 'RED' })],
+    }));
   });
 
   it('does not publish a newly created listing when Shopify fails to persist its SKU', async () => {

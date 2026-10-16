@@ -3,7 +3,7 @@ import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
-import { valuationDate, ValuationDateError } from '@/lib/ims/inventoryValuation';
+import { parseValuationOwnership, valuationDate, valuationOwnershipTotals, ValuationDateError } from '@/lib/ims/inventoryValuation';
 import { loadHistoricalValuation } from '@/lib/ims/inventoryValuation.server';
 
 export async function GET(req: Request) {
@@ -17,14 +17,20 @@ export async function GET(req: Request) {
   const productId   = searchParams.get('productId')   ?? '';
 
   const conds: string[] = ['v.is_active = 1', 'p.is_active = 1', 'p.business_id = ?'];
-  const filterParams: any[] = [session.businessId];
+  const filterParams: Array<string | number> = [session.businessId];
   if (productId)   { conds.push('v.variant_id = ?');           filterParams.push(productId); }
   if (brand)       { conds.push('p.brand = ?');                filterParams.push(brand); }
   if (supplierId)  { conds.push('p.supplier_contact_id = ?');  filterParams.push(Number(supplierId)); }
   if (productType) { conds.push('p.product_type = ?');         filterParams.push(productType); }
-  const where = 'WHERE ' + conds.join(' AND ');
-
   try {
+    const ownership = parseValuationOwnership(searchParams.get('ownership'));
+    if (ownership !== 'all') {
+      conds.push(`${ownership === 'consignment' ? '' : 'NOT '}EXISTS (
+        SELECT 1 FROM ims_contacts owner
+         WHERE owner.id = p.supplier_contact_id AND owner.business_id = p.business_id
+           AND owner.is_consignment = 1)`);
+    }
+    const ownershipWhere = 'WHERE ' + conds.join(' AND ');
     const timeZone = await getBusinessTimeZone(session.businessId);
     const date = valuationDate(searchParams.get('asAt'), timeZone);
     const metadata = {
@@ -32,9 +38,9 @@ export async function GET(req: Request) {
     };
     if (date.historical) {
       const result = await loadHistoricalValuation(session.businessId, date.cutoff, {
-        brand, supplierId, productType, productId,
+        brand, supplierId, productType, productId, ownership,
       });
-      return NextResponse.json({ success: true, ...result, ...metadata });
+      return NextResponse.json({ success: true, ...result, ...metadata, ownership, ownership_totals: valuationOwnershipTotals(result.data) });
     }
     const costingRows = await imsQuery<{ active_method: 'average_cost' | 'fifo'; active_epoch_id: number | null }>(
       `SELECT active_method, active_epoch_id
@@ -58,6 +64,7 @@ export async function GET(req: Request) {
       soh: number;
       total_value: number;
       layer_quantity: number | null;
+      is_consignment: number;
     }>(costingMethod === 'fifo' ? `
       SELECT
         v.variant_id,
@@ -65,6 +72,7 @@ export async function GET(req: Request) {
         p.name,
         p.brand,
         c.name as supplier_name,
+        COALESCE(c.is_consignment, 0) AS is_consignment,
         CASE WHEN COALESCE(f.layer_quantity, 0) > 0
           THEN f.layer_value / f.layer_quantity ELSE 0 END AS cost,
         COALESCE(s.soh, 0) AS soh,
@@ -86,7 +94,7 @@ export async function GET(req: Request) {
          WHERE business_id = ? AND epoch_id = ?
          GROUP BY variant_id
       ) f ON f.variant_id = v.variant_id
-      ${where}
+      ${ownershipWhere}
       HAVING soh > 0 OR layer_quantity > 0
       ORDER BY p.brand, p.name, v.sku
     ` : `
@@ -96,6 +104,7 @@ export async function GET(req: Request) {
         p.name,
         p.brand,
         c.name as supplier_name,
+        COALESCE(c.is_consignment, 0) AS is_consignment,
         COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud, 0) AS cost,
         COALESCE(SUM(s.qty_on_hand), 0) AS soh,
         COALESCE(SUM(s.qty_on_hand), 0) * COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud, 0) AS total_value,
@@ -104,7 +113,7 @@ export async function GET(req: Request) {
       JOIN ims_products p ON p.product_id = v.product_id
       LEFT JOIN ims_contacts c ON p.supplier_contact_id = c.id
       LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.business_id = ?
-      ${where}
+      ${ownershipWhere}
       GROUP BY v.variant_id
       HAVING soh > 0
       ORDER BY p.brand, p.name, v.sku
@@ -114,6 +123,7 @@ export async function GET(req: Request) {
 
     const data = rows.map(r => ({
       ...r,
+      is_consignment: Number(r.is_consignment ?? 0) === 1,
       soh: Number(r.soh ?? 0),
       cost: Number(r.cost ?? 0),
       total_value: Number(r.total_value ?? 0),
@@ -166,6 +176,8 @@ export async function GET(req: Request) {
       success: true,
       ...metadata,
       data,
+      ownership,
+      ownership_totals: valuationOwnershipTotals(data),
       costing_method: costingMethod,
       cost_epoch_id: costEpochId,
       reconciliation: {
@@ -192,4 +204,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: e instanceof Error ? e.message : 'Inventory valuation failed.' }, { status: 500 });
   }
 }
-

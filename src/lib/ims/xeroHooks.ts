@@ -16,6 +16,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { resolvePODocumentAction, resolveSODocumentAction } from '@/lib/xero/documentPolicies';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { syncPOAsDraftBill, syncPOAttachmentsToXero, updateXeroDraftBill, approveBill, syncPOReceivedJournal, syncPOPayment, syncSOPayment, syncSOAsInvoice, updateXeroDraftInvoice, approveInvoice, markPoXeroStatus, markSoXeroStatus, voidXeroBill, voidXeroInvoice, syncCNAsCreditNote, markCNXeroStatus, syncSupplierCNAsCreditNote, markSupplierCNXeroStatus, voidXeroCreditNote, voidXeroSupplierCreditNote, updateXeroDraftCustomerCreditNote, updateXeroDraftSupplierCreditNote, approveCreditNote } from '@/services/XeroSyncService';
+import { isConsignmentPurchase, CONSIGNMENT_XERO_EXCLUSION } from '@/lib/xero/consignmentEligibility';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 
@@ -109,6 +110,7 @@ export async function triggerPOXeroSync(
   supplierInvoiceNumberOverride?: string,
 ): Promise<void> {
   if (!isOrderXeroEligible(newStatus)) return;
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return;
   if (!await isXeroConnected(businessId)) return;
 
   const policy = await loadDocumentPolicy(businessId);
@@ -156,6 +158,7 @@ export async function triggerPOXeroSync(
  */
 export async function triggerPOXeroUpdate(businessId: string, poId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
   try {
+    if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return { attempted: false, updated: false, warning: null };
     if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
     const po = await ImsPORepo.get(poId, businessId);
     if (!po || !isOrderXeroEligible(String((po as any).status ?? ''))) return { attempted: false, updated: false, warning: null };
@@ -238,6 +241,9 @@ async function resolveAccountingActionFailure(
 /** Triggered when staff explicitly choose Post to Xero for a PO payment. */
 export async function triggerPOPaymentXeroSync(businessId: string, poId: number, paymentId: number): Promise<OrderPaymentXeroResult> {
   await assertXeroAccountingEnabled(businessId);
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) {
+    throw Object.assign(new Error(CONSIGNMENT_XERO_EXCLUSION), { status: 409 });
+  }
   await setOrderPaymentXeroState('po', businessId, paymentId, 'pending');
   if (!await isXeroConnected(businessId)) {
     return failOrderPaymentXeroPost('po', businessId, paymentId, 'Xero is not connected for this business.');
@@ -452,6 +458,7 @@ export async function triggerCNXeroUpdate(businessId: string, cnId: number): Pro
  */
 export async function triggerSupplierCNXeroUpdate(businessId: string, scnId: number): Promise<{ attempted: boolean; updated: boolean; warning: string | null }> {
   try {
+    if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scnId)) return { attempted: false, updated: false, warning: null };
     if (!await isXeroConnected(businessId)) return { attempted: false, updated: false, warning: null };
     const scn = await ImsSupplierCNRepo.get(scnId, businessId);
     if (!scn || scn.status !== 'draft') return { attempted: false, updated: false, warning: null };
@@ -482,6 +489,7 @@ export async function triggerSupplierCNXeroUpdate(businessId: string, scnId: num
  * Non-blocking — returns a human-readable warning string if the void failed, null if successful or no bill existed.
  */
 export async function triggerPOXeroVoid(businessId: string, poId: number): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return null;
   if (!await isXeroConnected(businessId)) return null;
 
   const po = await ImsPORepo.get(poId, businessId);
@@ -598,6 +606,7 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
 }
 /** Triggered when a supplier credit note is completed → post ACCPAY credit note. */
 export async function triggerSupplierCNXeroSync(businessId: string, scnId: number): Promise<void> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scnId)) return;
   if (!(await isXeroConnected(businessId))) return;
   const scn = await ImsSupplierCNRepo.get(scnId, businessId);
   if (!scn || scn.status !== 'complete') return;
@@ -682,6 +691,7 @@ export async function resolveSupplierCNXeroCreditNoteId(businessId: string, scnI
 }
 
 export async function triggerSupplierCNXeroVoid(businessId: string, scnId: number): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scnId)) return null;
   if (!(await isXeroConnected(businessId))) return null;
 
   const scn = await ImsSupplierCNRepo.get(scnId, businessId);

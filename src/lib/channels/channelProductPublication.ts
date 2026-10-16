@@ -1,4 +1,5 @@
 import type { SalesChannelProvider } from '@/lib/channels/types';
+import { getChannelProductReadiness } from './channelProductReadiness';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -152,7 +153,12 @@ export async function processChannelProductPublicationJobs(input: {
           WHERE business_id = ? AND channel_instance_id = ? AND product_id = ? AND desired_state = ?`,
         [input.businessId, input.channelInstanceId, payload.productId, payload.desiredState],
       );
-      const outcome = await input.adapter({ ...input, productId: payload.productId, desiredState: payload.desiredState });
+      const requirements = payload.desiredState === 'published'
+        ? (await getChannelProductReadiness(input.businessId, [payload.productId]))[0].issues
+        : [];
+      const outcome: ChannelProductPublicationResult = requirements.length
+        ? { outcome: 'blocked', issues: requirements }
+        : await input.adapter({ ...input, productId: payload.productId, desiredState: payload.desiredState });
       if (outcome.outcome === 'blocked') {
         await imsExecute(
           `UPDATE ims_sales_channel_product_assignments

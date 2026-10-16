@@ -6,6 +6,7 @@ export const fields = {
   dispatchDate: 'Dispatch Date', shipmentDate: 'Shipment Date', deliveryDate: 'Delivery Date', batch: 'Receipt Layer / Batch',
   currency: 'Currency', orderStatus: 'Sales Order Status', invoiceStatus: 'Invoice Status', creditRef: 'Return/Credit Note Reference',
   costMethod: 'Cost Method', movementId: 'Movement ID', source: 'Source', quality: 'Evidence Status',
+  ownership: 'Stock Ownership',
   qty: 'Qty Sold', sales: 'Sales (AUD ex GST)', discount: 'Discount (AUD ex GST)', netSales: 'Net Sales (AUD ex GST)',
   cogs: 'COGS (AUD)', knownCogs: 'Captured COGS (AUD)', gp: 'GP (AUD)', gpPercent: 'GP %', tax: 'Tax/GST (AUD)',
   documentNetSales: 'Net Sales (document currency)', documentTax: 'GST (document currency)',

@@ -125,6 +125,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, data: scn, ...(xeroWarning ? { xeroWarning } : {}) });
   } catch (e: any) {
+    if (e?.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     if (e instanceof SupplierReturnConflict) {
       return NextResponse.json({ success: false, error: e.message, code: e.code }, { status: 409 });
     }

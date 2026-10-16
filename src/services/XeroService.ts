@@ -12,7 +12,7 @@
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { encrypt, decrypt } from '@/lib/encryption';
-import { ensurePausedXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
+import { ensureInitialXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { assertXeroPostingEnabled } from '@/lib/xero/postingPolicy';
 import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 export { XeroPostingDisabledError } from '@/lib/xero/postingPolicy';
@@ -164,7 +164,7 @@ export async function saveXeroTokens(
 ): Promise<void> {
   const existingConnection = await ConnectionsRepository.get(businessId);
   if (!existingConnection?.xero_tenant_id) {
-    await ensurePausedXeroDocumentPolicy(businessId);
+    await ensureInitialXeroDocumentPolicy(businessId);
   }
   const expiry = Date.now() + tokens.expires_in * 1000;
   await ConnectionsRepository.upsert(businessId, {

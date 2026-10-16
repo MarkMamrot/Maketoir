@@ -14,6 +14,7 @@ export interface Movement {
   id: number; documentId: number; referenceType: string; sourceLineId: number | null; variantId: string;
   locationId: number; warehouse: string | null; date: string; type: string; qtyChange: number;
   unitCost: number | null; costMethod: string; historical: boolean; stockItem: boolean;
+  consignmentSupplierId?: number | null;
 }
 
 export interface Allocation {
@@ -92,6 +93,11 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
     peerCount.set(key, (peerCount.get(key) ?? 0) + 1);
   }
   const inRange = (date: string) => date >= input.from && date < input.toExclusive;
+  const ownership = (movements: Movement[]) => {
+    if (!movements.length) return null;
+    const consignment = movements.filter(movement => movement.consignmentSupplierId != null).length;
+    return consignment === 0 ? 'Owned' : consignment === movements.length ? 'Consignment' : 'Mixed';
+  };
   const baseRow = (line: typeof lines[number], id: string) => Object.assign(emptyRow(id), {
     source: line.source, variantId: line.variantId, orderRef: line.orderRef, invoiceNo: line.invoiceNo, saleDate: line.saleDate,
     customer: line.customer, channel: line.channel, channelInstance: line.channelInstance, cashier: line.cashier,
@@ -146,8 +152,10 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
         row.saleDate = eventDate;
         row.movementId = eventMovements.map(movement => movement.id).join(', ') || null;
         row.costMethod = [...new Set(eventMovements.map(movement => movement.costMethod))].join(', ') || null;
+        row.ownership = ownership(eventMovements);
         row.movementDate = eventMovements.length === 1 ? eventMovements[0].date : null;
         row.quality = `${line.evidence}; ${line.source === 'history' ? 'imported invoice date' : 'sale-date fallback (invoice date not recorded)'}${row.cogs == null ? '; COGS incomplete/unfulfilled' : ''}${reversal ? '; credit reversal' : ''}`;
+        if (eventMovements.some(movement => movement.consignmentSupplierId != null)) row.quality += '; consignment internal COGS retained; intentionally excluded from Xero COGS';
         rows.push(row);
       }
     } else {
@@ -168,8 +176,10 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
         row.warehouse = movement.warehouse;
         row.fulfilmentLocation = movement.warehouse;
         row.costMethod = movement.costMethod;
+        row.ownership = ownership([movement]);
         row.shipmentDate = movement.type === 'so_fulfilled' ? movement.date : null;
         if (canAttribute) row.quality = `${line.evidence}; revenue attributed to stock event${cost(movement) == null ? '; captured cost missing' : ''}`;
+        if (movement.consignmentSupplierId != null) row.quality += '; consignment internal COGS retained; intentionally excluded from Xero COGS';
         rows.push(row);
       }
       if ((!line.stockItem || !line.restock) && inRange(line.saleDate)) {
@@ -194,7 +204,8 @@ export function projectReport(input: { lines: SalesLine[]; movements: Movement[]
       warehouse: movement.warehouse, fulfilmentLocation: movement.warehouse, qty: -movement.qtyChange,
       cogs: movement.unitCost == null || movement.unitCost < 0 ? null : -movement.qtyChange * movement.unitCost,
       costMethod: movement.costMethod, currency: 'AUD', channel: movement.referenceType === 'pos_sale' ? 'POS' : 'Unresolved',
-      quality: 'Unmatched stock movement: financial attribution unavailable' }));
+      ownership: ownership([movement]),
+      quality: `Unmatched stock movement: financial attribution unavailable${movement.consignmentSupplierId != null ? '; consignment internal COGS retained; intentionally excluded from Xero COGS' : ''}` }));
   }
   return rows.map(row => ({ ...row, knownCogs: row.cogs ?? row.knownCogs }));
 }

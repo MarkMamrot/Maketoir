@@ -114,7 +114,7 @@ export function EarlyPaymentDiscountSettingsSection() {
         <div style={{ marginBottom: 16, borderTop: '1px solid var(--sv-etch)' }}>
           {rules.length === 0 && <div style={{ padding: '12px 0', color: 'var(--sv-text-dim)', fontSize: 13 }}>No rules configured.</div>}
           {rules.map(rule => (
-            <div key={rule.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--sv-etch)', opacity: rule.is_active ? 1 : .6 }}>
+            <div key={rule.id} data-settings-fields style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) auto auto', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--sv-etch)', opacity: rule.is_active ? 1 : .6 }}>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{rule.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 2 }}>{Number(rule.discount_basis_points) / 100}% within {rule.discount_days} days · {rule.contact_usage_count} contact defaults · {rule.order_usage_count} orders</div>
@@ -126,13 +126,13 @@ export function EarlyPaymentDiscountSettingsSection() {
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 110px 110px', gap: 10, alignItems: 'end' }}>
+      <div data-settings-fields style={{ display: 'grid', gridTemplateColumns: 'minmax(180px, 1fr) 110px 110px', gap: 16, alignItems: 'end' }}>
         <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Rule name<input value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} placeholder="5% within 10 days" style={{ ...fieldStyle, marginTop: 4 }} /></label>
         <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Discount %<input type="number" min="0.01" max="100" step="0.01" value={draft.discountPercent} onChange={event => setDraft(current => ({ ...current, discountPercent: event.target.value }))} style={{ ...fieldStyle, marginTop: 4 }} /></label>
         <label style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Days<input type="number" min="0" max="3650" step="1" value={draft.discountDays} onChange={event => setDraft(current => ({ ...current, discountDays: event.target.value }))} style={{ ...fieldStyle, marginTop: 4 }} /></label>
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 10, fontSize: 12, color: 'var(--sv-text-main)' }}><input type="checkbox" checked={draft.isActive} onChange={event => setDraft(current => ({ ...current, isActive: event.target.checked }))} /> Active</label>
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 20 }}>
         <button type="button" onClick={save} disabled={saving || !draft.name.trim() || !draft.discountPercent || draft.discountDays === ''} style={{ padding: '7px 14px', border: 0, borderRadius: 6, background: 'var(--sv-action)', color: '#fff', cursor: 'pointer', opacity: saving ? .6 : 1 }}>{saving ? 'Saving...' : editingId ? 'Save rule' : 'Add rule'}</button>
         {editingId && <button type="button" onClick={reset} style={{ padding: '7px 14px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'transparent', color: 'var(--sv-text-main)', cursor: 'pointer' }}>Cancel</button>}
       </div>

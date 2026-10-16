@@ -21,6 +21,7 @@ describe('Xero payment and receipt-journal actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
+    mocks.imsQuery.mockResolvedValue([{ consignment_supplier_id: null }]);
     mocks.query.mockImplementation((sql: string) => {
       if (sql.includes('xero_account_mappings')) return Promise.resolve([
         { role_key: 'inventory_asset', xero_account_code: '630' },
@@ -167,8 +168,8 @@ describe('Xero payment and receipt-journal actions', () => {
 
     await expect(syncCogsJournal({ businessId: 'biz-1', label: 'September 2026', journalDate: '2026-09-30', amount: 100,
       buckets: [
-        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
-        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
       ],
     })).resolves.toEqual({ journalId: 'cogs-journal-1', xeroState: 'POSTED' });
 
@@ -188,7 +189,7 @@ describe('Xero payment and receipt-journal actions', () => {
       { role_key: 'cogs', xero_account_code: '500' }, { role_key: 'inventory_asset', xero_account_code: '630' },
     ]) : Promise.resolve([]));
     await expect(syncCogsJournal({ businessId: 'biz-1', label: 'September 2026', journalDate: '2026-09-30', amount: 100,
-      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 99 }],
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 99, ownership: 'owned', ownershipEvidence: 'movement_snapshot' }],
     })).rejects.toThrow('do not reconcile');
     expect(mocks.xeroFetch).not.toHaveBeenCalled();
   });
@@ -204,7 +205,7 @@ describe('Xero payment and receipt-journal actions', () => {
 
     await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'draft-1', label: 'July 2026',
       journalDate: '2026-07-31', amount: 100,
-      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100, ownership: 'owned', ownershipEvidence: 'movement_snapshot' }],
     })).resolves.toEqual({ journalId: 'draft-1', xeroState: 'POSTED' });
 
     expect(mocks.xeroFetch.mock.calls[2][1]).toBe('/ManualJournals/draft-1');
@@ -219,7 +220,7 @@ describe('Xero payment and receipt-journal actions', () => {
 
     await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'draft-1', label: 'July 2026',
       journalDate: '2026-07-31', amount: 100,
-      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100, ownership: 'owned', ownershipEvidence: 'movement_snapshot' }],
     })).rejects.toThrow('locked in Xero');
     expect(mocks.claim).not.toHaveBeenCalled();
   });
@@ -231,7 +232,7 @@ describe('Xero payment and receipt-journal actions', () => {
 
     await expect(syncCogsJournal({ businessId: 'biz-1', runId: 42, existingJournalId: 'voided-1', label: 'July 2026',
       journalDate: '2026-07-31', amount: 100,
-      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100 }],
+      buckets: [{ locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 100, ownership: 'owned', ownershipEvidence: 'movement_snapshot' }],
     })).rejects.toThrow('VOIDED');
     expect(mocks.claim).not.toHaveBeenCalled();
   });

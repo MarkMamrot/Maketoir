@@ -2,6 +2,17 @@
 import Shopify from 'shopify-api-node';
 import { StandardizedProduct } from '../types/StandardizedData';
 import { parseShopifyOrderRecipientName } from '@/lib/ims/shopifyOrderAddress';
+import {
+  assertShopifyDefaultOptionRepairPreserved, isShopifyPlaceholderOptionValue,
+  type ShopifyProductOptionsSnapshot,
+} from '@/lib/ims/shopifyProductOptions';
+
+const SHOPIFY_OPTION_SNAPSHOT_FIELDS = `
+  id title options { id name values optionValues { id name } }
+  variants(first: 2) {
+    nodes { id sku barcode price inventoryItem { id } selectedOptions { name value } }
+    pageInfo { hasNextPage }
+  }`;
 
 export class ShopifyAdminUserError extends Error {
   readonly userErrors: Array<{ field?: string[] | null; message: string; code?: string | null }>;
@@ -50,6 +61,8 @@ export interface ShopifyUpdatedOrder {
 export interface ShopifySkuVariant {
   id: string;
   sku: string | null;
+  displayName?: string;
+  createdAt?: string;
   product: { id: string };
   inventoryItem: { id: string; sku: string | null };
 }
@@ -954,6 +967,63 @@ export class ShopifyService {
     return result.nodes;
   }
 
+  async getProductOptionsSnapshots(ids: string[]): Promise<Array<ShopifyProductOptionsSnapshot | null>> {
+    if (ids.length === 0 || ids.length > 100) throw new Error('Read between 1 and 100 Shopify products at a time.');
+    const result = await this.skuGraphql<{ nodes: Array<ShopifyProductOptionsSnapshot | null> }>(
+      `query productOptionsPreview($ids: [ID!]!) {
+        nodes(ids: $ids) { ... on Product { ${SHOPIFY_OPTION_SNAPSHOT_FIELDS} } }
+      }`, { ids: ids.map(id => `gid://shopify/Product/${id}`) },
+    );
+    if (result.nodes.length !== ids.length) throw new Error('Shopify returned an incomplete product options lookup.');
+    return result.nodes;
+  }
+
+  async removeArtificialDefaultOptions(before: ShopifyProductOptionsSnapshot): Promise<ShopifyProductOptionsSnapshot> {
+    if (before.variants.nodes.length !== 1 || before.variants.pageInfo.hasNextPage || !before.options.length
+      || before.options.some(option => !option.values.length || option.values.some(value => !isShopifyPlaceholderOptionValue(value)))
+      || !before.variants.nodes[0].selectedOptions.length
+      || before.variants.nodes[0].selectedOptions.some(option => !isShopifyPlaceholderOptionValue(option.value))) {
+      throw new Error('Only a single Shopify variant with placeholder-only options can be repaired.');
+    }
+    type OptionRepairResult = {
+      product: ShopifyProductOptionsSnapshot | null;
+      userErrors: Array<{ message: string }>;
+    };
+    let update: OptionRepairResult;
+    if (before.options.length === 1) {
+      const option = before.options[0];
+      if (option.values.length !== 1 || option.optionValues?.length !== 1) {
+        throw new Error('A single-option repair requires exactly one identified option value.');
+      }
+      // Shopify leaves an existing sole Title option intact when asked to delete it.
+      const result = await this.skuGraphql<{ productOptionUpdate: OptionRepairResult }>(
+        `mutation normalizeDefaultOption($productId: ID!, $option: OptionUpdateInput!, $values: [OptionValueUpdateInput!]) {
+          productOptionUpdate(productId: $productId, option: $option,
+            optionValuesToUpdate: $values, variantStrategy: LEAVE_AS_IS) {
+            product { ${SHOPIFY_OPTION_SNAPSHOT_FIELDS} }
+            userErrors { message }
+          }
+        }`, {
+          productId: before.id, option: { id: option.id, name: 'Title' },
+          values: [{ id: option.optionValues[0].id, name: 'Default Title' }],
+        });
+      update = result.productOptionUpdate;
+    } else {
+      const result = await this.skuGraphql<{ productOptionsDelete: OptionRepairResult }>(
+        `mutation removeArtificialDefaultOptions($productId: ID!, $options: [ID!]!) {
+      productOptionsDelete(productId: $productId, options: $options, strategy: NON_DESTRUCTIVE) {
+        product { ${SHOPIFY_OPTION_SNAPSHOT_FIELDS} }
+        userErrors { message }
+      }
+    }`, { productId: before.id, options: before.options.map(option => option.id) });
+      update = result.productOptionsDelete;
+    }
+    if (update.userErrors.length) throw new ShopifyAdminUserError(update.userErrors);
+    if (!update.product) throw new Error('Shopify option repair returned no product.');
+    assertShopifyDefaultOptionRepairPreserved(before, update.product);
+    return update.product;
+  }
+
   async getSkuVariantsPage(after: string | null = null): Promise<{
     nodes: ShopifySkuVariant[]; pageInfo: { hasNextPage: boolean; endCursor: string | null };
   }> {
@@ -961,7 +1031,7 @@ export class ShopifyService {
       nodes: ShopifySkuVariant[]; pageInfo: { hasNextPage: boolean; endCursor: string | null };
     } }>(`query skuCatalogue($after: String) {
       productVariants(first: 250, after: $after) {
-        nodes { id sku product { id } inventoryItem { id sku } }
+        nodes { id sku displayName createdAt product { id } inventoryItem { id sku } }
         pageInfo { hasNextPage endCursor }
       }
     }`, { after });

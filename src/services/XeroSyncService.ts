@@ -19,7 +19,7 @@
 import { getValidAccessToken, xeroApiFetch } from '@/services/XeroService';
 import { query, execute } from '@/services/MySQLService';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
-import { buildCogsBucketDescription, buildCogsJournalLines } from '@/lib/xero/cogsPeriods';
+import { buildCogsBucketDescription, buildCogsJournalLines, type CogsPostingBucket } from '@/lib/xero/cogsPeriods';
 import { calculateCashPosition, splitExpectedCashTender } from '@/lib/ims/cashBankingMath';
 import crypto from 'crypto';
 import { getXeroConfigurationNotice, reportXeroFailure } from '@/lib/xero/reportXeroFailure';
@@ -30,6 +30,7 @@ import {
 } from '@/lib/xero/accountingActionRepository';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { recordExpectedXeroDocument } from '@/lib/xero/reconciliation/expectedSnapshots';
+import { assertOwnedSupplierCredit, isConsignmentPurchase, isConsignmentSnapshot } from '@/lib/xero/consignmentEligibility';
 import fs from 'fs';
 import path from 'path';
 import { planLaybyJournal, splitLaybyEod } from '@/lib/pos/laybyAccounting';
@@ -320,13 +321,6 @@ export async function syncStocktakeJournal(
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
 
-  if (!accounts.inventory_asset || !accounts.stock_adjustment) {
-    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped',
-      'Missing inventory_asset or stock_adjustment account mapping');
-    await markStocktakeXeroStatus(businessId, stocktakeId, 'error');
-    throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
-  }
-
   // Fetch stocktake header + immutable item apply snapshots.
   const [stRows] = await Promise.all([
     imsQuery<{ id: number; reference: string; location_id: number; completed_at: string | null; status: string }>(
@@ -341,7 +335,7 @@ export async function syncStocktakeJournal(
   const items = await imsQuery<{
     variant_id: string; sku: string | null; product_name: string;
     expected_qty: string; counted_qty: string | null;
-    applied_delta: string | null; unit_cost_at_apply: string | null;
+    applied_delta: string | null; unit_cost_at_apply: string | null; consignment_supplier_id?: number | null;
   }>(
     `SELECT si.variant_id,
             pv.sku,
@@ -349,7 +343,13 @@ export async function syncStocktakeJournal(
             si.expected_qty,
             si.counted_qty,
             si.applied_delta,
-            si.unit_cost_at_apply
+            si.unit_cost_at_apply,
+            (SELECT sm.consignment_supplier_id FROM ims_stock_movements sm
+              WHERE sm.reference_type = 'stocktake' AND sm.movement_type = 'stocktake' AND sm.reference_id = st.id
+                AND sm.business_id = st.business_id AND sm.variant_id = si.variant_id
+                AND (sm.source_line_id = si.id OR sm.source_line_id IS NULL)
+                AND sm.location_id = st.location_id AND sm.consignment_supplier_id IS NOT NULL
+              LIMIT 1) AS consignment_supplier_id
        FROM ims_stocktake_items si
        JOIN ims_stocktakes st ON st.id = si.stocktake_id
        LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
@@ -365,8 +365,13 @@ export async function syncStocktakeJournal(
   const journalLines: any[] = [];
   let totalValue = 0;
   let skippedZeroValue = 0;
+  let excludedConsignmentValue = 0;
 
   for (const item of items) {
+    if (isConsignmentSnapshot(item)) {
+      excludedConsignmentValue += Math.abs(Number(item.applied_delta ?? 0) * Number(item.unit_cost_at_apply ?? 0));
+      continue;
+    }
     const expected = Number(item.expected_qty);
     const counted = Number(item.counted_qty);
     const appliedDelta = Number(item.applied_delta ?? 0);
@@ -396,9 +401,17 @@ export async function syncStocktakeJournal(
     const detail = skippedZeroValue > 0
       ? `No non-zero variance value to post (skipped ${skippedZeroValue} variance line${skippedZeroValue !== 1 ? 's' : ''} with zero unit cost).`
       : 'No non-zero variances to post';
-    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped', detail);
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped',
+      `${detail}; intentionally excluded consignment value $${excludedConsignmentValue.toFixed(2)}`);
     await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', null);
     return { journalId: null, lines: 0, totalValue: 0 };
+  }
+
+  if (!accounts.inventory_asset || !accounts.stock_adjustment) {
+    await logSync(businessId, 'stocktake_journal', stocktakeId, null, 'skipped',
+      'Missing inventory_asset or stock_adjustment account mapping');
+    await markStocktakeXeroStatus(businessId, stocktakeId, 'error');
+    throw new Error('Missing Xero account mappings: inventory_asset and stock_adjustment are required');
   }
 
   const journal = {
@@ -419,7 +432,7 @@ export async function syncStocktakeJournal(
       ? `; skipped ${skippedZeroValue} zero-value variance line${skippedZeroValue !== 1 ? 's' : ''}`
       : '';
     await logSync(businessId, 'stocktake_journal', stocktakeId, journalId, 'success',
-      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}${skippedSuffix}`,
+      `Journal posted: ${journalLines.length / 2} variance lines, total $${totalValue.toFixed(2)}${skippedSuffix}; intentionally excluded consignment value $${excludedConsignmentValue.toFixed(2)}`,
       journalState);
     await markStocktakeXeroStatus(businessId, stocktakeId, 'synced', journalId);
     return { journalId, lines: journalLines.length / 2, totalValue };
@@ -463,10 +476,16 @@ export async function syncStocktakeReversalJournal(
   const items = await imsQuery<{
     variant_id: string; sku: string | null; product_name: string;
     expected_qty: string; counted_qty: string | null;
-    applied_delta: string | null; unit_cost_at_apply: string | null;
+    applied_delta: string | null; unit_cost_at_apply: string | null; consignment_supplier_id?: number | null;
   }>(
     `SELECT si.variant_id, pv.sku, p.name AS product_name, si.expected_qty, si.counted_qty,
-            si.applied_delta, si.unit_cost_at_apply
+            si.applied_delta, si.unit_cost_at_apply,
+            (SELECT sm.consignment_supplier_id FROM ims_stock_movements sm
+              WHERE sm.reference_type = 'stocktake' AND sm.movement_type = 'stocktake' AND sm.reference_id = st.id
+                AND sm.business_id = st.business_id AND sm.variant_id = si.variant_id
+                AND (sm.source_line_id = si.id OR sm.source_line_id IS NULL)
+                AND sm.location_id = st.location_id AND sm.consignment_supplier_id IS NOT NULL
+              LIMIT 1) AS consignment_supplier_id
        FROM ims_stocktake_items si
        JOIN ims_stocktakes st ON st.id = si.stocktake_id
        LEFT JOIN ims_product_variants pv ON pv.variant_id = si.variant_id AND pv.business_id = st.business_id
@@ -478,6 +497,7 @@ export async function syncStocktakeReversalJournal(
   const journalLines: any[] = [];
   let totalValue = 0;
   for (const item of items) {
+    if (isConsignmentSnapshot(item)) continue;
     const appliedDelta = Number(item.applied_delta ?? 0);
     const absValue = Math.abs(appliedDelta * Number(item.unit_cost_at_apply ?? 0));
     if (Math.abs(appliedDelta) < 0.00001 || absValue < 0.00001) continue;
@@ -553,6 +573,7 @@ export async function markSoXeroStatus(
 
 interface POForSync {
   id: number;
+  consignment_supplier_id?: number | null;
   po_number: string;
   supplier_id?: number;
   supplier_name?: string;
@@ -589,6 +610,7 @@ export function calculatePOStockReceiptValueAud(
   po: POForSync,
   includeFreight: boolean,
 ): number {
+  if (isConsignmentSnapshot(po)) return 0;
   const taxTreatment = po.tax_treatment ?? 'ex_tax';
   const exTaxLineValue = (item: NonNullable<POForSync['items']>[number]) => {
     const lineTotal = Number(item.line_total ?? 0);
@@ -655,6 +677,7 @@ function appendPoSubtotalAdjustment(
  * Called when a PO is created or first synced.
  */
 export async function syncPOAsDraftBill(businessId: string, po: POForSync): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', po.id)) return null;
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
@@ -769,6 +792,7 @@ export async function syncPOAsDraftBill(businessId: string, po: POForSync): Prom
  * Called when a PO is edited (items, supplier, dates, freight) without a status change.
  */
 export async function updateXeroDraftBill(businessId: string, po: POForSync, xeroId: string): Promise<boolean> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', po.id)) return false;
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
@@ -1006,6 +1030,7 @@ export async function refundXeroCreditNote(input: {
   reference: string;
   actionKey: string;
 }): Promise<string> {
+  await assertOwnedSupplierCredit(input.businessId, input.creditNoteId);
   const state = await getXeroCreditNoteFinancialState(input.businessId, input.creditNoteId);
   if (!['AUTHORISED', 'PAID'].includes(String(state.status ?? '').toUpperCase())) {
     throw new Error('The Xero credit note must be Authorised before it can be refunded.');
@@ -1037,6 +1062,7 @@ export async function allocateXeroCreditNote(input: {
   amount: number;
   actionKey: string;
 }): Promise<string> {
+  await assertOwnedSupplierCredit(input.businessId, input.creditNoteId);
   const credit = await getXeroCreditNoteFinancialState(input.businessId, input.creditNoteId);
   const invoice = await getXeroInvoiceFinancialState(input.businessId, input.invoiceId);
   if (String(credit.status ?? '').toUpperCase() !== 'AUTHORISED') {
@@ -1071,6 +1097,7 @@ export async function deleteXeroCreditNoteAllocation(
   creditNoteId: string,
   allocationId: string,
 ): Promise<void> {
+  await assertOwnedSupplierCredit(businessId, creditNoteId);
   await xeroApiFetch(
     businessId,
     `/CreditNotes/${encodeURIComponent(creditNoteId)}/Allocations/${encodeURIComponent(allocationId)}`,
@@ -1082,6 +1109,7 @@ export async function deleteXeroCreditNoteAllocation(
  * Approve a Bill in Xero (when PO is received or has a payment).
  */
 export async function approveBill(businessId: string, xeroInvoiceId: string, poId: number): Promise<boolean> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return false;
   try {
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`, { method: 'GET' });
     const currentInvoice = current?.Invoices?.[0];
@@ -1127,6 +1155,7 @@ export async function syncPOPayment(
   xeroAccountCode: string,
   exchangeRate?: number,
 ): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return null;
   return syncOrderPayment({
     businessId, xeroInvoiceId, orderId: poId, paymentId, amount, paymentDate,
     currencyCode, xeroAccountCode, exchangeRate, orderType: 'po', expectedInvoiceType: 'ACCPAY',
@@ -1277,6 +1306,7 @@ export async function syncPOReceivedJournal(
   poOrAmount: POForSync | number,
   locationId: number,
 ): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return null;
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
 
@@ -1577,6 +1607,7 @@ export async function updateXeroDraftCustomerCreditNote(businessId: string, cn: 
 }
 
 export async function updateXeroDraftSupplierCreditNote(businessId: string, scn: SupplierCNForSync, xeroId: string): Promise<boolean> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scn.id)) return false;
   const accounts = await getAccountMappings(businessId);
   const trackingMappings = await getTrackingMappings(businessId);
   const taxTypes = getTaxTypes(businessId);
@@ -1679,6 +1710,7 @@ export async function voidXeroBill(
   xeroInvoiceId: string,
   poId: number,
 ): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return null;
   try {
     // Xero rules: DRAFT bills must be DELETED; AUTHORISED bills must be VOIDED.
     const current = await xeroApiFetch(businessId, `/Invoices/${xeroInvoiceId}`);
@@ -1813,6 +1845,7 @@ export async function voidXeroSupplierCreditNote(
   xeroCreditNoteId: string,
   scnId: number,
 ): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scnId)) return null;
   try {
     const current = await fetchXeroCreditNoteById(businessId, xeroCreditNoteId);
     if (!current) {
@@ -2686,9 +2719,19 @@ export async function syncCogsJournal(input: {
   label: string;
   journalDate: string;
   amount: number;
-  buckets: Array<{ locationId: number | null; locationName: string; channel: string; amount: number }>;
+  buckets: CogsPostingBucket[];
   runKind?: 'original' | 'adjustment';
 }): Promise<{ journalId: string; xeroState: string }> {
+  if (!input.buckets.length || input.buckets.some(bucket =>
+    !['owned', 'consignment'].includes(bucket.ownership)
+    || !['movement_snapshot', 'posted_journal_snapshot'].includes(bucket.ownershipEvidence))) {
+    throw new Error('Xero COGS posting blocked: every bucket requires explicit immutable ownership classification and evidence.');
+  }
+  const requestedTotal = roundCurrency(input.buckets.reduce((sum, bucket) => sum + bucket.amount, 0));
+  if (requestedTotal !== roundCurrency(input.amount)) throw new Error('COGS journal buckets do not reconcile to the requested amount');
+  const ownedBuckets = input.buckets.filter(bucket => bucket.ownership === 'owned');
+  if (!ownedBuckets.some(bucket => bucket.amount !== 0)) throw new Error('No owned COGS to post; consignment is intentionally excluded from Xero.');
+  input = { ...input, buckets: ownedBuckets, amount: roundCurrency(ownedBuckets.reduce((sum, bucket) => sum + bucket.amount, 0)) };
   if (input.existingJournalId) {
     const [journalResponse, organisationResponse] = await Promise.all([
       xeroApiFetch(input.businessId, `/ManualJournals/${encodeURIComponent(input.existingJournalId)}`, { method: 'GET' }),
@@ -2720,13 +2763,15 @@ export async function syncCogsJournal(input: {
 
   const runLabel = input.runKind === 'adjustment' ? 'COGS adjustment' : 'COGS';
   const description = `${runLabel} - ${input.label}`;
+  const cogsAccountCode = accounts.cogs;
+  const inventoryAccountCode = accounts.inventory_asset;
   const journalLines = input.buckets.flatMap(bucket => {
     const bucketDescription = buildCogsBucketDescription(bucket, runLabel);
     const tracking = getTrackingForLocation(trackingMappings, bucket.locationId, bucket.channel);
     return buildCogsJournalLines({
       amount: bucket.amount,
-      cogsAccountCode: accounts.cogs,
-      inventoryAccountCode: accounts.inventory_asset,
+      cogsAccountCode,
+      inventoryAccountCode,
       description: bucketDescription,
     }).map(line => ({ ...line, Tracking: tracking }));
   });
@@ -2804,24 +2849,18 @@ export async function syncCogsJournal(input: {
 
 /**
  * Post a manual journal: DR Cost of Goods Sold, CR Inventory Asset.
- * Amount = sum(qty_sold × avg_cost) for the given month.
+ * Recalculate the period from immutable movement ownership; never trust a caller's internal COGS total.
  */
 export async function syncMonthlyCOGSJournal(
   businessId: string,
   month: string, // YYYY-MM
-  totalCOGS: number,
-  locationId?: number,
+  _totalCOGS: number,
+  _locationId?: number,
 ): Promise<string | null> {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const journalDate = new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
-  const result = await syncCogsJournal({
-    businessId,
-    label: month,
-    journalDate,
-    amount: totalCOGS,
-    locationId,
-  });
-  return result.journalId;
+  const { getMonthlyCogsPeriod } = await import('@/lib/xero/cogsPeriods');
+  const { postCogsPeriod } = await import('@/services/XeroCogsService');
+  const result = await postCogsPeriod({ businessId, period: getMonthlyCogsPeriod(month) });
+  return result.outcome === 'posted' ? result.xeroId : null;
 }
 
 // ─── POS EOD → Xero (one invoice per payment method) ─────────────────────────
@@ -3975,6 +4014,7 @@ export async function approveCreditNote(
   referenceId: number,
   syncType: 'cn_credit_note' | 'scn_credit_note',
 ): Promise<boolean> {
+  if (syncType === 'scn_credit_note' && await isConsignmentPurchase(businessId, 'supplier_credit_note', referenceId)) return false;
   try {
     const result = await xeroApiFetch(businessId, `/CreditNotes/${xeroCreditNoteId}`, {
       method: 'POST',
@@ -4002,6 +4042,7 @@ export async function approveCreditNote(
 // ─── Supplier Credit Notes (ACCPAY) ──────────────────────────────────
 interface SupplierCNForSync {
   id: number;
+  consignment_supplier_id?: number | null;
   scn_number: string;
   supplier_id?: number | null;
   supplier_name?: string | null;
@@ -4082,6 +4123,7 @@ export async function syncPOAttachmentsToXero(
   xeroInvoiceId: string,
   onlyFilenames?: string[],
 ): Promise<string[]> {
+  if (await isConsignmentPurchase(businessId, 'purchase_order', poId)) return [];
   let files: POFileRow[] = [];
   try {
     if (onlyFilenames?.length) {
@@ -4172,6 +4214,7 @@ export async function syncSupplierCNAttachmentsToXero(
   xeroCreditNoteId: string,
   onlyFilenames?: string[],
 ): Promise<void> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scnId)) return;
   let files: SupplierCNFileRow[] = [];
   try {
     if (onlyFilenames?.length) {
@@ -4284,6 +4327,7 @@ export async function markSupplierCNXeroStatus(
  * CreditNoteID, or null on failure.
  */
 export async function syncSupplierCNAsCreditNote(businessId: string, scn: SupplierCNForSync): Promise<string | null> {
+  if (await isConsignmentPurchase(businessId, 'supplier_credit_note', scn.id)) return null;
   const stored = await imsQuery<{ xero_credit_note_id: string | null }>(
     `SELECT xero_credit_note_id FROM ims_supplier_credit_notes WHERE id = ? LIMIT 1`,
     [scn.id],

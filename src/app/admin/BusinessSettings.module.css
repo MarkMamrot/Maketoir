@@ -1,0 +1,45 @@
+.dialog { box-sizing: border-box; width: calc(100% - 40px); max-width: 760px; max-height: calc(100dvh - 40px); padding: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--sv-etch); border-radius: 12px; background: var(--sv-bg-1); color: var(--sv-text-main); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+.dialog::backdrop { background: rgba(0,0,0,.65); }
+.dialog:not([open]) { display: none; }
+.header { padding: 20px 24px 0; flex-shrink: 0; }
+.header h2 { margin: 0 0 18px; font-size: 17px; color: var(--sv-text-strong); }
+.tabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--sv-etch); }
+.tabs button { flex-shrink: 0; padding: 12px 16px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--sv-text-dim); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tabs button[aria-selected="true"] { border-bottom-color: var(--sv-action); color: var(--sv-action); }
+.tabs button:focus-visible { outline: 2px solid var(--sv-action); outline-offset: -3px; }
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 24px; }
+.footer { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; flex-shrink: 0; border-top: 1px solid var(--sv-etch); padding: 16px 24px; background: var(--sv-bg-1); }
+.footer [role="alert"] { width: 100%; margin: 0; color: #b91c1c; font-size: 13px; }
+.footer button { padding: 9px 16px; border: 1px solid var(--sv-etch); border-radius: 7px; background: var(--sv-bg-1); color: var(--sv-text-main); font: inherit; font-size: 13px; cursor: pointer; }
+.footer .save { background: var(--sv-action); border-color: var(--sv-action); color: #fff; font-weight: 600; }
+.footer button:disabled { opacity: .55; cursor: not-allowed; }
+.form { border: 0; padding: 0; margin: 0; min-width: 0; }
+.form > label, .limits label { display: grid; gap: 7px; margin-bottom: 16px; font-size: 13px; }
+.form > .check { display: flex; align-items: center; gap: 10px; }
+.form input:not([type="checkbox"]), .form select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; padding: 9px 10px; border: 1px solid var(--sv-etch); border-radius: 7px; background: var(--sv-bg-2); color: var(--sv-text-strong); font: inherit; font-size: 13px; }
+.form h3 { margin: 8px 0 16px; font-size: 15px; }
+.form p { font-size: 12px; color: var(--sv-text-dim); line-height: 1.6; }
+.limits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.historyHeading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.historyHeading > div { flex: 1 1 300px; }
+.historyHeading h3 { margin: 0; font-size: 15px; }
+.historyHeading p, .notice { font-size: 12px; line-height: 1.6; color: var(--sv-text-dim); }
+.year { display: grid; gap: 6px; font-size: 12px; }
+.months { display: grid; gap: 14px; margin-top: 16px; }
+.month { margin: 0; min-width: 0; border: 1px solid var(--sv-etch); border-radius: 8px; padding: 12px 16px 16px; background: var(--sv-bg-2); }
+.month legend { padding: 0 6px; font-size: 13px; font-weight: 700; }
+.monthStatus { margin-bottom: 12px; font-size: 11px; color: var(--sv-text-dim); }
+.monthFields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.monthFields label { display: grid; gap: 6px; font-size: 12px; }
+.monthFields .check { display: flex; align-items: center; gap: 8px; min-height: 38px; }
+.monthFields input:not([type="checkbox"]), .year select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 38px; border: 1px solid var(--sv-etch); border-radius: 6px; padding: 8px 10px; background: var(--sv-bg-1); color: var(--sv-text-strong); font: inherit; font-size: 13px; }
+.check input { accent-color: var(--sv-action); }
+@media (max-width: 600px) {
+  .dialog { width: calc(100% - 20px); max-height: calc(100dvh - 20px); }
+  .header { padding: 18px 16px 0; }
+  .body { padding: 18px 16px; }
+  .footer { padding: 14px 16px; }
+  .tabs button { padding: 12px; }
+  .monthFields { grid-template-columns: minmax(0, 1fr); }
+  .limits { grid-template-columns: minmax(0, 1fr); }
+}

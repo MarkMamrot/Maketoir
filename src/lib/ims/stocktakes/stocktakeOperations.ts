@@ -1,4 +1,5 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { snapshotMovementOwnership } from '../consignment/ownership';
 
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { assertExpectedInventoryDocumentRevision } from '../creditNoteStatusCommands';
@@ -51,6 +52,10 @@ export interface StocktakeApplyResult {
   replayed: boolean;
 }
 
+export interface StocktakeBatchApplyResult extends Omit<StocktakeApplyResult, 'status'> {
+  status: 'in_progress' | 'completed';
+}
+
 export interface StocktakeRevertResult {
   id: number;
   status: 'reverted';
@@ -71,6 +76,12 @@ export class StocktakeOperationConflict extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'StocktakeOperationConflict';
+  }
+}
+
+export function assertManualStocktakeItemEditAllowed(reference?: string | null): void {
+  if (reference?.startsWith('SHOPIFY-OPEN-')) {
+    throw new StocktakeOperationConflict('Shopify opening-stock lines are managed by the import and cannot be manually changed.');
   }
 }
 
@@ -149,6 +160,9 @@ export async function transitionStocktake(
       };
     }
     assertExpectedInventoryDocumentRevision(stocktake.updated_at, input.context.expectedUpdatedAt);
+    if (input.action === 'cancel' && (await lockItems(connection, input.stocktakeId)).some(item => item.soh_at_apply !== null)) {
+      throw new StocktakeOperationConflict('This stocktake has applied adjustments. Finish the import, then use the completed stocktake reversal workflow.');
+    }
     const target = assertAllowedInventoryDocumentAction('stocktake', stocktake.status, input.action) as StocktakeTransitionResult['status'];
     await connection.execute(
       `UPDATE ims_stocktakes SET status = ? WHERE id = ? AND business_id = ?`,
@@ -168,12 +182,22 @@ export async function transitionStocktake(
   }
 }
 
+export function applyStocktakeInTransaction(
+  connection: PoolConnection,
+  input: StocktakeOperationInput,
+): Promise<StocktakeApplyResult>;
+export function applyStocktakeInTransaction(
+  connection: PoolConnection,
+  input: StocktakeOperationInput,
+  batchVariantIds: string[],
+): Promise<StocktakeBatchApplyResult>;
 export async function applyStocktakeInTransaction(
   connection: PoolConnection,
   input: StocktakeOperationInput,
-): Promise<StocktakeApplyResult> {
+  batchVariantIds?: string[],
+): Promise<StocktakeBatchApplyResult> {
     const stocktake = await lockHeader(connection, input.businessId, input.stocktakeId);
-    const operation = await claimInventoryDocumentOperation<StocktakeApplyResult>(connection, input.context, {
+    const operation = await claimInventoryDocumentOperation<StocktakeBatchApplyResult>(connection, input.context, {
       businessId: input.businessId,
       documentKind: 'stocktake',
       documentId: input.stocktakeId,
@@ -182,6 +206,9 @@ export async function applyStocktakeInTransaction(
       beforeMetadata: { status: stocktake.status, locationId: stocktake.location_id },
     });
     if (operation.replayed) {
+      if (batchVariantIds && !operation.response) {
+        throw new StocktakeOperationConflict('The saved batch result is unavailable. Review this stocktake before retrying.');
+      }
       return operation.response ? { ...operation.response, replayed: true } : {
         id: input.stocktakeId, status: 'completed', applied: 0, variances: 0, countStartVariances: 0, replayed: true,
       };
@@ -190,7 +217,13 @@ export async function applyStocktakeInTransaction(
     assertAllowedInventoryDocumentAction('stocktake', stocktake.status, 'complete');
 
     const costingState = await lockInventoryCostState(connection, input.businessId);
-    const items = (await lockItems(connection, input.stocktakeId)).filter(item => item.counted_qty !== null);
+    const allItems = (await lockItems(connection, input.stocktakeId)).filter(item => item.counted_qty !== null);
+    if (batchVariantIds && (!batchVariantIds.length || new Set(batchVariantIds).size !== batchVariantIds.length
+      || batchVariantIds.some(id => !allItems.some(item => item.variant_id === id)))) {
+      throw new StocktakeOperationConflict('The inventory batch does not match this stocktake. Preview again.');
+    }
+    const items = allItems.filter(item => item.soh_at_apply === null
+      && (!batchVariantIds || batchVariantIds.includes(item.variant_id)));
     let variances = 0;
     let countStartVariances = 0;
     for (const item of items) {
@@ -220,6 +253,7 @@ export async function applyStocktakeInTransaction(
             costingState.method, costingState.epochId],
         );
         const movementId = Number(movementResult.insertId);
+        await snapshotMovementOwnership(connection, input.businessId, movementId, item.variant_id);
         if (costingState.method === 'fifo') {
           if (appliedDelta > 0) {
             await createFifoCostLayer(connection, {
@@ -257,14 +291,18 @@ export async function applyStocktakeInTransaction(
       );
     }
 
-    await connection.execute(
-      `UPDATE ims_stocktakes SET status = 'completed', completed_at = NOW()
-        WHERE id = ? AND business_id = ?`,
-      [input.stocktakeId, input.businessId],
-    );
-    const response: StocktakeApplyResult = {
+    const completed = !batchVariantIds || allItems.filter(item => item.soh_at_apply === null).length === items.length;
+    const status = completed ? 'completed' : 'in_progress';
+    if (completed) {
+      await connection.execute(
+        `UPDATE ims_stocktakes SET status = 'completed', completed_at = NOW()
+          WHERE id = ? AND business_id = ?`,
+        [input.stocktakeId, input.businessId],
+      );
+    }
+    const response: StocktakeBatchApplyResult = {
       id: input.stocktakeId,
-      status: 'completed',
+      status,
       applied: items.length,
       variances,
       countStartVariances,
@@ -274,9 +312,9 @@ export async function applyStocktakeInTransaction(
       connection,
       input.businessId,
       operation.operationId,
-      'completed',
+      status,
       response,
-      { status: 'completed', appliedLineCount: items.length, actualAdjustmentCount: variances, countStartVarianceCount: countStartVariances },
+      { status, appliedLineCount: items.length, actualAdjustmentCount: variances, countStartVarianceCount: countStartVariances },
     );
     return response;
 }
@@ -345,7 +383,7 @@ export async function revertStocktake(
       }
       if (Math.abs(appliedDelta) > 0.0001) {
         const [[originalMovement]] = await connection.execute<any[]>(
-          `SELECT id, qty_change, cost_method_snapshot, cost_epoch_id
+          `SELECT id, qty_change, cost_method_snapshot, cost_epoch_id, consignment_supplier_id
              FROM ims_stock_movements
             WHERE business_id = ? AND movement_type = 'stocktake' AND reference_type = 'stocktake'
               AND reference_id = ? AND variant_id = ? AND location_id = ?
@@ -379,6 +417,7 @@ export async function revertStocktake(
           [input.businessId, item.variant_id, stocktake.location_id, input.stocktakeId, item.id, -appliedDelta,
             resultingOnHand, item.unit_cost_at_apply, costingState.method, costingState.epochId, reason],
         );
+        await snapshotMovementOwnership(connection, input.businessId, Number(reversalMovementResult.insertId), item.variant_id, originalMovement?.consignment_supplier_id ?? null);
         if (costingState.method === 'fifo') {
           await reverseFifoStockMovementLayers(connection, {
             businessId: input.businessId,

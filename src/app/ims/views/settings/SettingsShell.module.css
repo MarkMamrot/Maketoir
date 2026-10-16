@@ -35,7 +35,7 @@
 .shell .navItem:hover { background: #e8edf1; }
 .shell .navItem[aria-current="page"] { background: #e8edf1; color: #064e4b; border-left-color: #086b68; font-weight: 700; }
 .dot { width: 5px; height: 5px; background: currentColor; border-radius: 50%; margin: 0 5px; flex-shrink: 0; }
-.content { min-width: 0; overflow: auto; overscroll-behavior: contain; isolation: isolate; }
+.content { min-width: 0; overflow: auto; overscroll-behavior: contain; isolation: isolate; container-type: inline-size; }
 .pageHeader { position: sticky; top: 0; z-index: 2; padding: 18px 28px; background: var(--sv-bg-1); border-bottom: 1px solid var(--sv-etch); }
 .pageHeader h1 { margin: 3px 0; font-size: 23px; color: var(--sv-text-strong); line-height: 1.3; }
 .pageHeader p { margin: 5px 0 0; color: var(--sv-text-dim); line-height: 1.5; max-width: 850px; }
@@ -45,15 +45,21 @@
 .body h2 { font-size: 19px !important; }
 .body h3 { font-size: 16px !important; }
 .body h4 { font-size: 14px !important; }
-.body label { text-transform: none !important; letter-spacing: normal !important; }
+.body label { text-transform: none !important; letter-spacing: normal !important; line-height: 1.5; }
+.body fieldset { min-inline-size: 0; }
+.body [data-settings-fields] > *, .body [style*="grid-template-columns: 1fr 1fr"] > * { min-width: 0; }
 .body :is(:global(.text-gray-400), :global(.text-gray-500), :global(.text-gray-600)) { color: var(--sv-text-dim) !important; }
 .body :is(:global(.text-green-500), :global(.text-green-600)) { color: #17613d !important; }
 .body :is(:global(.text-red-500), :global(.text-red-600)) { color: var(--sv-red) !important; }
 .body button[role="switch"] { min-height: 24px; }
-.body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .body textarea, .body select { border: 1px solid var(--sv-etch) !important; background: var(--sv-bg-1) !important; color: var(--sv-text-main) !important; border-radius: 6px; padding: 9px 10px; font-size: 14px !important; min-height: 38px; max-width: 100%; box-sizing: border-box; }
-.body input[type="checkbox"], .body input[type="radio"] { accent-color: var(--sv-action); width: 17px; height: 17px; }
+.body input:not([type="checkbox"]):not([type="radio"]):not([type="file"]), .body textarea, .body select { border: 1px solid var(--sv-etch) !important; background: var(--sv-bg-1) !important; color: var(--sv-text-main) !important; border-radius: 6px; padding: 9px 10px; font-size: 14px !important; min-height: 38px; min-width: 0; max-width: 100%; box-sizing: border-box; }
+.body input[type="checkbox"], .body input[type="radio"] { accent-color: var(--sv-action); width: 17px; height: 17px; flex-shrink: 0; }
 .body button:not([role="switch"]) { box-shadow: none; border: 1px solid var(--sv-etch); padding: 7px 12px; font-size: 14px !important; background-color: var(--sv-bg-1); color: var(--sv-text-main); }
 .body button[data-primary] { background: var(--sv-action) !important; color: #fff !important; border-color: var(--sv-action) !important; }
+.formActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 20px 0 24px; min-width: 0; }
+.formActions > button { margin: 0 !important; max-width: 100%; white-space: normal !important; overflow-wrap: anywhere; }
+.formActions > :is(span, p) { min-width: 0; overflow-wrap: anywhere; }
+.formActions > :is([role="alert"], [role="status"]) { flex-basis: 100%; margin: 0; }
 .body fieldset:disabled a { pointer-events: none; opacity: .65; }
 .shell button:disabled, .shell input:disabled, .shell select:disabled { cursor: not-allowed; opacity: .65; }
 .shell :is(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 3px solid #075fa6 !important; outline-offset: 2px; }
@@ -64,6 +70,11 @@
 .actions button { padding: 8px 12px; background: #fff; color: var(--sv-text-main); border: 1px solid var(--sv-etch); }
 .actions button[data-danger] { background: var(--sv-red); color: #fff; border-color: var(--sv-red); }
 .top .menuButton { display: none; }
+@container (max-width: 700px) {
+  .body [data-settings-fields],
+  .body [style*="grid-template-columns: 1fr 1fr"],
+  .body [style*="grid-template-columns: minmax(0, 2fr)"] { grid-template-columns: minmax(0, 1fr) !important; gap: 16px !important; }
+}
 @media (max-width: 760px) {
   .shell { grid-template-columns: 1fr; grid-template-rows: 60px minmax(0, 1fr); }
   .top { padding: 10px 12px; gap: 8px; }

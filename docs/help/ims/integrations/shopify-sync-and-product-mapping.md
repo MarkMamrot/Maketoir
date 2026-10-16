@@ -1,5 +1,5 @@
 ---
-{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Sales > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify","shopify-refund"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Main operations","shopify-refund":"Shopify refunds and return costs"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, safely onboard its catalogue and mapped opening stock, and maintain synchronization.","lastReviewed":"2026-10-15","owner":"integrations","quickSections":["Main operations","At a glance"],"navigation":{"category":"sales","label":"Sync Shopify and repair product mappings"}}
+{"id":"ims-shopify-sync","title":"Shopify Sync and Product Mapping","audiences":["ims"],"capability":"integrations","requiresCapabilities":["shopify"],"screen":"Sales > Sales Channels > Shopify store > Configure","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["sales-channels","shopify","shopify-refund"],"contextSections":{"sales-channels":"Step-by-step","shopify":"Shopify catalogue and simple products","shopify-refund":"Shopify refunds and return costs"},"relatedTopics":["ims-xero-shopify","ims-sales-channels","ims-online-shop","ims-customer-orders"],"order":92,"summary":"Configure one Shopify store, safely onboard its catalogue and mapped opening stock, and maintain synchronization.","lastReviewed":"2026-10-16","owner":"integrations","quickSections":["Main operations","At a glance","Shopify catalogue and simple products"],"navigation":{"category":"sales","label":"Sync Shopify and repair product mappings"}}
 ---
 # Shopify Sync and Product Mapping
 
@@ -8,8 +8,9 @@ Use Shopify integration status and history to keep supported catalogue and order
 ## Main operations
 
 - Confirm Shopify connection health and required access before syncing.
-- Normally create products in Solvantis and sync them to Shopify. Import a Shopify catalogue in paced batches for onboarding.
+- Normally create products in Solvantis and sync them to Shopify. Product upload and resync send each variant's nonblank SKU and check that Shopify saved it. Import a Shopify catalogue in paced batches for onboarding.
 - For onboarding only, explicitly map Shopify locations to Solvantis locations, preview inventory, and type the safety phrase before replacing mapped stock.
+- Follow the separate **Step 1 · Catalogue** and **Step 2 · Opening stock** panels; watch confirmed batch progress while stock is applied.
 - Pull Shopify customers into IMS and choose how long customers without recent orders remain active.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
@@ -24,11 +25,21 @@ Use Shopify integration status and history to keep supported catalogue and order
 | Bring an existing Shopify catalogue into Solvantis | Shopify connection and existing SKU or barcode records | Use **Products > Import from Shopify** and review any warnings |
 | Establish opening stock after catalogue import | Explicit, one-to-one active location mappings and paused trading | Preview, review, type **REPLACE SOLVANTIS STOCK**, then replace mapped stock |
 | Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |
+| Shopify variant has no SKU | The Solvantis variant SKU and exact storefront mapping | Resync the linked product; if the Solvantis SKU is blank, enter the correct code first |
+| A simple product shows Size or Colour as Default in Shopify | Whether Solvantis has real option values or just its internal default row | New uploads omit placeholder-only options; existing Shopify options need a separately reviewed correction |
 | Shopify customer is missing from active lists | Customer Sync result and recent Shopify order activity | Pull customers again; a new identified order reactivates its linked customer automatically |
 | Inventory looks stale | Variant and inventory-item linkage, location mapping, and recent sync or webhook | Fix the cause, then wait for the queued update to retry |
 | Order line shows Shopify Misc Charge | Original Shopify title and variant linkage | Repair the intended product mapping |
 | Fulfilment or tracking is stale | Fulfilment webhook and sync history | Process the supported update again after fixing the cause |
 | Payout needs accounting review | **Xero > Shopify Payouts** | Reconcile and post the balanced payout plan |
+
+## Shopify catalogue and simple products
+
+Solvantis keeps one internal default row for a product without size, colour or other real options. New Shopify uploads represent that as a simple product, using Shopify's hidden default variant rather than visible **Size: Default** or **Colour: Default** selectors. Its SKU, barcode, price and inventory tracking still belong to the same sellable item.
+
+An option with a real value, such as **One Size** or **Colour: Red**, remains an option even when there is only one sellable variant. Placeholder-only option axes are omitted, and real axes keep the corresponding values. Multiple rows without real options must be corrected before upload; they are not silently merged.
+
+This upload correction does not automatically remove options from products already in Shopify. Review existing artificial options separately and preserve the mapped variant, SKU and inventory item. Do not delete and recreate the variant to hide the options, because that can break stock and order linkage. Products with multiple Shopify variants or genuine option values require manual review rather than automatic collapse.
 
 ## Before you begin
 
@@ -40,6 +51,10 @@ Use Shopify integration status and history to keep supported catalogue and order
 
 > **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.
 
+Product resync sends the Solvantis variant SKU to the linked Shopify variant; it can replace a different Shopify SKU. Blank Solvantis SKUs are not sent as replacements. If Shopify cannot save or verify a SKU, the sync reports a failure rather than treating the SKU update as successful. Publication retries also resend mapped nonblank SKUs before publishing.
+
+For a missing-SKU repair, only blank Shopify SKUs with an unambiguous variant mapping and a nonblank Solvantis SKU can be filled safely. Existing Shopify SKUs are left unchanged. Products without a reliable mapping or source SKU require review rather than a guessed code. This repair does not change prices, barcodes or stock.
+
 ### Ask Assistant about Shopify sync health
 
 Assistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.
@@ -47,6 +62,8 @@ Assistant can check whether the local Shopify connection appears configured, whe
 This check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Sales > Sales Channels**, configure the exact Shopify store, and use its **Connection**, **Orders**, and **Activity** tabs for saved webhook status, order settings, and operational history.
 
 For products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.
+
+Branch-transfer reservations also queue inventory updates. Sending, editing or cancelling a Sent reservation, removing a Sent transfer line, receiving a short shipment, or undoing a receipt refreshes the linked items on the next scheduled inventory run. Shopify availability uses the configured Solvantis stock-counting locations, subtracts committed stock and the stock buffer, and is never negative. A transfer can therefore change online availability before the destination receives any physical stock.
 
 Failed Shopify quantity updates remain queued and are retried by the next scheduled inventory run. The failed run does not advance the last-successful inventory sync time. Review the inventory notification or **Sync History**, repair an invalid Shopify product, variant, inventory-item, location, or connection link, then allow the queued update to retry. Do not make a compensating stock adjustment unless the Solvantis quantity itself is wrong.
 
@@ -123,19 +140,21 @@ Pull matches the Shopify customer ID first and then uses an exact email match wh
 3. In the store's **Products** tab, find **Download Inventory from Shopify (Onboarding)** beside the catalogue import and choose **Load Shopify and Solvantis Locations**.
 4. Select a Solvantis destination for each Shopify location to import, then choose **Preview Inventory Download**. Each source and destination can be mapped once. Leave other locations as **Do not import this location**. Keep the page open while linked, active, inventory-tracked products are read in paced batches.
 5. Review the target unit totals, number of adjustments, and any negative quantities for each location.
-6. Type **REPLACE SOLVANTIS STOCK** exactly, choose **Replace Solvantis Stock**, and confirm the change.
-7. Note the completed stocktake numbers shown when the import finishes.
+6. Type **REPLACE SOLVANTIS STOCK** exactly, choose **Replace Solvantis Stock**, and confirm the change. Keep the page open and follow the batch progress bar and confirmed variant count.
+7. Note the completed stocktake numbers shown when the import finishes. Each import creates one stocktake per selected location, with all its variant adjustments in that single document.
 8. Review those stocktakes and the resulting stock at each previewed location before continuing onboarding.
 
 Each Shopify location's quantities are applied only to its selected Solvantis location, not to other locations. Names need not match. These selections apply to this onboarding download and do not change normal outbound inventory settings. Preview prepares short-lived, protected quantity snapshots for the selected storefront. Changing locations requires another preview. Apply validates snapshots and links and processes small database-only batches, replacing on-hand quantities with previewed Shopify available quantities and recording differences through completed stocktakes. Negative quantities become zero. Missing, untracked, or invalid inventory levels are reported as skipped and remain untouched; an explicit Shopify zero is imported as zero. Committed and incoming quantities are not imported.
 
-When opening stock was partly applied before an interruption, run Preview again. Solvantis compares the latest Shopify quantities with current stock and prepares apply batches only for variants that still differ. Variants already synchronized are shown in the scanned total but are not applied again.
+Solvantis prepares all counted lines before applying quantities in small batches. The same stocktake stays **In Progress** until every batch for its location has finished, then becomes **Completed**. Use the Shopify import to finish a prepared stocktake; its counted lines must not be manually edited.
+
+Each inventory request has a one-minute timeout. A timeout does not prove that its batch failed: the server may still complete it. If an import is interrupted, the preview and stocktake numbers remain visible. Review the stocktake, enter the safety phrase again, and retry the same prepared import. Confirmed batches are safely recognized without repeating their stock adjustments. Do not enter a compensating manual stock adjustment. A missing or untracked inventory-level warning means that quantity was left untouched, not set to zero; it does not mean the other batches failed.
 
 > **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at the locations shown in the preview. It does not add Shopify stock on top of the Solvantis balance.
 
-> **Note:** If a completed opening-stock batch must be undone, open its stocktake and use the supported reversal workflow. Do not compensate with an unrelated manual quantity change.
+> **Note:** If a completed opening-stock import must be undone, open its stocktake and use the supported reversal workflow. This reverses the location's complete import, not an individual request batch.
 
-> **Tip:** If the connection is interrupted during apply, keep the preview open and choose **Apply Opening Stock** again. Completed batches are recognized and safely replayed. Run a new preview when the existing preview has expired or Shopify quantities need refreshing.
+> **Tip:** Keep the page open until completion. A new preview starts a new import; it does not finish an earlier In Progress stocktake. If the preview expires before you can resume, review the unfinished stocktake before starting another import.
 
 ### Check or repair product linkage
 

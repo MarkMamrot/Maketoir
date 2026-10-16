@@ -90,7 +90,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     console.error('POS sale edit error:', err);
     const status = err instanceof LoyaltyEditBlockedError ? err.status
       : err instanceof LoyaltyValidationError ? 400
-        : err instanceof FifoCostingConflict ? err.status : 500;
+        : err instanceof FifoCostingConflict || err?.name === 'ConsignmentConflict' ? err.status : 500;
     return NextResponse.json({
       error: err.message || String(err),
       ...(err instanceof FifoCostingConflict ? { code: err.code } : {}),

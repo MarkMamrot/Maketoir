@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import { createHash } from 'crypto';
 
@@ -39,7 +38,7 @@ import {
 
 function setupBaseMocks() {
   mockExecute.mockResolvedValue({ affectedRows: 1 });
-  mockImsQuery.mockResolvedValue([]);
+  mockImsQuery.mockResolvedValue([{ consignment_supplier_id: null }]);
   mockImsExecute.mockResolvedValue({ affectedRows: 1 });
   mockGetXeroDocumentPolicy.mockResolvedValue(DEFAULT_XERO_DOCUMENT_POLICY);
 }
@@ -597,14 +596,14 @@ describe('PO bill sync', () => {
   });
 
   it('uploads a stored supplier invoice to the linked Xero bill', async () => {
-    const uploadBase = fs.mkdtempSync(path.join(os.tmpdir(), 'po-xero-attachment-'));
+    const uploadBase = fs.mkdtempSync(path.join(process.cwd(), '.test-po-xero-attachment-'));
     const previousUploadBase = process.env.UPLOAD_BASE_PATH;
     process.env.UPLOAD_BASE_PATH = uploadBase;
     const invoiceDir = path.join(uploadBase, 'biz-1', 'POs', 'PO-2026-0021');
     fs.mkdirSync(invoiceDir, { recursive: true });
     fs.writeFileSync(path.join(invoiceDir, 'stored-invoice.pdf'), 'invoice');
 
-    mockImsQuery.mockResolvedValueOnce([{
+    mockImsQuery.mockResolvedValueOnce([{ consignment_supplier_id: null }]).mockResolvedValueOnce([{
       filename: 'stored-invoice.pdf',
       original_name: 'Supplier Invoice 21.pdf',
       mime_type: 'application/pdf',
@@ -629,14 +628,14 @@ describe('PO bill sync', () => {
   });
 
   it('returns a warning when Xero rejects an attachment', async () => {
-    const uploadBase = fs.mkdtempSync(path.join(os.tmpdir(), 'po-xero-attachment-'));
+    const uploadBase = fs.mkdtempSync(path.join(process.cwd(), '.test-po-xero-attachment-'));
     const previousUploadBase = process.env.UPLOAD_BASE_PATH;
     process.env.UPLOAD_BASE_PATH = uploadBase;
     const invoiceDir = path.join(uploadBase, 'biz-1', 'POs', 'PO-2026-0022');
     fs.mkdirSync(invoiceDir, { recursive: true });
     fs.writeFileSync(path.join(invoiceDir, 'invoice.pdf'), 'invoice');
 
-    mockImsQuery.mockResolvedValueOnce([{
+    mockImsQuery.mockResolvedValueOnce([{ consignment_supplier_id: null }]).mockResolvedValueOnce([{
       filename: 'invoice.pdf',
       original_name: 'invoice.pdf',
       mime_type: 'application/pdf',
@@ -658,7 +657,7 @@ describe('PO bill sync', () => {
   });
 
   it('does not fail the parent PO sync when Xero attachment authentication fails', async () => {
-    mockImsQuery.mockResolvedValueOnce([{
+    mockImsQuery.mockResolvedValueOnce([{ consignment_supplier_id: null }]).mockResolvedValueOnce([{
       filename: 'invoice.pdf',
       original_name: 'invoice.pdf',
       mime_type: 'application/pdf',

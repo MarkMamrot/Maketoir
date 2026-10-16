@@ -50,7 +50,7 @@ describe('Inventory Valuation date routing', () => {
     const body = await (await GET(request('?asAt=2026-10-04&brand=Acme&supplierId=4&productId=v1&productType=Apparel'))).json();
     expect(body).toMatchObject({ as_at: '2026-10-04', historical: true, time_zone: 'Australia/Sydney' });
     expect(mocks.historical).toHaveBeenCalledWith('tenant-1', '2026-10-04 13:00:00.000', {
-      brand: 'Acme', supplierId: '4', productId: 'v1', productType: 'Apparel',
+      brand: 'Acme', supplierId: '4', productId: 'v1', productType: 'Apparel', ownership: 'owned',
     });
     expect(mocks.query).not.toHaveBeenCalled();
   });

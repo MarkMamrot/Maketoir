@@ -383,7 +383,11 @@ export async function GET(req: Request) {
              COALESCE(sales.units_sold, 0) AS units_sold,
              COALESCE(sales.revenue, 0) AS revenue,
              COALESCE(stock.stock_on_hand, 0) AS stock_on_hand,
-             COALESCE(stock.stock_on_hand, 0) * COALESCE(pv.avg_cost, pv.cost_aud, 0) AS stock_value
+             CASE WHEN EXISTS (
+               SELECT 1 FROM ims_contacts supplier
+                WHERE supplier.id = p.supplier_contact_id AND supplier.business_id = p.business_id
+                  AND supplier.is_consignment = 1
+             ) THEN 0 ELSE COALESCE(stock.stock_on_hand, 0) * COALESCE(pv.avg_cost, pv.cost_aud, 0) END AS stock_value
       FROM ims_product_variants pv
       JOIN ims_products p ON p.product_id = pv.product_id
         AND p.business_id = ?

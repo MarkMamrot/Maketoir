@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs"],"contextSections":{"xero":"Step-by-step","settings-xero":"Advisor access","activity-cogs":"Review and recover COGS postings"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-12","owner":"integrations","quickSections":["Main operations","At a glance"],"navigation":{"category":"finances","label":"Review Xero sync and reconciliation"}}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Settings > Integrations > Xero / Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs"],"contextSections":{"xero":"Step-by-step","settings-xero":"Connection and sync preferences","activity-cogs":"Review and recover COGS postings"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-16","owner":"integrations","quickSections":["Main operations","At a glance"],"navigation":{"category":"finances","label":"Review Xero sync and reconciliation"}}
 ---
 # Xero Sync and Reconciliation
 
@@ -7,6 +7,7 @@ Use Xero setup and activity views to configure supported accounting work, invest
 
 ## Main operations
 
+- Save posting and Sales COGS preferences in **Settings > Integrations > Xero**, even before connecting.
 - Maintain sync rules, account and tracking mappings, and payment routing.
 - For foreign order payments, verify the saved payment rate and AUD account mapping, then compare the posted bank amount; do not replay an already posted payment with an incorrect conversion.
 - Review Sync History for pending, successful, blocked, partial, or dismissed work.
@@ -28,6 +29,28 @@ Sync access does not permit editing sales or inventory, completing operational r
 Advisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an authorised operator to refresh Shopify orders before syncing when the saved orders may be incomplete.
 
 With sync access disabled, Advisors cannot trigger these posting or retry actions. Read-only payout access alone does not permit posting payouts.
+
+## Connection and sync preferences
+
+**Settings > Integrations > Xero** separates the connection from **Sync preferences**. Admins and SuperAdmins can save these preferences while disconnected, including while the integration is off. The disconnected Xero workspace also shows these controls.
+
+- **Allow posting to Xero** is the master posting switch. Pausing it retains the individual workflow choices, including the Sales COGS schedule.
+- **Stocktake adjustments** controls inventory adjustment journals from completed stocktakes. It is independent of Sales COGS.
+- **Automatic Sales COGS** controls scheduled sales-cost journals, with its own frequency and first reliable COGS date. Both this switch and the master posting switch must be on for scheduled posting.
+
+New, unconfigured businesses start with posting paused and automatic Sales COGS off. Existing saved choices are retained. Disconnecting or reconnecting does not reset saved preferences. Enabling the master switch can resume other enabled workflows in Sync Rules, so review those choices before allowing posting.
+
+Use **Save posting preferences** and **Save Sales COGS schedule** separately. Saving does not connect Xero, post historical stocktakes, or replace required account mappings. Held Sales COGS periods remain held until reviewed through COGS Reconciliation and the offered recovery controls.
+
+Stocktakes complete in Solvantis regardless of Xero posting:
+
+| Posting intent | Completion result |
+|---|---|
+| Integration off, posting paused, or Stocktake adjustments off | Completes locally without an automatic Xero attempt or Xero warning |
+| Stocktake adjustments and posting on, but Xero disconnected or posting fails | Completes locally and warns that Xero posting needs attention |
+| Stocktake adjustments and posting on, with valid connection and mappings | Posts the separate stocktake journal, or reports that there is no variance value to post |
+
+The stocktake accounting panel retains outstanding and failed posting status. Reconnect or fix mappings, then use **Sync to Xero** or **Retry Xero Sync** when posting is enabled. Do not complete the stocktake again. A network interruption can leave the posting result unconfirmed; check the accounting status before retrying.
 
 ## At a glance
 
@@ -68,7 +91,7 @@ Correct the configuration and retry only the unfinished accounting action. Do no
 
 ### Configure a posting path
 
-**Settings > Xero** contains advisor access controls and quick links. Select **Open Accounts & Tracking** to change account mappings in the Xero integration workspace. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.
+**Settings > Integrations > Xero** contains the connection and sync preferences; Advisor permissions remain separate. Open the Xero integration workspace to change Accounts & Tracking mappings. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.
 
 1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.
 2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.

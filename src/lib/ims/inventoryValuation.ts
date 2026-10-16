@@ -2,6 +2,21 @@ import { computeAverageCostAfterReversal, computeWeightedAverageCost } from './a
 
 export type ValuationMethod = 'average_cost' | 'fifo';
 export type ValuationCostSource = 'historical' | 'current_fallback' | 'uncosted';
+export type ValuationOwnership = 'owned' | 'consignment' | 'all';
+
+export function parseValuationOwnership(value: string | null): ValuationOwnership {
+  if (value == null || value === 'owned') return 'owned';
+  if (value === 'consignment' || value === 'all') return value;
+  throw new ValuationDateError('Ownership must be owned, consignment or all.');
+}
+
+export function valuationOwnershipTotals(rows: readonly Pick<ValuationRow, 'total_value' | 'is_consignment'>[]) {
+  return rows.reduce((totals, row) => {
+    if (row.is_consignment) totals.consignment_value += row.total_value;
+    else totals.owned_value += row.total_value;
+    return totals;
+  }, { owned_value: 0, consignment_value: 0 });
+}
 
 export interface ValuationRow {
   variant_id: string;
@@ -16,6 +31,7 @@ export interface ValuationRow {
   reconciliation_delta: number;
   cost_source?: ValuationCostSource;
   inferred_opening?: boolean;
+  is_consignment?: boolean;
 }
 
 export interface ValuationWarnings {
@@ -52,6 +68,8 @@ export interface ValuationResult {
   time_zone: string;
   historical: boolean;
   warnings?: ValuationWarnings;
+  ownership?: ValuationOwnership;
+  ownership_totals?: ReturnType<typeof valuationOwnershipTotals>;
 }
 
 export class ValuationDateError extends Error {}
@@ -66,13 +84,15 @@ export function valuationCostLabel(source?: ValuationCostSource): string {
 export function inventoryValuationCsv(result: ValuationResult): string {
   const headers = ['As At Date', 'Timezone', 'SKU', 'Product Name', 'Brand', 'Supplier',
     result.costing_method === 'fifo' ? 'FIFO Unit Cost' : 'Average Unit Cost',
-    'SOH', 'Total Value', 'Cost Source', 'Inferred Opening Stock'];
+    'SOH', 'Total Value', 'Cost Source', 'Inferred Opening Stock', 'Ownership', 'Value Treatment'];
   const csvCell = (value: string | number) => `"${String(value).replace(/"/g, '""')}"`;
   return [headers, ...result.data.map(row => [
     result.as_at, result.time_zone, row.sku, row.name, row.brand ?? '', row.supplier_name ?? '',
     row.cost_source === 'uncosted' ? '' : row.cost, row.soh,
     row.cost_source === 'uncosted' ? '' : row.total_value,
     valuationCostLabel(row.cost_source), row.inferred_opening ? 'Yes' : 'No',
+    row.is_consignment ? 'Consignment' : 'Owned',
+    row.is_consignment ? 'Indicative supplier cost - not owned inventory' : 'Owned inventory value',
   ])].map(line => line.map(csvCell).join(',')).join('\r\n');
 }
 export function valuationDate(value: string | null, timeZone: string, now = new Date()) {
@@ -114,6 +134,7 @@ export interface HistoricalVariant {
   supplier_name: string | null;
   created_at: string;
   current_cost: number | null;
+  is_consignment?: boolean;
 }
 
 export interface HistoricalStock {
@@ -341,6 +362,7 @@ export function buildHistoricalValuation(input: {
       layer_quantity: method === 'fifo' ? roundedQty(layerQuantity) : null,
       reconciliation_delta: method === 'fifo' ? roundedQty(soh - layerQuantity) : 0,
       cost_source: costSource, inferred_opening: inferred,
+      is_consignment: variant.is_consignment ?? false,
     });
   }
   return {

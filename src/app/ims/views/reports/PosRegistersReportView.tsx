@@ -1,7 +1,8 @@
 import React from 'react';
 import { ReportScrollTable } from './ReportScrollTable';
+import { RegisterClosingTotalsEditor } from './RegisterClosingTotalsEditor';
 
-type PosRegisterSession = {
+export type PosRegisterSession = {
   id: number;
   register_name: string;
   location_name: string;
@@ -14,9 +15,14 @@ type PosRegisterSession = {
     id: number; session_status: string; email_sent_at: string | null;
     previous_float: string | null; opening_float: string; reason: string; actor_name: string; created_at: string;
   } | null;
+  latest_closing_correction?: {
+    id: number; reason: string; actor_name: string; created_at: string;
+    counts_snapshot: { id: number; payment_method: string; previous_counted: number | null; counted_amount: number | null }[];
+  } | null;
   closed_at: string | null;
   closed_by: string | null;
   reconciliations: {
+    id: number;
     payment_method: string;
     expected_amount: number | null;
     counted_amount: number | null;
@@ -48,9 +54,9 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
   const [fetched, setFetched] = React.useState(false);
   const [error, setError] = React.useState('');
   const [editing, setEditing] = React.useState<PosRegisterSession | null>(null);
+  const [closingSession, setClosingSession] = React.useState<PosRegisterSession | null>(null);
   const [float, setFloat] = React.useState('');
   const [reason, setReason] = React.useState('');
-  const [acknowledged, setAcknowledged] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [modalError, setModalError] = React.useState('');
   const [notice, setNotice] = React.useState('');
@@ -81,7 +87,7 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
   function edit(session: PosRegisterSession, button: HTMLButtonElement) {
     editButtonRef.current = button;
     setFloat(session.opening_float ?? '');
-    setReason(''); setAcknowledged(false); setModalError(''); setNotice(''); setRecipients([]);
+    setReason(''); setModalError(''); setNotice(''); setRecipients([]);
     setSavedCorrection(null); setEditing(session);
   }
 
@@ -92,7 +98,7 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
       const response = await fetch('/api/ims/reports/pos-registers/float', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId: editing.id, status: editing.status, previousFloat: editing.opening_float,
-          openingFloat: float, reason, acknowledgeAccounting: acknowledged }),
+          openingFloat: float, reason }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Float correction failed.');
@@ -362,14 +368,22 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
                           <span style={{ width: 6, height: 6, borderRadius: '50%', background: isOpen ? 'var(--sv-mint)' : 'var(--sv-red)' }} />
                           {isOpen ? 'Open' : 'Closed'}
                         </span>
+                        {canEditFloat && s.status === 'closed' && hasRecons && <div style={{ marginTop: 8 }}>
+                          <button type="button" aria-label={`Edit closing totals for ${s.location_name} ${s.register_name}`}
+                            onClick={event => { editButtonRef.current = event.currentTarget; setClosingSession(s); }}>Edit closing totals</button>
+                        </div>}
+                        {s.latest_closing_correction && <small style={{ display: 'block', marginTop: 4 }}
+                          title={`${s.latest_closing_correction.actor_name}: ${s.latest_closing_correction.reason}`}>Closing totals corrected</small>}
                       </td>
                       <td style={tdStyle} rowSpan={reconRows}>{fmtDt(s.opened_at)}</td>
                       <td style={{ ...tdStyle, color: 'var(--sv-text-muted)' }} rowSpan={reconRows}>{s.opened_by ?? '—'}</td>
                       <td style={tdStyle} rowSpan={reconRows}>
                         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                           {fmt$(s.opening_float != null ? parseFloat(s.opening_float) : null)}
-                          {canEditFloat && <button type="button" aria-label={`Edit opening float for ${s.location_name} ${s.register_name}`} onClick={event => edit(s, event.currentTarget)}>Edit</button>}
+                          {canEditFloat && isOpen && <button type="button" aria-label={`Edit opening float for ${s.location_name} ${s.register_name}`} onClick={event => edit(s, event.currentTarget)}>Edit</button>}
                         </div>
+                        {canEditFloat && !isOpen && s.latest_correction?.session_status === 'closed' &&
+                          <button type="button" onClick={event => edit(s, event.currentTarget)}>Review float correction</button>}
                         {s.latest_correction && <small title={`${s.latest_correction.actor_name}: ${s.latest_correction.reason}`}>
                           Corrected{ s.latest_correction.session_status === 'closed' ? (s.latest_correction.email_sent_at ? ' - accounts emailed' : ' - accounts not emailed') : ''}
                         </small>}
@@ -424,15 +438,14 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
       {editing && <dialog ref={dialogRef} aria-labelledby="float-dialog-title" onCancel={event => { event.preventDefault(); closeEditor(); }}
         onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeEditor(); } }}
         style={{ width: 480, maxWidth: 'calc(100vw - 48px)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', boxSizing: 'border-box', border: '1px solid var(--sv-border)', borderRadius: 12, padding: 24, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)' }}>
-        <h2 id="float-dialog-title" style={{ marginTop: 0 }}>Edit opening float</h2>
+        <h2 id="float-dialog-title" style={{ marginTop: 0 }}>{editing.status === 'open' ? 'Edit opening float' : 'Review opening float correction'}</h2>
         <p>{editing.location_name} / {editing.register_name} - {editing.status}</p>
         <p>Recorded float: {fmt$(editing.opening_float == null ? null : Number(editing.opening_float))}</p>
         {editing.status === 'closed' && <div role="note" style={{ padding: 12, border: '1px solid var(--sv-amber)', borderRadius: 6 }}>
           <strong>Manual accounting correction required</strong>
-          <p>Cash variance will be recalculated in Solvantis. Counted cash and sales stay unchanged. Any affected sync to Xero or other accounting software must be edited manually by the bookkeeper. Saving does not sync or resend accounting documents.</p>
-          {!savedCorrection && <label><input type="checkbox" checked={acknowledged} onChange={event => setAcknowledged(event.target.checked)} /> I understand the bookkeeper must correct affected accounting entries manually.</label>}
+          <p>Opening float is locked because this session is closed. Any accounting entries affected by the historical correction must be edited manually by the bookkeeper.</p>
         </div>}
-        {!savedCorrection && <form onSubmit={event => { event.preventDefault(); void saveFloat(); }}>
+        {!savedCorrection && editing.status === 'open' && <form onSubmit={event => { event.preventDefault(); void saveFloat(); }}>
           <label style={{ display: 'block', marginTop: 16 }}>Opening float ($)
             <input autoFocus type="number" min="0" max="9999999999.99" step="0.01" required value={float} disabled={busy} onChange={event => setFloat(event.target.value)} style={{ display: 'block', padding: 8, marginTop: 4 }} />
           </label>
@@ -440,7 +453,7 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
             <textarea required maxLength={1000} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4 }} />
           </label>
           <p>The original opening denomination breakdown will be cleared because it no longer matches the corrected float.</p>
-          <button type="submit" disabled={busy || (editing.status === 'closed' && !acknowledged)}>{busy ? 'Saving...' : 'Save opening float'}</button>
+          <button type="submit" disabled={busy}>{busy ? 'Saving...' : 'Save opening float'}</button>
         </form>}
         {editing.latest_correction && <p>Last correction: {fmt$(editing.latest_correction.previous_float == null ? null : Number(editing.latest_correction.previous_float))} to {fmt$(Number(editing.latest_correction.opening_float))}, by {editing.latest_correction.actor_name}. Reason: {editing.latest_correction.reason}</p>}
         {editing.status === 'closed' && <div style={{ marginTop: 16 }}>
@@ -453,6 +466,8 @@ export function PosRegistersReportView({ onBack, xeroAccountingEnabled, canEditF
         {modalError && <p role="alert" style={{ color: 'var(--sv-red)' }}>{modalError}</p>}
         <button type="button" disabled={busy} onClick={closeEditor} style={{ marginTop: 16 }}>Close</button>
       </dialog>}
+      {closingSession && <RegisterClosingTotalsEditor session={closingSession} onSaved={run}
+        onClose={() => { setClosingSession(null); editButtonRef.current?.focus(); }} />}
     </div>
   );
 }

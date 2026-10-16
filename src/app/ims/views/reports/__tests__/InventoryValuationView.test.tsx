@@ -96,6 +96,23 @@ describe('Inventory Valuation view', () => {
     expect(screen.queryByText('$21.00')).toBeNull();
     expect((screen.getByRole('button', { name: '⬇ Export CSV' }) as HTMLButtonElement).disabled).toBe(true);
   });
+  it('keeps consignment value distinct from owned assets when showing all ownership', async () => {
+    renderView();
+    await screen.findByText('Total Inventory Value — 2026-10-14');
+    const owned = report();
+    vi.mocked(fetch).mockResolvedValue(response({
+      ...owned,
+      data: [...owned.data, {
+        ...owned.data[0], variant_id: 'v2', sku: 'CON-1', is_consignment: true,
+        cost: 50, soh: 10, total_value: 500,
+      }],
+    }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Ownership' }), { target: { value: 'all' } });
+    await screen.findByText('Combined Operational Value (includes stock not owned) — 2026-10-14');
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain('ownership=all');
+    expect(screen.getByText('Owned inventory: $21.00; consignment (not owned): $500.00')).toBeTruthy();
+    expect(screen.getByText('Consignment - not owned inventory')).toBeTruthy();
+  });
   it('shows historical estimates, inferred openings and missing history explicitly', async () => {
     renderView();
     await screen.findByText('Total Inventory Value — 2026-10-14');

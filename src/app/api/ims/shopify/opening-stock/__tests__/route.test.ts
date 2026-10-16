@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), disabled: vi.fn(), query: vi.fn(), execute: vi.fn(), context: vi.fn(),
-  locations: vi.fn(), levels: vi.fn(), report: vi.fn(), create: vi.fn(), apply: vi.fn(),
+  locations: vi.fn(), levels: vi.fn(), report: vi.fn(), prepare: vi.fn(), apply: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/shopifyCapability', () => ({ shopifyDisabledResponse: mocks.disabled }));
@@ -14,14 +14,15 @@ vi.mock('@/services/ShopifyService', () => ({ ShopifyService: class {
 } }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
-  ImsStocktakeRepo: { create: mocks.create }, ImsShopifyRepo: { logAction: vi.fn() },
+  ImsShopifyRepo: { logAction: vi.fn() },
 }));
 vi.mock('@/lib/ims/cacheHelper', () => ({ refreshVariantCache: vi.fn() }));
 vi.mock('@/lib/ims/inventoryDocumentLifecycle', () => ({ hashInventoryDocumentRequest: vi.fn().mockResolvedValue('hash') }));
-vi.mock('@/lib/ims/stocktakes/stocktakeOperations', () => ({ applyStocktake: mocks.apply, transitionStocktake: vi.fn() }));
+vi.mock('@/lib/ims/shopifyOpeningStockApply', () => ({ prepareOpeningStocktakes: mocks.prepare, applyOpeningStockBatch: mocks.apply }));
 
 import { POST } from '../route';
 import { signOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
+import { ShopifyOpeningStockValidationError } from '@/lib/ims/shopifyOpeningStock';
 
 function request(body: object) {
   return new Request('http://localhost/api/ims/shopify/opening-stock', {
@@ -45,8 +46,8 @@ describe('Shopify mapped onboarding inventory', () => {
     mocks.context.mockResolvedValue({ credentials: { shopDomain: 'store.myshopify.com', token: 'secret' } });
     mocks.locations.mockResolvedValue([{ id: 10, name: 'Main Store', active: true }]);
     mocks.report.mockResolvedValue(undefined);
-    mocks.create.mockResolvedValue(123);
-    mocks.apply.mockResolvedValue({ applied: 1, variances: 1, replayed: false });
+    mocks.prepare.mockResolvedValue([{ id: 123, location: 'Retail', status: 'in_progress' }]);
+    mocks.apply.mockResolvedValue([{ id: 123, location: 'Retail', status: 'completed', applied: 1, variances: 1, replayed: false }]);
     mocks.query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM ims_locations')) return [{ id: 1, name: 'Retail', is_active: 1 }];
       if (sql.includes('FROM ims_product_variants')) return [{ variant_id: 'v1', shopify_inventory_item_id: '100', external_inventory_id: '100', sku: 'SKU', product_name: 'Item' }];
@@ -58,7 +59,7 @@ describe('Shopify mapped onboarding inventory', () => {
   it('loads locations without changing stock', async () => {
     const response = await POST(request({ mode: 'locations' }));
     expect(await response.json()).toMatchObject({ success: true, shopifyLocations: [{ id: 10 }], solvantisLocations: [{ id: 1 }] });
-    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.prepare).not.toHaveBeenCalled();
     expect(mocks.execute).not.toHaveBeenCalled();
   });
 
@@ -82,23 +83,33 @@ describe('Shopify mapped onboarding inventory', () => {
     expect((await POST(request({ mode: 'preview', mappings: [] }))).status).toBe(400);
     expect((await POST(request({ mode: 'apply', run_id: '12345678', snapshot: snapshot() }))).status).toBe(400);
     expect(mocks.execute).not.toHaveBeenCalled();
-    expect(mocks.create).not.toHaveBeenCalled();
+    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 
   it('rejects cross-store snapshots and changed inventory links before writing', async () => {
     expect((await POST(request({ mode: 'apply', channelInstanceId: 'store-2', run_id: '12345678', snapshot: snapshot(), confirmation: 'REPLACE SOLVANTIS STOCK' }))).status).toBe(400);
-    mocks.query.mockResolvedValue([{ variant_id: 'v1', external_inventory_id: 'changed' }]);
-    expect((await POST(request({ mode: 'apply', run_id: '12345678', snapshot: snapshot(), confirmation: 'REPLACE SOLVANTIS STOCK' }))).status).toBe(500);
-    expect(mocks.create).not.toHaveBeenCalled();
-    expect(mocks.report).toHaveBeenCalled();
+    mocks.apply.mockRejectedValueOnce(new ShopifyOpeningStockValidationError('The Shopify link changed.'));
+    expect((await POST(request({ mode: 'apply', run_id: '12345678', snapshot: snapshot(), confirmation: 'REPLACE SOLVANTIS STOCK' }))).status).toBe(400);
+    expect(mocks.prepare).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
   });
 
   it('applies a confirmed mapped snapshot through audited stocktakes', async () => {
     const response = await POST(request({ mode: 'apply', run_id: '12345678', snapshot: snapshot(), confirmation: 'REPLACE SOLVANTIS STOCK' }));
     expect(response.status).toBe(200);
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ location_id: 1, blank: true }), 'biz-1');
-    expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz-1', stocktakeId: 123 }));
-    expect(mocks.execute.mock.calls[0][1]).toEqual([123, 8, null, 1, 'v1', 'biz-1']);
+    expect(mocks.apply).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz-1', channelInstanceId: 'store-1', runId: '12345678' }),
+      expect.objectContaining({ offset: 0, lines: [expect.objectContaining({ variantId: 'v1', quantity: 8 })] }));
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it('verifies every signed snapshot before preparing one full import', async () => {
+    const response = await POST(request({ mode: 'prepare', run_id: '12345678', snapshots: [snapshot()], confirmation: 'REPLACE SOLVANTIS STOCK' }));
+    expect(response.status).toBe(200);
+    expect(mocks.prepare).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'biz-1', channelInstanceId: 'store-1' }),
+      [expect.objectContaining({ lines: [expect.objectContaining({ variantId: 'v1' })] })]);
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect((await POST(request({ mode: 'prepare', run_id: '12345678', snapshots: [snapshot(), 'tampered'], confirmation: 'REPLACE SOLVANTIS STOCK' }))).status).toBe(400);
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
   });
 
   it('blocks read-only advisors', async () => {

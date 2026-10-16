@@ -45,6 +45,10 @@ describe('replacement order cloning', () => {
       if (sql.includes('FROM ims_po_landed_costs')) return [[{
         id: 7, label: 'Duty', reference: 'D-1', amount: 12, sort_order: 0,
       }]];
+      if (sql.includes('SELECT is_consignment FROM ims_contacts')) return [[{ is_consignment: 0 }]];
+      if (sql.includes('FROM ims_product_variants v')) return [[{
+        product_id: 'p-1', is_stock_item: 0, supplier_contact_id: 8, is_consignment: 0,
+      }]];
       if (sql.includes('GET_LOCK')) return [[{ acquired: 1 }]];
       if (sql.includes('MAX(CAST')) return [[{ max_seq: 42 }]];
       if (sql.includes('INSERT INTO ims_purchase_orders')) return [{ insertId: 88 }];

@@ -11,6 +11,7 @@ The Contacts search checks names, companies, customer codes, and email addresses
 
 - Search before creating a contact so one person or company is not duplicated.
 - Maintain names, contact details, company details, and contact type in Contacts.
+- For a supplier or combined customer/supplier, an Admin or SuperAdmin can set **Consignment supplier**. This supplier-wide ownership setting is inherited by associated products from now onward, without rewriting historical ownership. The supplier, product and stock-only purchasing notices distinguish consignment from owned goods. Optional settlement tracking is a separate business setting; basic Consignment Activity does not require it.
 - Set independent customer and supplier early-payment defaults for eligible contacts.
 - Let Display Name use Company when supplied, otherwise First Name and Last Name, or replace it with a preferred display name.
 - Keep important information in the **Contact summary** pinned at the top of each CRM profile.

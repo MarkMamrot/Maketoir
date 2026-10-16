@@ -104,6 +104,22 @@ async function loadReport(req: Request, businessId: string) {
   ) : [];
   const correctionBySession = new Map(corrections.map(c => [c.register_session_id, c]));
 
+  const closingCorrections = sessions.length ? await imsQuery<{
+    id: number; register_session_id: number; reason: string; actor_name: string; created_at: string;
+    counts_snapshot: string | object[];
+  }>(
+    `SELECT c.id, c.register_session_id, c.reason, c.actor_name, c.created_at, c.counts_snapshot
+       FROM pos_register_closing_corrections c
+       JOIN (SELECT register_session_id, MAX(id) AS id FROM pos_register_closing_corrections
+              WHERE business_id = ? AND register_session_id IN (${sessions.map(() => '?').join(',')})
+              GROUP BY register_session_id) latest ON latest.id = c.id
+      WHERE c.business_id = ?`,
+    [biz, ...sessions.map(s => s.id), biz],
+  ) : [];
+  const closingCorrectionBySession = new Map(closingCorrections.map(c => [c.register_session_id, {
+    ...c, counts_snapshot: typeof c.counts_snapshot === 'string' ? JSON.parse(c.counts_snapshot) : c.counts_snapshot,
+  }]));
+
   const result = sessions.map(s => {
     const recons = (reconBySession.get(s.id) ?? []).map(r => {
       const exp = parseFloat(r.expected_amount ?? '0') || 0;
@@ -112,6 +128,7 @@ async function loadReport(req: Request, businessId: string) {
       const isCash = r.payment_method.trim().toLowerCase() === 'cash';
       const cashAction = cashActionByReconciliation.get(r.id);
       return {
+        id: r.id,
         payment_method: r.payment_method,
         expected_amount: r.expected_amount != null ? exp : null,
         counted_amount:  r.counted_amount  != null ? cnt : null,
@@ -129,6 +146,7 @@ async function loadReport(req: Request, businessId: string) {
     return {
       ...s,
       latest_correction: correctionBySession.get(s.id) ?? null,
+      latest_closing_correction: closingCorrectionBySession.get(s.id) ?? null,
       reconciliations: recons,
       total_expected: totalExpected,
       total_counted:  totalCounted,

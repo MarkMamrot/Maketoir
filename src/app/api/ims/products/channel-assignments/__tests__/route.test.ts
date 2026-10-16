@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   session: vi.fn(), listInstances: vi.fn(), query: vi.fn(), setOverrides: vi.fn(), syncPublications: vi.fn(),
-  publicationAdapter: vi.fn(), report: vi.fn(),
+  publicationAdapter: vi.fn(), report: vi.fn(), readiness: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
 vi.mock('@/lib/channels/channelInstanceRepository', () => ({ SalesChannelInstanceRepository: {
@@ -19,6 +19,7 @@ vi.mock('@/lib/channels/channelProductPublicationAdapters', () => ({
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
+vi.mock('@/lib/channels/channelProductReadiness', () => ({ getChannelProductReadiness: mocks.readiness }));
 
 import { POST } from '../route';
 
@@ -41,6 +42,7 @@ describe('bulk product channel assignments', () => {
     mocks.publicationAdapter.mockReturnValue('adapter');
     mocks.syncPublications.mockResolvedValue({ queued: 2, processed: 2, applied: 2, blocked: 0, skipped: 0, failed: 0 });
     mocks.report.mockResolvedValue(undefined);
+    mocks.readiness.mockResolvedValue([{ productId: 'product-1', issues: [] }, { productId: 'product-2', issues: [] }]);
   });
 
   it('updates only the selected exact channel instances', async () => {
@@ -64,6 +66,31 @@ describe('bulk product channel assignments', () => {
       channelInstanceId: 'channel-2', overrideMode: 'automatic',
     }));
     expect(mocks.syncPublications).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing fields before saving any inclusion or starting any provider work', async () => {
+    const validation = { productId: 'product-2', productName: 'Chain', issues: ['Variant 1: RRP must be greater than zero.'] };
+    mocks.readiness.mockResolvedValueOnce([{ productId: 'product-1', issues: [] }, validation]);
+    const response = await POST(request({ productIds: ['product-1', 'product-2'], channelInstanceIds: ['channel-1', 'channel-2'], action: 'include' }));
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ success: false, validationIssues: [validation] });
+    expect(mocks.readiness).toHaveBeenCalledWith('business-1', ['product-1', 'product-2']);
+    expect(mocks.setOverrides).not.toHaveBeenCalled();
+    expect(mocks.syncPublications).not.toHaveBeenCalled();
+    expect(mocks.report).not.toHaveBeenCalled();
+  });
+
+  it('fails visibly and without mutations when preflight cannot be loaded', async () => {
+    mocks.readiness.mockRejectedValueOnce(new Error('Database unavailable'));
+    expect((await POST(request({ productIds: ['product-1'], channelInstanceIds: ['channel-1'], action: 'include' }))).status).toBe(500);
+    expect(mocks.setOverrides).not.toHaveBeenCalled();
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({ businessId: 'business-1', operation: 'check_publication_readiness' }));
+  });
+
+  it('does not require publish fields when removing a product', async () => {
+    await POST(request({ productIds: ['product-1'], channelInstanceIds: ['channel-1'], action: 'exclude' }));
+    expect(mocks.readiness).not.toHaveBeenCalled();
+    expect(mocks.setOverrides).toHaveBeenCalledOnce();
   });
 
   it('retains inclusion but returns a visible failure when provider publication is blocked', async () => {

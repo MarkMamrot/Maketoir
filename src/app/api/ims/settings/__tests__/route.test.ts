@@ -19,6 +19,8 @@ vi.mock('@/lib/onlineShop/onlineShopProfile', () => ({
 }));
 
 import { GET, PUT } from '../route';
+import { FEATURE_TOGGLE_KEYS } from '@/lib/ims/featureToggles';
+import { CONSIGNMENT_TRACKING_KEY } from '@/lib/ims/consignment/domain';
 
 function putRequest(settings: Record<string, string>): Request {
   return new Request('http://localhost/api/ims/settings', {
@@ -36,6 +38,11 @@ function putOnlineChannels(shopifyEnabled: boolean, nativeShopEnabled: boolean):
   });
 }
 
+const invalidFeatureToggleUpdates: Record<string, string>[] = [
+  { feature_toggle_crm: 'false' }, { feature_toggle_unknown: 'yes' },
+  { feature_toggle_crm: '' }, { FEATURE_TOGGLE_CRM: 'no' },
+];
+
 describe('/api/ims/settings loyalty settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,6 +59,10 @@ describe('/api/ims/settings loyalty settings', () => {
     const body = await response.json();
 
     expect(body.success).toBe(true);
+    for (const key of FEATURE_TOGGLE_KEYS) {
+      expect(body.data[key]).toBe(key === CONSIGNMENT_TRACKING_KEY ? 'no' : 'yes');
+    }
+    expect(body.data[CONSIGNMENT_TRACKING_KEY]).toBe('no');
     expect(body.data.advisor_xero_sync_enabled).toBe('false');
     expect(body.data).toMatchObject({
       business_requires_pos: 'yes',
@@ -73,6 +84,52 @@ describe('/api/ims/settings loyalty settings', () => {
       shopifyEnabled: false,
       nativeShopEnabled: false,
     });
+  });
+
+  it.each(['Advisor', 'StandardUser', 'PosManager', 'PosUser'])('prevents %s from changing feature switches', async tier => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier });
+    expect((await PUT(putRequest({ feature_toggle_crm: 'no', business_name: 'Unchanged' }))).status).toBe(403);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it.each(['Admin', 'SuperAdmin'])('allows %s to save presentation feature switches, excluding operational tracking', async tier => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-2', tier });
+    const presentationKeys = FEATURE_TOGGLE_KEYS.filter(key => key !== CONSIGNMENT_TRACKING_KEY);
+    const settings = Object.fromEntries(presentationKeys.map(key => [key, 'no']));
+    expect((await PUT(putRequest(settings))).status).toBe(200);
+    for (const key of presentationKeys) expect(mockImsExecute).toHaveBeenCalledWith(expect.any(String), ['business-2', key, 'no']);
+    expect(mockImsExecute).not.toHaveBeenCalledWith(expect.any(String), ['business-2', CONSIGNMENT_TRACKING_KEY, 'no']);
+  });
+
+  it.each(['Admin', 'SuperAdmin'])('requires %s to use the dedicated cutover/handover endpoint for consignment tracking', async tier => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-2', tier });
+    for (const value of ['yes', 'no']) {
+      const response = await PUT(putRequest({ [CONSIGNMENT_TRACKING_KEY]: value, business_name: 'Must not partially save' }));
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain('consignment tracking transition endpoint');
+    }
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('returns the persisted operational tracking setting without changing other defaults', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ key: CONSIGNMENT_TRACKING_KEY, value: 'yes' }]);
+    const body = await (await GET()).json();
+    expect(body.data[CONSIGNMENT_TRACKING_KEY]).toBe('yes');
+    expect(body.data.feature_toggle_crm).toBe('yes');
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+  it.each(invalidFeatureToggleUpdates)('rejects invalid or unknown switches before writing: %j', async settings => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier: 'Admin' });
+    expect((await PUT(putRequest(settings))).status).toBe(400);
+    expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('returns saved switches only for the selected tenant', async () => {
+    mockGetImsSession.mockResolvedValue({ businessId: 'business-2', tier: 'Admin' });
+    mockImsQuery.mockResolvedValueOnce([{ key: 'feature_toggle_crm', value: 'no' }]);
+    const body = await (await GET()).json();
+    expect(body.data.feature_toggle_crm).toBe('no');
+    expect(mockImsQuery).toHaveBeenCalledWith(expect.stringContaining('FROM ims_settings WHERE business_id = ?'), ['business-2']);
   });
 
   it.each(['Advisor', 'StandardUser'])('prevents %s from granting Advisor sync access', async tier => {

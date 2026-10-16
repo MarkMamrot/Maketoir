@@ -4,7 +4,7 @@ import { Package, Pencil, Plus, Save, TestTube2, Truck, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AUSPOST_PACKAGING_CATALOGUE } from '@/lib/ims/shipping/ausPostPackagingCatalogue';
 import { DeliveryTrackingSettingsSection } from './DeliveryTrackingSettingsSection';
-import { useSettingsDirty } from './SettingsShell';
+import { SettingsActions, useSettingsDirty } from './SettingsShell';
 
 type Account = {
   id: number; provider: string; displayName: string;
@@ -163,13 +163,15 @@ export function ShippingSettingsSection({ businessId, onDeliveryHelp }: { busine
           <Field label="API password"><input type="password" autoComplete="new-password" value={account.password ?? ''} placeholder={maskedCredential(account.passwordLength)} aria-label="API password" onChange={event => setAccount({ ...account, password: event.target.value })} style={inputStyle} /></Field>
         </div>
         {account.provider === 'mypost_business' && <p style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>MyPost Business requires approved ecommerce-partner API access and cannot be enabled yet.</p>}
+        <SettingsActions>
         <button onClick={() => save('account', { ...account, isActive: account.provider !== 'mypost_business' })} disabled={Boolean(busy)} style={actionButtonStyle}><Save size={15} />{account.id ? 'Update account' : 'Add account'}</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => { setAccount(accountBaseline.current); setAccountDirty(false); }} style={secondaryButtonStyle}>Cancel account changes</button>
+        </SettingsActions>
       </section>
 
       <section onChangeCapture={() => setPresetDirty(true)} style={{ borderTop: '1px solid var(--sv-etch)', paddingTop: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Package size={17} /><h3 style={{ margin: 0, fontSize: 15 }}>Package presets</h3></div><button type="button" onClick={() => setCatalogueOpen(true)} style={secondaryButtonStyle}><Plus size={14} />Australia Post presets</button></div>
-        {presets.map(item => <div key={item.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 1fr auto', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--sv-etch)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Package size={17} /><h3 style={{ margin: 0, fontSize: 15 }}>Package presets</h3></div><button type="button" onClick={() => setCatalogueOpen(true)} style={secondaryButtonStyle}><Plus size={14} />Australia Post presets</button></div>
+        {presets.map(item => <div key={item.id} data-settings-fields style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,1fr) 1fr auto', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--sv-etch)' }}>
           <div><strong style={{ fontSize: 13 }}>{item.name}</strong><div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>{item.packageType}</div></div>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{item.lengthMm} × {item.widthMm} × {item.heightMm} mm · {item.tareWeightKg} kg tare</div>
           <div style={{ display: 'flex', gap: 6 }}><button title="Edit package preset" onClick={() => selectPreset({ ...item, maxWeightKg: item.maxWeightKg ?? '' })} style={iconButtonStyle}><Save size={15} /></button>{item.isActive && <button title="Deactivate package preset" onClick={() => deactivate('preset', item.id)} style={iconButtonStyle}><X size={15} /></button>}</div>
@@ -180,8 +182,10 @@ export function ShippingSettingsSection({ businessId, onDeliveryHelp }: { busine
           {[['Length mm','lengthMm'],['Width mm','widthMm'],['Height mm','heightMm'],['Tare kg','tareWeightKg'],['Max kg','maxWeightKg']].map(([label, key]) => <Field key={key} label={label}><input type="number" min="0" step="0.01" value={preset[key]} onChange={event => setPreset({ ...preset, [key]: event.target.value })} style={inputStyle} /></Field>)}
         </div>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, fontSize: 12 }}><input type="checkbox" checked={preset.allowRotation} onChange={event => setPreset({ ...preset, allowRotation: event.target.checked })} /> Products may be rotated to fit</label>
+        <SettingsActions>
         <button onClick={() => save('preset', { ...preset, lengthMm: Number(preset.lengthMm), widthMm: Number(preset.widthMm), heightMm: Number(preset.heightMm), tareWeightKg: Number(preset.tareWeightKg), maxWeightKg: preset.maxWeightKg === '' ? null : Number(preset.maxWeightKg), sortPriority: Number(preset.sortPriority) })} disabled={Boolean(busy)} style={actionButtonStyle}><Plus size={15} />{preset.id ? 'Update preset' : 'Add preset'}</button>
         <button type="button" disabled={Boolean(busy)} onClick={() => { setPreset(presetBaseline.current); setPresetDirty(false); }} style={secondaryButtonStyle}>Cancel preset changes</button>
+        </SettingsActions>
       </section>
       {catalogueOpen && <AusPostCatalogueDialog existingNames={new Set(presets.map(item => item.name.toLowerCase()))} selectedIds={selectedCatalogueIds} onSelectedIdsChange={setSelectedCatalogueIds} busy={busy === 'import-catalogue'} onAdd={importCataloguePresets} onClose={() => setCatalogueOpen(false)} />}
     </div>

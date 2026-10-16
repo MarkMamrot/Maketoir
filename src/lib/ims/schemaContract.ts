@@ -6,6 +6,13 @@ export const IMS_SCHEMA_IDENTITY_COLLATION = collationContract.identityCollation
 export const IMS_SCHEMA_IDENTITY_COLUMNS = collationContract.tenantIdentityColumns;
 
 export const IMS_SCHEMA_REQUIRED_TABLES = [
+  'ims_consignment_tracking_state',
+  'ims_consignment_tracking_intervals',
+  'ims_consignment_ownership_history',
+  'ims_consignment_events',
+  'ims_consignment_statements',
+  'ims_consignment_statement_audit',
+  'ims_consignment_deliveries',
   'ims_contacts',
   'ims_early_payment_discount_rules',
   'ims_early_payment_discount_applications',
@@ -120,6 +127,7 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
   'pos_registers',
   'pos_register_sessions',
   'pos_register_float_corrections',
+  'pos_register_closing_corrections',
   'pos_sales',
   'pos_training_sales',
   'pos_daybook_staff_identities',
@@ -182,6 +190,14 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_contacts: ['is_consignment'],
+  ims_consignment_tracking_state: ['business_id', 'enabled', 'evidence_from', 'active_interval_id'],
+  ims_consignment_tracking_intervals: ['business_id', 'cutover_date', 'enabled_at', 'disabled_at', 'handover_json'],
+  ims_consignment_ownership_history: ['business_id', 'product_id', 'supplier_id', 'is_consignment', 'effective_at'],
+  ims_consignment_events: ['business_id', 'supplier_id', 'source_type', 'source_id', 'source_line_id', 'event_key', 'original_event_id', 'variant_id', 'event_date', 'quantity', 'unit_cost', 'tax_rate', 'tracking_interval_id', 'statement_id', 'exception'],
+  ims_consignment_statements: ['business_id', 'supplier_id', 'tracking_interval_id', 'status', 'version', 'snapshot_json', 'accounting_reference', 'accounting_date'],
+  ims_consignment_statement_audit: ['business_id', 'statement_id', 'actor_id', 'action', 'details_json'],
+  ims_consignment_deliveries: ['business_id', 'statement_id', 'operation_key', 'recipient', 'status', 'provider_reference'],
   ims_amazon_delivery_evidence: ['business_id', 'so_id', 'parcel_id', 'kind', 'source', 'delivered_at', 'basis', 'evidence_reference', 'actor_user_id', 'voids_evidence_id', 'operation_key', 'request_hash', 'recorded_at'],
   ims_amazon_pii_disposals: ['business_id', 'so_id', 'channel_instance_id', 'external_order_id', 'protected_contact_id', 'earliest_delivered_at', 'deadline_at', 'actor_user_id', 'operation_key', 'request_hash', 'counts_json', 'cleared_at'],
   ims_amazon_delivery_poll_state: ['business_id', 'parcel_id', 'last_checked_at', 'next_check_at', 'outcome', 'safe_error_code', 'locked_until', 'claim_token'],
@@ -199,7 +215,6 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
   ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at'],
   ims_so_shipments: ['business_id', 'channel_instance_id', 'so_id', 'shopify_fulfilment_id'],
-  ims_credit_notes: ['business_id', 'source', 'settlement_method', 'channel_instance_id', 'external_return_id', 'external_refund_id'],
   gift_cards: ['channel_instance_id', 'shopify_gc_id', 'code', 'status'],
   loyalty_redemptions: ['expires_at'],
   ims_brands: ['business_id', 'name', 'website_url', 'updated_at'],
@@ -284,7 +299,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_stock_allocation_operations: ['operation_key', 'request_hash', 'action', 'state'],
   wholesale_draft_orders: ['wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id', 'is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name'],
   wholesale_draft_order_items: ['is_indent', 'indent_qty'],
-  ims_purchase_orders: ['replacement_of_po_id'],
+  ims_purchase_orders: ['replacement_of_po_id', 'consignment_supplier_id'],
   ims_sales_orders: ['replacement_of_so_id', 'wholesale_company_id', 'wholesale_location_id', 'wholesale_member_id', 'is_staff_preview_test', 'staff_preview_session_id', 'staff_preview_actor_user_id', 'staff_preview_actor_name', 'sales_channel', 'channel_instance_id', 'external_order_id', 'native_checkout_id', 'gift_card_amount', 'channel_shipping_method', 'channel_delivery_type'],
   ims_purchase_order_items: ['discount_pct'],
   ims_purchase_order_payments: [
@@ -308,6 +323,12 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ],
   ims_credit_note_items: ['source_so_item_id'],
   ims_credit_notes: [
+    'business_id',
+    'source',
+    'settlement_method',
+    'channel_instance_id',
+    'external_return_id',
+    'external_refund_id',
     'reversed_at',
     'reversal_reason',
     'reversed_by',
@@ -316,6 +337,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'xero_correction_error',
   ],
   ims_supplier_credit_notes: [
+    'consignment_supplier_id',
     'reversed_at',
     'reversal_reason',
     'reversed_by',
@@ -324,7 +346,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
     'xero_correction_error',
   ],
   ims_supplier_credit_note_items: ['source_po_item_id'],
-  ims_stock_movements: ['source_line_id', 'cost_method_snapshot', 'cost_epoch_id'],
+  ims_stock_movements: ['source_line_id', 'cost_method_snapshot', 'cost_epoch_id', 'consignment_supplier_id'],
   ims_stocktakes: [
     'reverted_at',
     'reversal_reason',
@@ -341,6 +363,12 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_consignment_events: ['uq_consignment_event', 'idx_consignment_activity', 'idx_consignment_claim', 'idx_consignment_original'],
+  ims_consignment_ownership_history: ['idx_consignment_ownership'],
+  ims_consignment_tracking_intervals: ['idx_consignment_interval'],
+  ims_consignment_statements: ['idx_consignment_statement'],
+  ims_consignment_statement_audit: ['idx_consignment_audit'],
+  ims_consignment_deliveries: ['idx_consignment_delivery', 'uq_consignment_delivery_operation'],
   ims_amazon_delivery_evidence: ['uq_amazon_delivery_operation', 'uq_amazon_delivery_void', 'idx_amazon_delivery_order', 'idx_amazon_delivery_parcel'],
   ims_amazon_pii_disposals: ['uq_amazon_pii_order', 'uq_amazon_pii_external', 'uq_amazon_pii_operation', 'idx_amazon_pii_contact'],
   ims_amazon_delivery_poll_state: ['idx_amazon_delivery_due'],

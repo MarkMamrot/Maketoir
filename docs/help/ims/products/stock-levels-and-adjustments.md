@@ -11,6 +11,7 @@ Use Stock Levels to explain a quantity before changing it, then use the operatio
 - Filter by brand, supplier or **Low stock only**.
 - Compare on hand, available, incoming and committed quantities.
 - Review the displayed cost and stock value without changing them.
+- Use **Ownership: Owned / Consignment / All**. Owned is the default; consignment quantity and indicative supplier-cost value remain separate and are labelled **not owned inventory**, even when All is selected.
 - Correct a physical count through Stocktakes, not through the read-only Stock Levels table.
 
 ## At a glance

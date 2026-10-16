@@ -1,4 +1,5 @@
 import { getPool, query } from '@/services/MySQLService';
+import type { RowDataPacket } from 'mysql2/promise';
 import {
   DEFAULT_XERO_DOCUMENT_POLICY,
   diffXeroDocumentPolicy,
@@ -6,7 +7,7 @@ import {
   type XeroDocumentPolicy,
 } from './documentPolicies';
 
-type XeroDocumentPolicyRow = {
+type XeroDocumentPolicyRow = RowDataPacket & {
   posting_enabled: number | boolean;
   po_approved_action: XeroDocumentAction;
   po_completed_action: XeroDocumentAction;
@@ -75,14 +76,37 @@ export async function getXeroDocumentPolicy(businessId: string): Promise<XeroDoc
     `${POLICY_SELECT} LIMIT 1`,
     [businessId],
   );
-  return policyFromRow(rows[0]);
+  return rows[0] ? policyFromRow(rows[0]) : getInitialXeroDocumentPolicy(businessId);
 }
 
-export async function ensurePausedXeroDocumentPolicy(businessId: string): Promise<void> {
+async function getInitialXeroDocumentPolicy(businessId: string): Promise<XeroDocumentPolicy> {
+  const configured = await query<{ configured: number }>(
+    `SELECT 1 AS configured FROM connections
+      WHERE business_id = ? AND NULLIF(xero_tenant_id, '') IS NOT NULL LIMIT 1`,
+    [businessId],
+  );
+  if (configured.length) return { ...DEFAULT_XERO_DOCUMENT_POLICY };
+
+  // A disconnected legacy integration must retain its previous effective posting intent.
+  const logTable = await query<{ present: number }>(
+    `SELECT 1 AS present FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'xero_sync_log' LIMIT 1`,
+    [],
+  );
+  const posted = logTable.length ? await query<{ posted: number }>(
+    `SELECT 1 AS posted FROM xero_sync_log
+      WHERE business_id = ? AND status = 'success' AND NULLIF(xero_id, '') IS NOT NULL LIMIT 1`,
+    [businessId],
+  ) : [];
+  return { ...DEFAULT_XERO_DOCUMENT_POLICY, postingEnabled: posted.length > 0 };
+}
+
+export async function ensureInitialXeroDocumentPolicy(businessId: string): Promise<void> {
+  const policy = await getXeroDocumentPolicy(businessId);
   await query(
     `INSERT IGNORE INTO xero_document_policies (business_id, posting_enabled)
-     VALUES (?, 0)`,
-    [businessId],
+     VALUES (?, ?)`,
+    [businessId, policy.postingEnabled ? 1 : 0],
   );
 }
 
@@ -98,8 +122,8 @@ export async function saveXeroDocumentPolicy(
   const connection = await getPool().getConnection();
   try {
     await connection.beginTransaction();
-    const [rows]: any = await connection.execute(`${POLICY_SELECT} LIMIT 1 FOR UPDATE`, [input.businessId]);
-    const before = policyFromRow(rows[0]);
+    const [rows] = await connection.execute<XeroDocumentPolicyRow[]>(`${POLICY_SELECT} LIMIT 1 FOR UPDATE`, [input.businessId]);
+    const before = rows[0] ? policyFromRow(rows[0]) : await getInitialXeroDocumentPolicy(input.businessId);
     const changedFields = diffXeroDocumentPolicy(before, input.policy);
     if (changedFields.length === 0) {
       await connection.rollback();

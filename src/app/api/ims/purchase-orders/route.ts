@@ -43,6 +43,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, id });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e?.name === 'ConsignmentConflict' ? 409 : 500 });
   }
 }

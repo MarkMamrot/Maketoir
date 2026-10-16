@@ -70,15 +70,16 @@ describe('register float correction API', () => {
     expect((await PATCH(request(input))).status).toBe(404);
     expect(mocks.execute).not.toHaveBeenCalled();
   });
-  it('requires closed-register accounting acknowledgement', async () => {
+  it('rejects closed-register float edits', async () => {
     mocks.query.mockReset().mockResolvedValue([[{ ...register, status: 'closed' }]]);
-    expect((await PATCH(request({ ...input, status: 'closed' }))).status).toBe(400);
+    expect((await PATCH(request({ ...input, status: 'closed' }))).status).toBe(409);
     expect(mocks.execute).not.toHaveBeenCalled();
   });
-  it('supports closed corrections after acknowledgement', async () => {
+  it('rejects closed float corrections even with accounting acknowledgement', async () => {
     mocks.query.mockReset().mockResolvedValueOnce([[{ ...register, status: 'closed' }]]).mockResolvedValueOnce([[]]);
-    expect((await PATCH(request({ ...input, status: 'closed', acknowledgeAccounting: true }))).status).toBe(200);
-    expect(mocks.commit).toHaveBeenCalledOnce();
+    expect((await PATCH(request({ ...input, status: 'closed', acknowledgeAccounting: true }))).status).toBe(409);
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(mocks.commit).not.toHaveBeenCalled();
   });
   it('rolls back both amounts if audit persistence fails and reports the runtime issue', async () => {
     mocks.execute.mockRejectedValueOnce(new Error('DB failed'));

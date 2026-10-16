@@ -59,6 +59,11 @@ vi.mock('@/lib/ims/costing/fifoCostingService', () => ({
   createFifoCostLayer: mockCreateFifoCostLayer,
 }));
 
+vi.mock('@/lib/ims/consignment/ownership', () => ({
+  assertConsignmentDocument: vi.fn().mockResolvedValue(null),
+  snapshotMovementOwnership: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { POST } from '../route';
 
 function makeRequest(body: unknown): Request {

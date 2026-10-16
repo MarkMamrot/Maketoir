@@ -4,6 +4,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { setChannelProductOverrides } from '@/lib/channels/channelProductAssignmentRepository';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { syncChannelProductPublications } from '@/lib/channels/channelProductPublication';
+import { getChannelProductReadiness } from '@/lib/channels/channelProductReadiness';
 import { channelProductPublicationAdapter } from '@/lib/channels/channelProductPublicationAdapters';
 import type { ChannelProductOverrideMode } from '@/lib/channels/channelProductRules';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -51,6 +52,23 @@ export async function POST(request: Request) {
   }
 
   const overrideMode = ACTION_TO_OVERRIDE[action];
+  if (action === 'include') {
+    try {
+      const validationIssues = (await getChannelProductReadiness(businessId, productIds)).filter(product => product.issues.length > 0);
+      if (validationIssues.length) {
+        return NextResponse.json({
+          success: false, error: 'Complete the required product fields before applying publication.', validationIssues,
+        }, { status: 422 });
+      }
+    } catch (error) {
+      await reportRuntimeIssue({
+        businessId, source: 'ims.products', operation: 'check_publication_readiness',
+        title: 'Product publication requirements could not be checked', error,
+        context: { productCount: productIds.length },
+      });
+      return NextResponse.json({ success: false, error: 'Publication requirements could not be checked. No channel changes were applied.' }, { status: 500 });
+    }
+  }
   const results = [] as Array<{ channelInstanceId: string; applied: number; success: boolean; error?: string;
     publication?: { queued: number; processed: number; applied: number; blocked: number; skipped: number; failed: number } }>;
   for (const channelInstanceId of channelInstanceIds) {

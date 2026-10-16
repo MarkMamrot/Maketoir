@@ -17,6 +17,8 @@ describe('IMS settings navigation', () => {
     expect(resolveSettingsSection('settings-pos')).toBe('pos');
     expect(resolveSettingsSection('inventory-documents')).toBe('general');
     expect(resolveSettingsSection('settings-accounts-email')).toBe('accounts-email');
+    expect(resolveSettingsSection('settings-feature-toggle')).toBe('feature-toggle');
+    expect(settingsPath('feature-toggle').map(item => item.label)).toEqual(['Business & Team', 'Feature Toggle']);
     expect(resolveSettingsSection('unknown')).toBe('general');
     expect(resolveSettingsSection('business')).toBe('general');
   });

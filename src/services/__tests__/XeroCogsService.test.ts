@@ -57,8 +57,8 @@ describe('postCogsPeriod', () => {
     const result = await postCogsPeriod({ businessId: 'biz-1', period });
     expect(result).toMatchObject({ outcome: 'posted', runId: 41, runKind: 'original', postedDelta: 100, xeroId: 'xero-1' });
     expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({ amount: 100, journalDate: '2026-06-30', buckets: [
-      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
-      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
     ] }));
     expect(mockQuery.mock.calls[0][0]).toContain("xero_state = 'POSTED'");
     expect(mockExecute.mock.calls[0][0]).toContain('breakdown_json');
@@ -75,8 +75,8 @@ describe('postCogsPeriod', () => {
     expect(result).toMatchObject({ outcome: 'posted', runKind: 'adjustment', postedDelta: 20 });
     expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({ amount: 20, runKind: 'adjustment' }));
     expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({ buckets: [
-      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 10 },
-      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 10 },
+      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 10, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 10, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
     ] }));
   });
 
@@ -95,6 +95,14 @@ describe('postCogsPeriod', () => {
     expect(mockExecute).not.toHaveBeenCalled();
     expect(mockSync).not.toHaveBeenCalled();
   });
+  it.each([50, -50])('does not post intentionally excluded consignment COGS %s', async excluded => {
+    mockCalculate.mockResolvedValueOnce({ ...calculation, totalCOGS: 0, breakdown: [], includedMovementCount: 0,
+      excludedConsignmentCOGS: excluded, excludedConsignmentMovementCount: 2, excludedConsignmentQuantity: 4 });
+    expect(await postCogsPeriod({ businessId: 'biz-1', period })).toMatchObject({
+      outcome: 'current', postedTotal: 0, calculation: { excludedConsignmentCOGS: excluded },
+    });
+    expect(mockSync).not.toHaveBeenCalled();
+  });
 
   it('does not count a draft as posted and identifies an existing draft claim for review', async () => {
     mockQuery.mockReset().mockResolvedValueOnce([{ posted_total: 0, successful_runs: 0 }]).mockResolvedValueOnce([])
@@ -111,9 +119,9 @@ describe('postCogsPeriod', () => {
     ]);
     await postCogsPeriod({ businessId: 'biz-1', period });
     expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({ buckets: [
-      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
-      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
-      { locationId: null, locationName: 'Prior unsplit journals', channel: 'legacy', amount: -80 },
+      { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+      { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+      { locationId: null, locationName: 'Prior unsplit journals', channel: 'legacy', amount: -80, ownership: 'owned', ownershipEvidence: 'posted_journal_snapshot' },
     ] }));
   });
 
@@ -153,23 +161,26 @@ describe('retryCogsRun', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockQuery.mockResolvedValue([failedRun]);
+    mockQuery.mockImplementation((sql: string) => Promise.resolve(sql.includes('id <> ?') ? [] : [failedRun]));
     mockCalculate.mockResolvedValue(calculation);
     mockSync.mockResolvedValue({ journalId: 'xero-retry-1', xeroState: 'POSTED' });
     mockExecute.mockResolvedValue({ affectedRows: 1 });
   });
 
   it('retries an unchanged deterministic failure with its saved run identity and buckets', async () => {
+    const savedEvidence = failedRun.breakdown_json;
     const result = await retryCogsRun({ businessId: 'biz-1', runId: 41 });
     expect(result).toEqual({ outcome: 'posted', runId: 41, xeroId: 'xero-retry-1', xeroState: 'POSTED' });
     expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('WHERE id = ? AND business_id = ?'), [41, 'biz-1']);
     expect(mockSync).toHaveBeenCalledWith(expect.objectContaining({
       businessId: 'biz-1', runId: 41, amount: 100,
       buckets: [
-        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60 },
-        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40 },
+        { locationId: 1, locationName: 'Warehouse', channel: 'online', amount: 60, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
+        { locationId: 2, locationName: 'Newtown', channel: 'pos', amount: 40, ownership: 'owned', ownershipEvidence: 'movement_snapshot' },
       ],
     }));
+    expect(mockExecute.mock.calls[0][0]).not.toContain('breakdown_json');
+    expect(failedRun.breakdown_json).toBe(savedEvidence);
   });
 
   it('does not replay a failed payload after current COGS changes', async () => {
@@ -178,6 +189,15 @@ describe('retryCogsRun', () => {
     expect(result).toMatchObject({ outcome: 'changed', previousTarget: 100, currentTarget: 125 });
     expect(mockSync).not.toHaveBeenCalled();
     expect(mockExecute).not.toHaveBeenCalled();
+  });
+  it('does not replay stale consignment-containing buckets even if signed totals happen to be unchanged', async () => {
+    mockCalculate.mockResolvedValueOnce({ ...calculation, excludedConsignmentCOGS: 0,
+      excludedConsignmentMovementCount: 2, breakdown: [
+        { locationId: 1, channel: 'online', totalCOGS: 70, movementCount: 2, quantity: 2 },
+        { locationId: 2, channel: 'pos', totalCOGS: 30, movementCount: 2, quantity: 2 },
+      ] });
+    expect(await retryCogsRun({ businessId: 'biz-1', runId: 41 })).toMatchObject({ outcome: 'changed' });
+    expect(mockSync).not.toHaveBeenCalled();
   });
 
   it('refuses unknown and successful runs', async () => {

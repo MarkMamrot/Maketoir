@@ -169,27 +169,18 @@ export async function POST(req: Request) {
         createdProducts++;
       } else {
         productId = plan.productId;
-        await imsExecute(
-          `UPDATE ims_products
-              SET name = ?, description = ?, product_type = ?, brand = ?, tags = ?, website_title = ?,
-                is_online = ?, shopify_product_id = ?, supplier_contact_id = COALESCE(supplier_contact_id, ?),
-                base_sku = CASE WHEN base_sku IS NULL OR TRIM(base_sku) = '' THEN ? ELSE base_sku END
-            WHERE product_id = ? AND business_id = ?`,
-          [
-            text(shopifyProduct.title) ?? `Shopify product ${shopifyProduct.id}`,
-            text(shopifyProduct.body_html),
-            text(shopifyProduct.product_type),
-            text(shopifyProduct.vendor),
-            Array.isArray(shopifyProduct.tags) ? shopifyProduct.tags.join(', ') : text(shopifyProduct.tags),
-            text(shopifyProduct.title),
-            shopifyProduct.status === 'active' ? 1 : 0,
-            String(shopifyProduct.id),
-            supplierContactId,
-            baseSku,
-            productId,
-            businessId,
-          ],
-        );
+        await ImsProductsRepo.update(productId, {
+          name: text(shopifyProduct.title) ?? `Shopify product ${shopifyProduct.id}`,
+          description: text(shopifyProduct.body_html) ?? undefined,
+          product_type: text(shopifyProduct.product_type) ?? undefined,
+          brand: text(shopifyProduct.vendor) ?? undefined,
+          tags: Array.isArray(shopifyProduct.tags) ? shopifyProduct.tags.join(', ') : text(shopifyProduct.tags) ?? undefined,
+          website_title: text(shopifyProduct.title) ?? undefined,
+          is_online: shopifyProduct.status === 'active' ? 1 : 0,
+          shopify_product_id: String(shopifyProduct.id),
+          supplier_contact_id: existingProduct?.supplier_contact_id ?? supplierContactId,
+          base_sku: text(existingProduct?.base_sku) ?? baseSku ?? undefined,
+        });
         const localProduct = products.find(product => product.product_id === productId);
         if (localProduct) {
           localProduct.shopify_product_id = String(shopifyProduct.id);

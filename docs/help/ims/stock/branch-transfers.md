@@ -1,5 +1,5 @@
 ---
-{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Step-by-step","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-10-11","owner":"inventory","quickSections":["Main operations","At a glance"],"navigation":{"category":"locations-stock","label":"Send and receive branch transfers"}}
+{"id":"ims-branch-transfers","title":"Branch Transfers","audiences":["ims"],"capability":"inventory","screen":"Locations > Branch Transfers","product":"ims","format":"task","parentId":"ims-location-stock-operations","relatedTopics":["ims-stocktakes-adjustments","ims-shopify-sync"],"contexts":["branch-transfers","smart-device-receive","receive-transfers"],"contextSections":{"branch-transfers":"Main operations","smart-device-receive":"Step-by-step","receive-transfers":"Step-by-step"},"order":51,"summary":"Create, send, track, and receive stock moving between branches, including short and partial receipts.","lastReviewed":"2026-10-16","owner":"inventory","quickSections":["Main operations","At a glance"],"navigation":{"category":"locations-stock","label":"Send and receive branch transfers"}}
 ---
 # Branch Transfers
 
@@ -15,6 +15,7 @@ Use one branch transfer to record goods leaving a source, travelling between bra
 - Receive the actual quantities or save a partial receipt for later.
 - Undo a mistaken partial or completed receipt and reopen the transfer as Sent.
 - Find completed transfer history in Branch Transfers.
+- With Shopify inventory sync enabled, reservation changes queue an availability update; check sync history if the online quantity looks stale.
 
 ## At a glance
 
@@ -59,6 +60,14 @@ Shipping Workspace also shows outstanding quantities from Sent and Partially Rec
 7. If a Sent transfer is wrong, use **Edit** before any receipt is recorded. Saving releases the previous source commitments and applies the corrected route and lines.
 
 > **Important:** Once receipt has started, use **Undo Receipt** before editing the transfer. This keeps destination stock and the transfer record aligned.
+
+### Shopify availability
+
+Sending a transfer reserves its sent quantities at the source. When Shopify inventory sync is enabled, sending, editing or cancelling those reservations, removing a Sent line, and undoing a receipt queue an update for the linked items. Receiving also updates availability, including a short receipt with no arriving units that releases the original reservation.
+
+The next scheduled inventory run recalculates Shopify availability from the store's configured Solvantis stock-counting locations, less committed stock and its stock buffer, with a minimum of zero. Locations outside that configured list do not contribute. The update is not an immediate Shopify write when the transfer is saved.
+
+Reservation changes and their queued updates are saved together. If queuing fails, the transfer change fails rather than leaving a successful reservation without its update. Review the error before retrying; do not create a second transfer or make a compensating stock adjustment.
 
 ### Receive at the destination
 

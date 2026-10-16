@@ -11,7 +11,8 @@ Use End of Day to compare physical takings with recorded payments, save the reco
 - Sync queued sales before relying on expected takings.
 - Count every payment method independently; enter zero when the verified amount is genuinely zero.
 - Count the full cash drawer, including the opening float.
-- If the recorded opening float is wrong, ask an administrator to correct it in **IMS > Reports > Daily POS Registers Report**. Closed-session corrections require manual review of affected accounting entries; a separate email button notifies the bookkeeper.
+- If the recorded opening float is wrong, ask an administrator to correct it in **IMS > Reports > Daily POS Registers Report** before closing the session. Opening float is locked after closure.
+- If saved closing counts are wrong after closure, an Admin or SuperAdmin can use **Edit closing totals** in that report. A reason and manual-accounting acknowledgement are required; notify the bookkeeper separately because this does not sync accounting or send an email.
 - Check petty cash and recorded refunds before explaining a difference.
 - Include layby deposits and instalments actually received in this session, not the unpaid merchandise balance.
 - Recount and explain genuine variances before saving.

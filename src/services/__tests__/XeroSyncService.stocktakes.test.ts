@@ -91,4 +91,50 @@ describe('stocktake Xero journals', () => {
       ['blocked', 'Original journal posting is not confirmed.', 31, 'biz-1'],
     );
   });
+
+  it.each([-2, 2])('excludes consignment applied delta %s while posting the owned bucket', async appliedDelta => {
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('FROM ims_stocktakes WHERE')
+        ? [{ id: 31, reference: 'ST-31', location_id: 4, completed_at: '2026-08-12', status: 'completed' }]
+        : [itemSnapshot, { ...itemSnapshot, consignment_supplier_id: 9, applied_delta: String(appliedDelta), unit_cost_at_apply: '100' }],
+    ));
+    mocks.xeroFetch.mockResolvedValue({ ManualJournals: [{ ManualJournalID: 'journal-1', Status: 'POSTED' }] });
+    expect(await syncStocktakeJournal('biz-1', 31)).toEqual({ journalId: 'journal-1', lines: 1, totalValue: 11 });
+    expect(mocks.xeroFetch.mock.calls[0][2].body.ManualJournals[0].JournalLines).toHaveLength(2);
+    const sql = mocks.imsQuery.mock.calls.find(call => call[0].includes('FROM ims_stocktake_items'))![0];
+    expect(sql).toContain('sm.consignment_supplier_id');
+    expect(sql).not.toContain('is_consignment_supplier');
+  });
+
+  it.each([-2, 2])('does not post a journal for only consignment delta %s', async appliedDelta => {
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('FROM ims_stocktakes WHERE')
+        ? [{ id: 31, reference: 'ST-31', location_id: 4, completed_at: '2026-08-12', status: 'completed' }]
+        : [{ ...itemSnapshot, consignment_supplier_id: 9, applied_delta: String(appliedDelta) }],
+    ));
+    expect(await syncStocktakeJournal('biz-1', 31)).toEqual({ journalId: null, lines: 0, totalValue: 0 });
+    expect(mocks.xeroFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not treat missing owned-inventory mappings as an error for excluded consignment-only stocktakes', async () => {
+    mocks.query.mockResolvedValue([]);
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('FROM ims_stocktakes WHERE')
+        ? [{ id: 31, reference: 'ST-31', location_id: 4, completed_at: '2026-08-12', status: 'completed' }]
+        : [{ ...itemSnapshot, consignment_supplier_id: 9 }],
+    ));
+    expect(await syncStocktakeJournal('biz-1', 31)).toEqual({ journalId: null, lines: 0, totalValue: 0 });
+    expect(mocks.xeroFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([-2, 2])('reverses only owned value alongside consignment delta %s', async appliedDelta => {
+    mocks.imsQuery.mockImplementation((sql: string) => Promise.resolve(
+      sql.includes('xero_reversal_journal_id')
+        ? [{ id: 31, reference: 'ST-31', location_id: 4, reverted_at: '2026-08-13', status: 'reverted',
+            xero_journal_id: 'journal-1', xero_sync_status: 'synced', xero_reversal_journal_id: null }]
+        : [itemSnapshot, { ...itemSnapshot, consignment_supplier_id: 9, applied_delta: String(appliedDelta) }],
+    ));
+    mocks.xeroFetch.mockResolvedValue({ ManualJournals: [{ ManualJournalID: 'reversal', Status: 'POSTED' }] });
+    expect(await syncStocktakeReversalJournal('biz-1', 31)).toEqual({ journalId: 'reversal', lines: 1, totalValue: 11 });
+  });
 });

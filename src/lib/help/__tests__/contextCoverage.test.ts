@@ -15,6 +15,7 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
       'smart-device-receive', 'order-planner', 'receive-transfers', 'pos-sales', 'cash-banking', 'online-sales', 'stocktakes', 'reports',
       'report-sales-detail', 'report-sales-by-branch', 'report-sales-summary', 'report-sales-search',
       'report-cogs-traceability',
+      'report-consignment-activity', 'consignment-statements',
       'report-inventory-valuation', 'report-product-margin', 'report-pos-price-changes', 'report-pos-registers',
       'report-cash-banking', 'report-stock-availability', 'xero', 'shopify', 'online-shop',
     ],

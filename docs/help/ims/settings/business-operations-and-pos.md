@@ -49,6 +49,8 @@ Once the full checklist is finished, onboarding is complete for the whole busine
 
 Each action step opens its owning IMS workspace. Return to the onboarding checklist and choose **Mark done and continue** after reviewing the step.
 
+For the first four settings steps, choose **Save and next**. A step counts as complete only after its save succeeds. If a save fails, the checklist shows an error and stays on that step; review the message and retry before continuing.
+
 ## Bookkeeping and accounts email
 
 Administrators and SuperAdmins can open **Settings > Business & Team > Bookkeeping email**, enter up to 20 email addresses separated by commas and select **Save accounts email**. This has its own save button. A saved confirmation appears only after the recipients have been stored.

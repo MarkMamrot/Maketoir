@@ -63,32 +63,73 @@ describe('register opening float editor', () => {
     await screen.findByText('Opening float corrected. No accounting sync was triggered.');
     const patch = fetchMock.mock.calls.find(call => call[1]?.method === 'PATCH');
     expect(JSON.parse(patch![1].body)).toEqual({
-      sessionId: 4, status: 'open', previousFloat: '200', openingFloat: '250', reason: 'Count verified', acknowledgeAccounting: false,
+      sessionId: 4, status: 'open', previousFloat: '200', openingFloat: '250', reason: 'Count verified',
     });
     expect(fetchMock.mock.calls.some(call => call[1]?.method === 'POST')).toBe(false);
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
-  it('requires acknowledgement for closed sessions and offers a separate configured-recipient email action', async () => {
+  it('locks closed-session float editing while preserving email retry for historical corrections', async () => {
     fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
       if (url === '/api/ims/settings') return json({ data: {} });
       if (url === '/api/ims/settings/accounts') return json({ recipients: ['accounts@example.com'] });
       if (options?.method === 'PATCH') return json({ correctionId: 9 });
       if (options?.method === 'POST') return json({ success: true });
-      return json({ sessions: [{ ...session, status: 'closed' }] });
+      return json({ sessions: [{ ...session, status: 'closed', latest_correction: {
+        id: 9, session_status: 'closed', previous_float: '200', opening_float: '250', actor_name: 'Alex', reason: 'Count verified',
+      } }] });
     });
-    await mount(); await openEditor();
+    await mount();
+    expect(screen.queryByRole('button', { name: /Edit opening float/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Review float correction' }));
+    await screen.findByRole('dialog');
     expect(screen.getByText('Manual accounting correction required')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Save opening float' }).hasAttribute('disabled')).toBe(true);
-    fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.change(screen.getByLabelText('Opening float ($)'), { target: { value: '250' } });
-    fireEvent.change(screen.getByLabelText('Reason for correction'), { target: { value: 'Count verified' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save opening float' }));
-    await screen.findByRole('button', { name: 'Email bookkeeper about this correction' });
+    expect(screen.queryByRole('button', { name: 'Save opening float' })).toBeNull();
+    await screen.findByRole('button', { name: 'Email bookkeeper about last correction' });
     expect(fetchMock.mock.calls.some(call => call[1]?.method === 'POST')).toBe(false);
     expect(screen.getByText('Bookkeeping/accounts recipients: accounts@example.com')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Email bookkeeper about this correction' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Email bookkeeper about last correction' }));
     await screen.findByText('Correction emailed to the bookkeeper/accounts recipients.');
     expect(JSON.parse(fetchMock.mock.calls.find(call => call[1]?.method === 'POST')![1].body)).toEqual({ correctionId: 9 });
+  });
+  it('only offers closing-total editing for closed sessions with reconciliation rows and admin access', async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, options) => url.includes('?date=')
+      ? Promise.resolve(json({ sessions: [session, { ...session, id: 5, status: 'closed', register_name: 'Till 2' }, {
+        ...session, id: 6, status: 'closed', register_name: 'Till 3',
+        reconciliations: [{ id: 8, payment_method: 'Cash', counted_amount: 818, expected_amount: 618, variance: 0 }],
+      }] }))
+      : original(url, options));
+    await mount();
+    expect(screen.getAllByRole('button', { name: /Edit opening float/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /Edit closing totals/ })).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit closing totals for Sydney Till 3' }));
+    expect(screen.getByRole('dialog').closest('table')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save closing totals' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.change(screen.getByLabelText(/Cash counted/), { target: { value: '815.99' } });
+    fireEvent.change(screen.getByLabelText('Reason for correction'), { target: { value: 'Closing sheet checked' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save closing totals' }));
+    await screen.findByRole('status');
+    const patch = fetchMock.mock.calls.find(call => call[1]?.method === 'PATCH');
+    expect(patch![0]).toBe('/api/ims/reports/pos-registers/closing');
+    expect(JSON.parse(patch![1].body)).toEqual({
+      sessionId: 6, previousFloat: '200', reason: 'Closing sheet checked', acknowledgeAccounting: true,
+      entries: [{ id: 8, previousCount: 818, expectedAmount: 618, countedAmount: '815.99' }],
+    });
+    expect(fetchMock.mock.calls.some(call => call[1]?.method === 'POST')).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit closing totals for Sydney Till 3' }));
+  });
+  it('hides closing-total actions for non-admins', async () => {
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url, options) => url.includes('?date=')
+      ? Promise.resolve(json({ sessions: [{ ...session, status: 'closed',
+        reconciliations: [{ id: 8, payment_method: 'Cash', counted_amount: 818, expected_amount: 618, variance: 0 }],
+      }] }))
+      : original(url, options));
+    await mount(false);
+    expect(screen.queryByRole('button', { name: /Edit closing totals/ })).toBeNull();
   });
   it('shows a stale-save error and keeps the editor available', async () => {
     const original = fetchMock.getMockImplementation()!;

@@ -1,7 +1,7 @@
 ---
-{"id":"setup-businesses-ai-plans","title":"Businesses and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Step-by-step"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-10-13","owner":"platform","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Manage businesses and AI plans"},"requiredTier":"SuperAdmin"}
+{"id":"setup-businesses-ai-plans","title":"Businesses, Billing and AI Plans","audiences":["ims"],"capability":"navigation","screen":"SuperAdmin > Businesses","product":"setup","format":"task","parentId":"setup-connections","contexts":["businesses"],"contextSections":{"businesses":"Business Settings tabs"},"relatedTopics":["ims-settings-account-ai-credits","setup-feature-rollouts","setup-team-access-security"],"order":4,"summary":"Manage business access, operating limits, plan start dates, manual monthly payment history, environment safeguards, and the assigned Solvantis AI plan.","lastReviewed":"2026-10-16","owner":"platform","quickSections":["Main operations","At a glance"],"navigation":{"category":"platform","label":"Manage businesses, billing and AI plans"},"requiredTier":"SuperAdmin"}
 ---
-# Businesses and AI Plans
+# Businesses, Billing and AI Plans
 
 Use Businesses to onboard and administer each Solvantis business. Business Settings contains module access, environment safeguards, operating limits, billing values, and the business's Solvantis AI plan.
 
@@ -12,6 +12,7 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 - Enable or disable IMS and POS access. Use **Feature Rollouts** for SuperAdmin-only Marketing Activities and AI Helper tests.
 - Identify sandbox businesses and pause their scheduled automation when required.
 - Set location and user limits and the monthly cost per location.
+- Set the plan start date, choose a year in **History**, and manually record each month's agreed payment plan, AUD amount and paid status.
 - Open AI Usage & Credits for funding, enforcement, usage, model costs, and plan margins.
 - Maintain one AUD-per-USD exchange rate for the supported Google models.
 - Set the percentage markup for Starter, Core, Scale, Enterprise, and Platform.
@@ -26,6 +27,8 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 | Module access | **Businesses > Settings** | Controls access to IMS and POS |
 | Test tools | **Feature Rollouts** | Enables Marketing Activities and AI Helper for SuperAdmins in selected businesses |
 | Sandbox and automation | **Businesses > Settings** | Identifies test businesses and can stop scheduled automation |
+| Plan start date | **Businesses > Settings > Plan & Billing** | Lists calendar months from the start month through the current Australian calendar month in History |
+| Monthly payment history | **Businesses > Settings > History** | Records a manually entered payment plan, AUD amount and paid status for each selected month; it does not charge or invoice the business |
 | AI funding and enforcement | **AI Usage & Credits** | Controls prepaid credit or account limits and exhaustion behaviour |
 | Supported model costs | **AI Usage & Credits > AI pricing** | Shows the published USD dimensions and converted AUD costs for six supported models |
 | AUD per USD | **AI Usage & Credits > AI pricing** | Converts the published Google prices into the provider costs used for future calls |
@@ -48,10 +51,31 @@ Use Businesses to onboard and administer each Solvantis business. Business Setti
 1. Open **Admin > Businesses**.
 2. Find the business and select **Settings**.
 3. Review the business name and module access.
-4. Under **Plan Limits & Billing**, choose the **Solvantis AI Plan**.
-5. Review location, user, and cost-per-location values.
+4. Open **Plan & Billing** and choose the **Solvantis AI plan**.
+5. Review location, user, and cost-per-location values, and enter the **Plan start date** if known.
 6. Select **Save Changes**.
 7. Open **AI Usage & Credits** only when funding, enforcement, cycle, credit, or rate controls also need attention.
+
+## Business Settings tabs
+
+- **General** contains the business name, IMS and POS access, and sandbox and automation safeguards.
+- **Plan & Billing** contains the plan start date, Solvantis AI plan, location and user limits, and monthly cost per location.
+- **History** contains manually maintained monthly payment records with a year selector.
+
+The dialog scrolls within its content area. Tabs remain at the top and **Save Changes** and **Cancel** remain at the bottom. Switching tabs keeps unsaved edits; **Save Changes** saves edits across all tabs. Cancelling or closing with unsaved edits asks before discarding them.
+
+### Record monthly payments
+
+1. Enter the known plan start date in **Plan & Billing**. Do not use the business creation date as a substitute unless it is the actual agreed start date.
+2. Open **History** and select the year.
+3. Enter the agreed **Payment plan** and **Amount (AUD)** for the month.
+4. Set **Paid** only when payment has been confirmed, then select **Save Changes**.
+
+The first and current calendar months are included, even if the plan started partway through a month. No prorating or automatic amount calculation is performed. Future months are not listed. Empty months show **Not recorded**, not an assumed zero charge or overdue payment. A recorded zero-dollar amount is allowed when explicitly entered with a plan.
+
+Historical plan names and amounts are entered independently of today's AI plan or cost-per-location setting. Changing those settings does not rewrite past payment records. Moving or clearing the start date also retains previously recorded months. Paid status is a manual administrative record, not bank reconciliation or external payment verification.
+
+If another administrator changes the same month or the saved start date while you are editing, saving stops rather than overwriting their record. Reopen Settings to load the latest values. If only part of a multi-section save succeeds, the error states which sections saved; unsaved drafts remain open for review.
 
 ### Work in a business
 

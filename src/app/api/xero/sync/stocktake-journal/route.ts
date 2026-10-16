@@ -5,6 +5,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { assertXeroWorkflowEnabled, isXeroPolicyDisabledError } from '@/lib/xero/postingPolicy';
 import { getXeroSyncAccessDenied } from '@/lib/xero/advisorSyncAccess';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function POST(req: Request) {
   const { user, response } = requireAdminSession();
@@ -12,9 +13,11 @@ export async function POST(req: Request) {
 
   let databaseId = '';
   let stocktakeId: number | null = null;
+  let automatic = false;
 
   try {
     const body = await req.json();
+    automatic = body?.automatic === true;
     databaseId = String(body?.databaseId ?? '');
     stocktakeId = Number(body?.stocktakeId ?? 0);
     if (!stocktakeId) return NextResponse.json({ error: 'stocktakeId required' }, { status: 400 });
@@ -31,23 +34,31 @@ export async function POST(req: Request) {
       () => syncStocktakeJournal(databaseId, Number(stocktakeId)),
     );
     return NextResponse.json({ ok: true, ...result });
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (isXeroPolicyDisabledError(e)) {
+      if (automatic) return NextResponse.json({ ok: true, skipped: true, code: e.code });
       return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
     }
+    const message = e instanceof Error ? e.message : 'Unable to sync the stocktake journal.';
     if (databaseId && stocktakeId) {
-      await runImsForBusiness(databaseId, async () => {
-        await notifySyncFailure({
+      try {
+        await runImsForBusiness(databaseId, () => notifySyncFailure({
           businessId: databaseId,
           source: 'xero_sync',
           title: 'Xero Sync Failed — Stocktake Journal',
-          message: `Stocktake ${stocktakeId} failed to sync to Xero. ${e?.message ?? 'Unknown error'}`,
-          detail: { stocktake_id: stocktakeId, error: e?.message ?? String(e) },
+          message: `Stocktake ${stocktakeId} failed to sync to Xero. ${message}`,
+          detail: { stocktake_id: stocktakeId, error: message },
           dedupeKey: `xero:stocktake:${stocktakeId}`,
           dedupeMinutes: 60,
-        }).catch(() => {});
-      }).catch(() => {});
+        }));
+      } catch (notificationError) {
+        await reportRuntimeIssue({
+          businessId: databaseId, source: 'XeroStocktakeJournal', operation: 'notify_sync_failure',
+          title: 'Unable to record the stocktake Xero failure notification',
+          error: notificationError, context: { stocktake_id: stocktakeId, sync_error: message },
+        });
+      }
     }
-    return NextResponse.json({ error: e.message }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 }

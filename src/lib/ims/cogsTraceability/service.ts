@@ -50,8 +50,11 @@ export async function buildReport(businessId: string, request: ReportRequest) {
     channels: groupRows(detail, ['channel', 'channelInstance']),
     allocations: evidence.allocations.filter(allocation => pageMovements.has(allocation.movementId)),
     reconciliation: {
-      scope: 'Full unfiltered movement period; report filters affect the selected figure only.',
+      scope: 'Full unfiltered movement period; report filters affect the selected figure only. Recorded COGS includes internal consignment costs; Xero COGS intentionally excludes them, including refunds and reversals.',
       accounting, recordedMovementCogs: knownCost(periodMovements), selectedMovementCogs: knownCost(selectedPeriodMovements),
+      ownedMovementCogs: knownCost(periodMovements.filter(movement => movement.consignmentSupplierId == null)),
+      excludedConsignmentMovementCogs: knownCost(periodMovements.filter(movement => movement.consignmentSupplierId != null)),
+      excludedConsignmentMovements: periodMovements.filter(movement => movement.consignmentSupplierId != null).length,
       otherMovementTypesCogs: knownCost(periodMovements.filter(movement => movement.type === 'pos_return')),
       missingMovementCosts: periodMovements.filter(movement => movement.unitCost == null || movement.unitCost < 0).length,
       excludedHistoricalMovements: periodMovements.filter(movement => movement.historical).length,
@@ -69,6 +72,7 @@ export async function buildReport(businessId: string, request: ReportRequest) {
       deliveryDate: 'Not recorded. Stock fulfilment timestamp is shown separately as shipment evidence.',
       brand: 'Current catalogue metadata, not a historical sales snapshot.',
       historical: 'Imported history lacks captured tax/currency/cost evidence; financial margin is unavailable.',
+      ownership: 'Immutable stock-event ownership. Legacy events without a consignment snapshot are owned; unfulfilled lines have no ownership evidence. Consignment costs remain in internal profit reports but never post to Xero COGS.',
     },
     exportRows: result,
   };

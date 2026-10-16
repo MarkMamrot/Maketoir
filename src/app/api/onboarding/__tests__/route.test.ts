@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   imsExecute: vi.fn(),
   query: vi.fn(),
   getBusinessInfo: vi.fn(),
+  upsertBusinessInfo: vi.fn(),
   reportIssue: vi.fn(),
 }));
 
@@ -13,7 +14,7 @@ vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.getSession }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.imsQuery, imsExecute: mocks.imsExecute }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.query }));
 vi.mock('@/lib/db/BusinessInfoRepository', () => ({
-  BusinessInfoRepository: { get: mocks.getBusinessInfo, upsert: vi.fn() },
+  BusinessInfoRepository: { get: mocks.getBusinessInfo, upsert: mocks.upsertBusinessInfo },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportIssue }));
 
@@ -25,6 +26,7 @@ describe('GET /api/onboarding', () => {
     mocks.getSession.mockResolvedValue({ businessId: 'business-1' });
     mocks.query.mockResolvedValue([{ c: 1 }]);
     mocks.getBusinessInfo.mockResolvedValue(null);
+    mocks.upsertBusinessInfo.mockResolvedValue(undefined);
     mocks.reportIssue.mockResolvedValue(1);
     mocks.imsQuery.mockImplementation((sql: string) =>
       Promise.resolve(sql.includes('SELECT `key`, value') ? [] : [{ c: 0 }]),
@@ -184,6 +186,59 @@ describe('GET /api/onboarding', () => {
     expect(mocks.imsExecute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO ims_settings'),
       ['business-1', 'business_address', '123 Main Street, Suite 4, Sydney NSW 2000, Australia'],
+    );
+  });
+
+  it('reports a profile save failure without completing the identity step', async () => {
+    const error = new Error("Unknown column 'phone' in 'field list'");
+    mocks.imsExecute.mockResolvedValue(undefined);
+    mocks.upsertBusinessInfo.mockRejectedValueOnce(error);
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: { business_name: 'Example Store', business_phone: '0212345678' },
+        completeStep: 'business_profile',
+      }),
+    }));
+
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toContain('Please retry this step');
+    expect(mocks.reportIssue).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', source: 'onboarding', operation: 'save_progress', error,
+      context: { method: 'PUT', endpoint: '/api/onboarding' },
+      reference: { type: 'business_setup', id: 'business-1' },
+    }));
+    expect(mocks.imsExecute).not.toHaveBeenCalledWith(
+      expect.any(String), ['business-1', 'onboarding_completed_steps', expect.any(String)],
+    );
+  });
+
+  it('completes all thirteen steps when identity is retried after the profile is repaired', async () => {
+    const previouslyCompleted = [
+      'operations', 'tax', 'integrations', 'users', 'locations', 'brands', 'suppliers',
+      'products', 'sales_orders', 'purchase_orders', 'opening_stock', 'pos_ready',
+    ];
+    mocks.imsQuery.mockResolvedValue([{ value: JSON.stringify(previouslyCompleted) }]);
+    mocks.imsExecute.mockResolvedValue(undefined);
+    const response = await PUT(new Request('http://localhost/api/onboarding', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        settings: { business_name: 'Example Store', business_phone: '0212345678', business_abn: '12345678901' },
+        completeStep: 'business_profile',
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.upsertBusinessInfo).toHaveBeenCalledWith('business-1', {
+      brand_name: 'Example Store', phone: '0212345678', abn: '12345678901',
+    });
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.any(String), ['business-1', 'onboarding_completed_steps', JSON.stringify([...previouslyCompleted, 'business_profile'])],
+    );
+    expect(mocks.imsExecute).toHaveBeenCalledWith(
+      expect.any(String), ['business-1', 'onboarding_complete', '1'],
     );
   });
 

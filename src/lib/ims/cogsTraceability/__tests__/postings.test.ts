@@ -22,6 +22,24 @@ describe('COGS posting reconciliation', () => {
       { ...run, id: 3, amount: 40, xeroStatus: 'DRAFT' }, { ...run, id: 4, xeroStatus: 'VOIDED' }]))
       .toMatchObject({ postedTotal: 80, draftTotal: 40, postedCount: 2, draftCount: 1, voidedCount: 1 });
   });
+  it('labels consignment-only periods as intentionally excluded rather than unposted', async () => {
+    mocks.query.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+      frequency: 'monthly', timezone: 'Australia/Sydney', reliable_from: '2026-09-01',
+      held_reason: null, held_period_start: null, held_run_id: null,
+    }]);
+    mocks.calculate.mockResolvedValue({ totalCOGS: 0, blocked: false, breakdown: [],
+      excludedConsignmentMovementCount: 2, excludedConsignmentCOGS: 50 });
+    const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams('from=2026-09-01&to=2026-09-30')));
+    expect(result.rows[0]).toMatchObject({ postedTotal: 0, variance: 0, state: 'Consignment intentionally excluded from Xero COGS',
+      calculation: { excludedConsignmentCOGS: 50 } });
+  });
+  it('does not report retained internal consignment COGS as a gap in a mixed posted period', async () => {
+    mocks.calculate.mockResolvedValue({ totalCOGS: 100, blocked: false, breakdown: [],
+      excludedConsignmentMovementCount: 2, excludedConsignmentCOGS: -50 });
+    const result = await loadPostingReconciliations('tenant-1', parseRequest(new URLSearchParams()));
+    expect(result.rows[0]).toMatchObject({ postedTotal: 100, variance: 0, state: 'Matches recorded posted total',
+      calculation: { excludedConsignmentCOGS: -50 } });
+  });
   it('does not treat missing journal IDs or unknown states as posted', () => {
     expect(summarisePostingRuns([{ ...run, xeroStatus: null }, { ...run, xeroId: null }, { ...run, status: 'unknown' }]))
       .toMatchObject({ postedTotal: 0, uncertainCount: 3 });

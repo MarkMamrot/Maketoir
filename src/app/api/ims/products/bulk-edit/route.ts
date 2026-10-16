@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ImsProductsRepo } from '@/lib/ims/ImsRepository';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { isShopifyFallbackProduct } from '@/lib/shopifyFallbackVariant';
@@ -205,8 +206,7 @@ export async function PUT(req: Request) {
         productValues.push(u.brand || null);
       }
       if ('supplier_contact_id' in u) {
-        productFields.push('supplier_contact_id = ?');
-        productValues.push(u.supplier_contact_id ?? null);
+        await ImsProductsRepo.update(u.product_id, { supplier_contact_id: u.supplier_contact_id ?? null });
       }
 
       if (productFields.length > 0) {
@@ -292,6 +292,6 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ ok: true, productUpdates, stockUpdates, variantUpdates, skippedSystemProducts });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: err?.name === 'ConsignmentConflict' ? 409 : 500 });
   }
 }

@@ -5,6 +5,8 @@
 
 Use a Supplier Credit Note when a supplier owes your business money, with or without physical goods leaving a location.
 
+**Consignment supplier returns are stock-only.** Return the physical goods using the usual quantity controls, but do not expect a supplier-money credit, payment or accounting credit. The document's consignment notice distinguishes this from an owned-stock supplier credit. Unsold consignment goods returned to the supplier do not reduce sold quantities or sales dues in Consignment Activity.
+
 ## Main operations
 
 - Start from a completed PO for a linked return when possible.

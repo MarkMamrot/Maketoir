@@ -106,7 +106,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (err instanceof LoyaltyVoidBlockedError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
-    if (err instanceof FifoCostingConflict) {
+    if (err instanceof FifoCostingConflict || err?.name === 'ConsignmentConflict') {
       return NextResponse.json({ error: err.message, code: err.code }, { status: err.status });
     }
     return NextResponse.json({ error: err.message || String(err) }, { status: 500 });

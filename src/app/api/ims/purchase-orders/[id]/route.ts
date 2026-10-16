@@ -277,6 +277,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     if (e instanceof StockAllocationConflict) {
       return NextResponse.json({ success: false, error: e.message }, { status: e.status });
     }
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     if (e instanceof OrderAmendmentConflict) {
       return NextResponse.json({
         success: false,

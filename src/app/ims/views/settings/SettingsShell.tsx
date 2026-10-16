@@ -7,6 +7,10 @@ import styles from './SettingsShell.module.css';
 
 const DraftContext = createContext<((id: string, dirty: boolean) => void) | null>(null);
 
+export function SettingsActions({ children }: { children: React.ReactNode }) {
+  return <div className={styles.formActions} data-settings-actions>{children}</div>;
+}
+
 export function useSettingsDirty(dirty: boolean) {
   const id = useId();
   const register = useContext(DraftContext);

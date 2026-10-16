@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IMS_SETTINGS_MENU } from '@/lib/navigation/imsSettingsNavigation';
-import { SettingsShell, useSettingsDirty } from '../SettingsShell';
+import { SettingsActions, SettingsShell, useSettingsDirty } from '../SettingsShell';
 
 beforeEach(() => {
   HTMLElement.prototype.scrollTo = vi.fn();
@@ -24,6 +24,25 @@ function shell(dirty = false) {
 }
 
 describe('settings tree and draft protection', () => {
+  it('groups actions without changing click handlers, disabled states or feedback', async () => {
+    const user = userEvent.setup();
+    const save = vi.fn(), cancel = vi.fn();
+    render(<SettingsActions>
+      <button type="button" data-primary disabled onClick={save}>Save permissions</button>
+      <button type="button" onClick={cancel}>Cancel</button>
+      <p role="alert">Settings could not be saved.</p>
+    </SettingsActions>);
+    const saveButton = screen.getByRole('button', { name: 'Save permissions' });
+    const actions = saveButton.closest('[data-settings-actions]');
+    expect(actions).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Cancel' }).parentElement).toBe(actions);
+    expect(screen.getByRole('alert').parentElement).toBe(actions);
+    await user.click(saveButton);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(save).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
   it('expands ancestors and exposes the current page', async () => {
     const user = userEvent.setup();
     const { onNavigate } = shell();

@@ -207,15 +207,29 @@ Open **Reports > Daily POS Registers Report** for register sessions assigned to 
 
 ### Correct an opening float
 
-Administrators and SuperAdmins can select **Edit** beside **Float** for either an open or a closed session. Enter the verified opening amount and a reason, then select **Save opening float**. This corrects that session, not the register's default float. The original opening denomination breakdown is cleared because it no longer represents the corrected amount.
+Administrators and SuperAdmins can select **Edit** beside **Float** only while that register session is **Open**. Enter the verified opening amount and a reason, then select **Save opening float**. This corrects that session, not the register's default float. The original opening denomination breakdown is cleared because it no longer represents the corrected amount. Once the session is closed, its opening float cannot be edited.
 
 Cash reconciliation uses the corrected float, so its variance and the session total variance are recalculated. The counted drawer amount, expected takings, non-cash counts and sales remain unchanged. Do not change float merely to hide a real cash shortage.
 
-For a closed session, acknowledge the warning before saving: any affected entries already synced to Xero or another accounting system must be edited manually by the bookkeeper. The correction does not trigger an accounting sync, replace posted documents or reset posting status. Accounting till-variance information can therefore show the original posted amount alongside the corrected Solvantis variance.
+### Correct closed-session counted totals
 
-After saving a closed-session correction, select **Email bookkeeper about this correction**. Solvantis sends the register, branch, session date, old and new float, correction reason and cash variance details to the configured accounts recipients. Configure these under **Settings > Business & Team > Bookkeeping email**; these are the same recipients used for accounting reconciliation emails. Email is a separate action, not automatic on save.
+Administrators and SuperAdmins can select **Edit closing totals** beneath the **Closed** status when the session has reconciliation rows. This action is not available for an open session; use the normal POS End of Day workflow there.
 
-If emailing fails, the float remains saved. Reopen **Edit** and use **Email bookkeeper about last correction** to retry the latest closed-session notice without changing the float again. An already-sent notice is not sent a second time.
+1. Verify the session and independently check each payment method's closing count.
+2. Enter the corrected **counted** amounts. Cash is the full physical drawer total, including opening float. Non-cash amounts can be negative when independently verified net refunds exceed takings. Enter zero for a verified zero; a previously recorded count cannot be erased.
+3. Enter a reason and acknowledge that the bookkeeper must manually review and correct affected accounting entries.
+4. Select **Save closing totals**, then verify the refreshed method amounts and session totals.
+5. Notify the bookkeeper yourself when accounting entries need review. This action does not send an email.
+
+Only changed counted amounts are updated, and only their old denomination breakdowns are cleared. Expected takings, opening float, sales, original closing details and unchanged payment methods stay intact. The correction records the administrator, reason and old/new counts and variances; reopening the editor shows the latest closing correction.
+
+Solvantis method and total variances recalculate. Existing Xero invoices, payments, banking snapshots and posting statuses stay unchanged: saving does not trigger or retry an accounting sync. Accounting till-variance information may therefore show the original posted amount alongside the corrected Solvantis variance. Do not correct counts merely to hide a genuine shortage.
+
+If someone changes the session or counts while you are editing, saving is rejected. Reload the report and review the current values before trying again.
+
+### Review an earlier closed-session float correction
+
+Where a closed session already has a historical float correction, **Review float correction** opens its details without allowing another float edit. **Email bookkeeper about last correction** sends that existing float-correction notice to the configured accounts recipients under **Settings > Business & Team > Bookkeeping email**. A failed email does not undo the correction and can be retried; an already-sent notice is not sent twice. This notice concerns only the historical float correction, not subsequent closing-count corrections.
 
 > **Important:** TOTAL Counted includes the physical cash float, while TOTAL Expected is payment takings. TOTAL Variance sums the already float-adjusted method variances. It is not simply TOTAL Counted minus TOTAL Expected.
 

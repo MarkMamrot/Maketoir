@@ -45,6 +45,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       },
     });
   } catch (e: any) {
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     const conflict = e instanceof SupplierReturnConflict || e instanceof FifoCostingConflict || e instanceof InventoryDocumentLifecycleConflict || e instanceof InventoryDocumentOperationConflict || e instanceof InventoryDocumentRevisionConflict;
     return NextResponse.json({ success: false, error: e.message, ...(e.code ? { code: e.code } : {}) }, { status: conflict ? 409 : 500 });
   }

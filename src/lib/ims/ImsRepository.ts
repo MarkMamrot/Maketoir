@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { assertManualStocktakeItemEditAllowed } from './stocktakes/stocktakeOperations';
+import { appendOwnershipHistory, assertConsignmentDocument, assertConsignmentProductSupported, assertProductOwnershipChangeSafe, changeProductSupplier, changeSupplierOwnership, ConsignmentConflict, resolveCurrentOwnership, snapshotMovementOwnership, type OwnershipActor } from './consignment/ownership';
+import { captureConsignmentRefund, captureConsignmentSale, captureSourceFact } from './consignment/sourceCapture';
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 import { normalizePurchaseOrderField } from './purchaseOrderInput';
 import { calculateSupplierCreditTotals } from './supplierCreditTotals';
 import { getIMSPool, imsQuery, imsExecute } from '@/services/IMSMySQLService';
@@ -108,6 +111,7 @@ export interface ImsContact {
   loyalty_member_enrolled_at?: string | null;
   loyalty_member_opted_out_at?: string | null;
   // Supplier-specific
+  is_consignment?: number;
   lead_time_days?: number; order_frequency_days?: number;
   cin7_supplier_id?: number; cin7_contact_id?: number;
   is_active: number; price_tier?: string;
@@ -134,7 +138,7 @@ export interface ImsLocation {
 export interface ImsProduct {
   id: number; product_id: string; name: string; description?: string;
   product_type?: string; brand?: string; tags?: string; category?: string; subcategory?: string;
-  style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number; cin7_product_id?: number;
+  style_code?: string; base_sku?: string; is_online?: number; supplier_contact_id?: number | null; cin7_product_id?: number;
   customs_description?: string | null; hs_code?: string | null; country_of_origin?: string | null;
   is_dangerous_or_restricted?: number;
   allow_indent_wholesale?: number; is_stock_item?: number; uses_builds?: number;
@@ -162,6 +166,8 @@ export interface ImsVariant {
 }
 
 export interface ImsStock {
+  is_consignment?: number | boolean;
+  consignment_supplier_id?: number | null;
   id: number; variant_id: string; location_id: number;
   qty_on_hand: number; qty_incoming: number; qty_committed: number;
   available?: number; // computed: qty_on_hand - qty_committed
@@ -282,6 +288,7 @@ async function completeOrderAmendment(
 }
 
 export interface ImsPO {
+  consignment_supplier_id?: number | null;
   id: number; po_number: string; supplier_id?: number; location_id: number;
   status: POStatus; order_date: string; expected_date?: string;
   received_date?: string; notes?: string; subtotal: number;
@@ -485,10 +492,14 @@ export const ImsContactsRepo = {
     return rows[0] ?? null;
   },
 
-  async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string): Promise<number> {
+  async create(data: Omit<ImsContact, 'id' | 'created_at' | 'updated_at'>, businessId?: string, actor?: OwnershipActor): Promise<number> {
     const loyaltyMember = ['retail_customer', 'b2b_customer', 'both'].includes(data.type) && Number(data.loyalty_member) === 1 ? 1 : 0;
     const leadTemperature = resolveLeadTemperature(data.type, data.lead_temperature);
-    const res = await imsExecute(
+    const conn = Number(data.is_consignment) === 1 ? await getIMSPool().getConnection() : null;
+    const execute = async (sql: string, values: any[]): Promise<any> => conn ? conn.execute(sql, values) : [await imsExecute(sql, values)];
+    try {
+    if (conn) await conn.beginTransaction();
+    const [res] = await execute(
       `INSERT INTO ims_contacts
          (business_id,type,name,first_name,last_name,company,customer_code,customer_group,
          shopify_customer_id,lead_temperature,email,phone,mobile,address,address2,suburb,city,state,postcode,country,notes,is_active,
@@ -521,15 +532,18 @@ export const ImsContactsRepo = {
     const newId = res.insertId;
     // Auto-assign a customer code if none was provided — format C-000142
     if (!data.customer_code) {
-      await imsExecute(
+      await execute(
         `UPDATE ims_contacts SET customer_code = CONCAT('C-', LPAD(?, 6, '0')) WHERE id = ? AND (customer_code IS NULL OR customer_code = '')`,
         [newId, newId],
       ).catch(() => {});
     }
+    if (conn) await changeSupplierOwnership(conn, String(businessId ?? ''), newId, true, actor);
+    if (conn) await conn.commit();
     return newId;
+    } catch (error) { if (conn) await conn.rollback(); throw error; } finally { if (conn) conn.release(); }
   },
 
-  async update(id: number, data: Partial<ImsContact>, businessId?: string): Promise<void> {
+  async update(id: number, data: Partial<ImsContact>, businessId?: string, actor?: OwnershipActor): Promise<void> {
     const fields = [
       'type','name','first_name','last_name','company','customer_code','customer_group','shopify_customer_id',
       'email','phone','mobile','address','address2','suburb','city','state','postcode','country','notes','is_active',
@@ -578,10 +592,28 @@ export const ImsContactsRepo = {
       sets.push('loyalty_member = ?');
       vals.push(loyaltyMember);
     }
-    if (!sets.length) return;
+    if (!sets.length && data.is_consignment === undefined) return;
     vals.push(id);
     if (businessId) vals.push(businessId);
-    await imsExecute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?${businessId ? ' AND business_id = ?' : ''}`, vals);
+    if (data.is_consignment === undefined && data.type === undefined && data.is_active === undefined) {
+      await imsExecute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?${businessId ? ' AND business_id = ?' : ''}`, vals);
+      return;
+    }
+    const conn = await getIMSPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      if (businessId) await lockInventoryCostState(conn, businessId);
+      const [[existing]] = await conn.execute<any[]>('SELECT * FROM ims_contacts WHERE id = ? FOR UPDATE', [id]);
+      if (!existing || (businessId && String(existing.business_id) !== businessId)) throw new ConsignmentConflict('Contact not found.');
+      const enabled = data.is_consignment === undefined ? Number(existing.is_consignment) === 1 : Number(data.is_consignment) === 1;
+      if (enabled && !['supplier', 'both'].includes(data.type ?? existing.type)) throw new ConsignmentConflict('Consignment contacts must remain suppliers.');
+      if (Number(existing.is_consignment) === 1 && data.is_active !== undefined && Number(data.is_active) === 0) throw new ConsignmentConflict('Disable consignment safely before deactivating this supplier.');
+      if (data.is_consignment !== undefined && Number(data.is_consignment) !== Number(existing.is_consignment ?? 0)) {
+        await changeSupplierOwnership(conn, String(existing.business_id), id, enabled, actor);
+      }
+      if (sets.length) await conn.execute(`UPDATE ims_contacts SET ${sets.join(', ')} WHERE id = ?${businessId ? ' AND business_id = ?' : ''}`, vals);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   },
 
   async adjustStoreCredit(
@@ -645,7 +677,16 @@ export const ImsContactsRepo = {
   },
 
   async delete(id: number): Promise<void> {
-    await imsExecute(`DELETE FROM ims_contacts WHERE id = ?`, [id]);
+    const conn = await getIMSPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[contact]] = await conn.execute<any[]>('SELECT is_consignment FROM ims_contacts WHERE id = ? FOR UPDATE', [id]);
+      if (Number(contact?.is_consignment) === 1) throw new ConsignmentConflict('Disable consignment safely before deleting this supplier.');
+      const [[history]] = await conn.execute<any[]>('SELECT id FROM ims_consignment_ownership_history WHERE supplier_id = ? LIMIT 1', [id]);
+      if (history) throw new ConsignmentConflict('A supplier with consignment history must be retained for source evidence. Deactivate the contact instead.');
+      await conn.execute(`DELETE FROM ims_contacts WHERE id = ?`, [id]);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   },
 };
 
@@ -742,7 +783,7 @@ export const ImsProductsRepo = {
     const where = businessId ? 'WHERE p.business_id = ?' : '';
     const params = businessId ? [businessId] : [];
     const products = await imsQuery<ImsProduct>(
-      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active
+      `SELECT p.*, c.name AS supplier_name, c.is_active AS supplier_is_active, COALESCE(c.is_consignment,0) AS is_consignment
        FROM ims_products p
        LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
        ${where}
@@ -765,7 +806,7 @@ export const ImsProductsRepo = {
   async get(productId: string, businessId?: string): Promise<ImsProduct | null> {
     const where = businessId ? 'WHERE product_id = ? AND business_id = ?' : 'WHERE product_id = ?';
     const params = businessId ? [productId, businessId] : [productId];
-    const rows = await imsQuery<ImsProduct>(`SELECT * FROM ims_products ${where}`, params);
+    const rows = await imsQuery<ImsProduct>(`SELECT p.*, COALESCE(c.is_consignment,0) AS is_consignment FROM ims_products p LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id ${businessId ? 'WHERE p.product_id = ? AND p.business_id = ?' : 'WHERE p.product_id = ?'}`, params);
     if (!rows[0]) return null;
     const variants = await imsQuery<ImsVariant>(
       `SELECT * FROM ims_product_variants WHERE product_id = ? ORDER BY sku`, [productId]
@@ -778,7 +819,12 @@ export const ImsProductsRepo = {
     businessId?: string
   ): Promise<string> {
     const product_id = data.product_id || uuidv4();
-    await imsExecute(
+    const conn = await getIMSPool().getConnection();
+    try {
+    await conn.beginTransaction();
+    const [[supplier]] = data.supplier_contact_id ? await conn.execute<any[]>('SELECT is_consignment FROM ims_contacts WHERE id = ? AND business_id = ? FOR UPDATE', [data.supplier_contact_id, businessId ?? '']) : [[]];
+    if (Number(supplier?.is_consignment) === 1) assertConsignmentProductSupported(data);
+    await conn.execute(
       `INSERT INTO ims_products (business_id,product_id,name,description,product_type,brand,tags,category,subcategory,is_active,shopify_product_id,style_code,base_sku,customs_description,hs_code,country_of_origin,is_dangerous_or_restricted,is_online,supplier_contact_id,cin7_product_id,website_title,allow_indent_wholesale,is_stock_item,uses_builds)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [businessId ?? '', product_id, data.name, data.description ?? null, data.product_type ?? null, data.brand ?? null,
@@ -788,11 +834,14 @@ export const ImsProductsRepo = {
        data.supplier_contact_id ?? null, data.cin7_product_id ?? null,
       data.website_title ?? null, data.allow_indent_wholesale ?? 0, data.is_stock_item ?? 1, data.uses_builds ?? 0]
     );
+    if (Number(supplier?.is_consignment) === 1) await appendOwnershipHistory(conn, String(businessId ?? ''), product_id, Number(data.supplier_contact_id), true);
+    await conn.commit();
     return product_id;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   },
 
   async update(productId: string, data: Partial<ImsProduct>): Promise<void> {
-    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','customs_description','hs_code','country_of_origin','is_dangerous_or_restricted','is_online','supplier_contact_id','cin7_product_id','website_title','allow_indent_wholesale','is_stock_item','uses_builds'];
+    const fields = ['name','description','product_type','brand','tags','category','subcategory','is_active','style_code','base_sku','customs_description','hs_code','country_of_origin','is_dangerous_or_restricted','is_online','supplier_contact_id','cin7_product_id','shopify_product_id','website_title','allow_indent_wholesale','is_stock_item','uses_builds'];
     const sets: string[] = [];
     const vals: any[] = [];
     for (const f of fields) {
@@ -803,13 +852,24 @@ export const ImsProductsRepo = {
     }
     if (!sets.length) return;
     vals.push(productId);
-    await imsExecute(`UPDATE ims_products SET ${sets.join(', ')} WHERE product_id = ?`, vals);
+    const conn = await getIMSPool().getConnection();
+    try {
+      await conn.beginTransaction();
+      const [[product]] = await conn.execute<any[]>('SELECT business_id FROM ims_products WHERE product_id = ?', [productId]);
+      if (!product) throw new ConsignmentConflict('Product not found.');
+      await changeProductSupplier(conn, String(product.business_id), productId, data);
+      await conn.execute(`UPDATE ims_products SET ${sets.join(', ')} WHERE product_id = ?`, vals);
+      await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   },
 
   async delete(productId: string, businessId: string): Promise<void> {
     const connection = await getIMSPool().getConnection();
     try {
       await connection.beginTransaction();
+      await assertProductOwnershipChangeSafe(connection, businessId, productId);
+      const [[ownershipHistory]] = await connection.execute<any[]>('SELECT id FROM ims_consignment_ownership_history WHERE business_id = ? AND product_id = ? LIMIT 1', [businessId, productId]);
+      if (ownershipHistory) throw new ConsignmentConflict('Products with consignment ownership history must be retained for historical evidence. Deactivate the product instead.');
       const [variantRows] = await connection.execute<any[]>(
         `SELECT variant_id
            FROM ims_product_variants
@@ -1005,6 +1065,12 @@ export const ImsVariantsRepo = {
     const connection = await getIMSPool().getConnection();
     try {
       await connection.beginTransaction();
+      const [[ownershipHistory]] = await connection.execute<any[]>(
+        `SELECT h.id FROM ims_consignment_ownership_history h
+          JOIN ims_product_variants v ON v.product_id = h.product_id AND v.business_id = h.business_id
+         WHERE h.business_id = ? AND v.variant_id = ? LIMIT 1`, [businessId, variantId],
+      );
+      if (ownershipHistory) throw new ConsignmentConflict('Variants with consignment ownership history must be retained for historical evidence. Deactivate the variant instead.');
       await assertFifoCatalogueDeletionAllowed(connection, {
         businessId,
         variantIds: [variantId],
@@ -1097,7 +1163,11 @@ export const ImsStockRepo = {
       return await imsQuery<ImsStock>(
         `SELECT s.id, s.business_id, s.variant_id, s.location_id,
           s.qty_on_hand, s.qty_incoming, s.qty_committed, s.min_qty, s.reorder_qty,
-          v.avg_cost, s.zone, s.bin, s.updated_at,
+          CASE WHEN cost_state.active_method = 'fifo' THEN
+            (SELECT SUM(f.remaining_quantity * f.unit_cost) / NULLIF(SUM(f.remaining_quantity),0)
+               FROM ims_fifo_cost_layers f WHERE f.business_id = s.business_id
+                AND f.epoch_id = cost_state.active_epoch_id AND f.variant_id = s.variant_id AND f.location_id = s.location_id)
+            ELSE v.avg_cost END AS avg_cost, s.zone, s.bin, s.updated_at,
                 (s.qty_on_hand - s.qty_committed) AS available,
           v.product_id AS product_id,
           v.sku, v.barcode, p.name AS product_name,
@@ -1106,6 +1176,8 @@ export const ImsStockRepo = {
                 COALESCE(NULLIF(s.bin, ''), p.bin)  AS bin,
                 p.created_at AS created_at,
                 c.name AS supplier_name,
+                COALESCE(c.is_consignment,0) AS is_consignment,
+                CASE WHEN c.is_consignment = 1 THEN c.id ELSE NULL END AS consignment_supplier_id,
                 c.is_active AS supplier_is_active,
                 l.name AS location_name,
                 CONCAT_WS(' / ',
@@ -1117,6 +1189,7 @@ export const ImsStockRepo = {
          JOIN ims_product_variants v ON v.variant_id = s.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
          LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
+         LEFT JOIN ims_inventory_cost_state cost_state ON cost_state.business_id = s.business_id
          JOIN ims_locations l ON l.id = s.location_id
          ${where}
          ORDER BY p.name, v.sku, l.name`,
@@ -1126,11 +1199,17 @@ export const ImsStockRepo = {
       return imsQuery<ImsStock>(
         `SELECT s.id, s.business_id, s.variant_id, s.location_id,
           s.qty_on_hand, s.qty_incoming, s.qty_committed, s.min_qty, s.reorder_qty,
-          v.avg_cost, s.zone, s.bin, s.updated_at,
+          CASE WHEN cost_state.active_method = 'fifo' THEN
+            (SELECT SUM(f.remaining_quantity * f.unit_cost) / NULLIF(SUM(f.remaining_quantity),0)
+               FROM ims_fifo_cost_layers f WHERE f.business_id = s.business_id
+                AND f.epoch_id = cost_state.active_epoch_id AND f.variant_id = s.variant_id AND f.location_id = s.location_id)
+            ELSE v.avg_cost END AS avg_cost, s.zone, s.bin, s.updated_at,
                 (s.qty_on_hand - s.qty_committed) AS available,
           v.product_id AS product_id,
           v.sku, v.barcode, p.name AS product_name,
                 p.brand AS brand,
+                COALESCE(c.is_consignment,0) AS is_consignment,
+                CASE WHEN c.is_consignment = 1 THEN c.id ELSE NULL END AS consignment_supplier_id,
                 l.name AS location_name,
                 CONCAT_WS(' / ',
                   NULLIF(v.option1_value,''),
@@ -1140,6 +1219,8 @@ export const ImsStockRepo = {
          FROM ims_stock s
          JOIN ims_product_variants v ON v.variant_id = s.variant_id
          JOIN ims_products p ON p.product_id = v.product_id
+         LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id AND c.business_id = p.business_id
+         LEFT JOIN ims_inventory_cost_state cost_state ON cost_state.business_id = s.business_id
          JOIN ims_locations l ON l.id = s.location_id
          ${where}
          ORDER BY p.name, v.sku, l.name`,
@@ -1382,6 +1463,7 @@ async function reversePurchaseOrderReceiptTx(
          VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?,?,?)`,
         [po.business_id, plan.variantId, po.location_id, po.id, -source.quantity, quantityAfter, source.unitCost, options.costingState?.method ?? 'average_cost', options.costingState?.epochId ?? null, 'PO receipt undone'],
       );
+      await snapshotMovementOwnership(conn, String(po.business_id), Number(movementResult.insertId), plan.variantId, po.consignment_supplier_id ?? null);
       if (options.costingState?.method === 'fifo' && source.movementId != null) {
         await reverseFifoStockMovementLayers(conn, {
           businessId: po.business_id,
@@ -1613,12 +1695,22 @@ export const ImsPORepo = {
     businessId?: string,
   ): Promise<ImsPayment> {
     if (!businessId) throw new Error('businessId is required');
-    const res = await imsExecute(
+    const conn = await getIMSPool().getConnection();
+    let paymentId: number;
+    try {
+    await conn.beginTransaction();
+    const [[po]] = await conn.execute<any[]>('SELECT consignment_supplier_id FROM ims_purchase_orders WHERE id = ? AND business_id = ? FOR UPDATE', [poId, businessId]);
+    if (!po) throw new Error('Purchase order not found.');
+    if (po.consignment_supplier_id) throw new ConsignmentConflict('Supplier payments cannot be recorded against consignment supply orders. Settlement is managed separately by the bookkeeper.');
+    const [res] = await conn.execute<any>(
       `INSERT INTO ims_purchase_order_payments (business_id, po_id, payment_date, amount, currency_code, exchange_rate, amount_local, notes, payment_method_id, xero_post_intent, xero_post_status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [businessId, poId, data.payment_date, data.amount, data.currency_code, data.exchange_rate, data.amount_local, data.notes || null, data.payment_method_id ?? null, data.xero_post_intent, data.xero_post_intent === 'post_to_xero' ? 'pending' : 'not_requested'],
     );
-    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [res.insertId, businessId]);
+    paymentId = res.insertId;
+    await conn.commit();
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
+    const rows = await imsQuery<ImsPayment>(`SELECT p.*, pm.name AS payment_method_name FROM ims_purchase_order_payments p LEFT JOIN ims_payment_methods pm ON pm.id = p.payment_method_id AND pm.business_id = p.business_id WHERE p.id = ? AND p.business_id = ?`, [paymentId, businessId]);
     return rows[0];
   },
 
@@ -1633,6 +1725,13 @@ export const ImsPORepo = {
     businessId?: string,
   ): Promise<number> {
     const po_number = data.po_number || await nextPONumber();
+    const conn = await getIMSPool().getConnection();
+    try {
+    await conn.beginTransaction();
+    const consignmentSupplierId = await assertConsignmentDocument(conn, String(businessId ?? ''), data, items);
+    if (consignmentSupplierId && ((landedCosts ?? []).some(cost => Number(cost.amount) !== 0) || Number(data.freight ?? 0) !== 0 || Number(data.discount ?? 0) !== 0)) {
+      throw new ConsignmentConflict('Consignment receipts do not support retailer freight, landed charges or header discounts. Use supplier line costs and discounts only.');
+    }
     const taxTreatment = data.tax_treatment ?? 'ex_tax';
     const subtotal = taxTreatment === 'inc_tax'
       ? items.reduce((s, i) => {
@@ -1659,15 +1758,15 @@ export const ImsPORepo = {
     const discount = Number(normalizePurchaseOrderField('discount', data.discount));
     const total_amount = subtotal + tax_amount + freight - discount;
 
-    const res = await imsExecute(
+    const [res] = await conn.execute<any>(
       `INSERT INTO ims_purchase_orders
-         (business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,
+         (consignment_supplier_id,business_id,po_number,supplier_id,location_id,status,order_date,expected_date,notes,
          supplier_invoice_number,supplier_invoice_date,payment_terms,tax_treatment,tax_code,currency_code,exchange_rate,
          early_payment_discount_rule_id,early_payment_discount_name,early_payment_discount_basis_points,early_payment_discount_days,
          early_payment_discount_base,early_payment_discount_date_basis,early_payment_discount_cutoff_date,early_payment_discount_source,
          freight,discount,subtotal,tax_amount,total_amount)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [consignmentSupplierId, businessId ?? '', po_number, data.supplier_id ?? null, data.location_id, 'draft',
       data.order_date, normalizePurchaseOrderField('expected_date', data.expected_date), data.notes ?? null,
        data.supplier_invoice_number ?? null, data.supplier_invoice_date || null, data.payment_terms ?? null,
        data.tax_treatment ?? 'ex_tax', data.tax_code ?? null,
@@ -1680,21 +1779,21 @@ export const ImsPORepo = {
     );
     const po_id = res.insertId;
     const variantIds = [...new Set(items.map(item => String(item.variant_id)).filter(Boolean))];
-    const stockFlagRows = variantIds.length > 0
-      ? await imsQuery<{ variant_id: string; is_stock_item: number }>(
+    const [stockFlagRows] = variantIds.length > 0
+      ? await conn.execute<any[]>(
           `SELECT v.variant_id, COALESCE(p.is_stock_item, 1) AS is_stock_item
              FROM ims_product_variants v
              JOIN ims_products p ON p.product_id = v.product_id
             WHERE v.variant_id IN (${variantIds.map(() => '?').join(',')})`,
           variantIds,
         )
-      : [];
+      : [[]];
     const stockFlags = new Map(stockFlagRows.map(row => [String(row.variant_id), Number(row.is_stock_item) === 0 ? 0 : 1]));
     for (const item of items) {
       const discPct = Number(item.discount_pct ?? 0);
       const calculatedLineTotal = Number(item.qty_ordered) * Number(item.unit_cost) * (1 - discPct / 100);
       const line_total = Math.round(Number(item.line_total ?? calculatedLineTotal) * 10000) / 10000;
-      await imsExecute(
+      await conn.execute(
         `INSERT INTO ims_purchase_order_items
            (business_id,po_id,variant_id,qty_ordered,unit_cost,discount_pct,tax_rate,line_total,notes,is_stock_item)
          VALUES (?,?,?,?,?,?,?,?,?,?)`,
@@ -1705,13 +1804,15 @@ export const ImsPORepo = {
     if (landedCosts && landedCosts.length) {
       for (let i = 0; i < landedCosts.length; i++) {
         const c = landedCosts[i];
-        await imsExecute(
+        await conn.execute(
           `INSERT INTO ims_po_landed_costs (po_id, label, reference, amount, sort_order) VALUES (?,?,?,?,?)`,
           [po_id, c.label, c.reference ?? null, Number(c.amount), i]
         );
       }
     }
+    await conn.commit();
     return po_id;
+    } catch (error) { await conn.rollback(); throw error; } finally { conn.release(); }
   },
 
   async update(
@@ -1741,9 +1842,17 @@ export const ImsPORepo = {
       await conn.beginTransaction();
 
       const [[currentPo]] = await conn.execute<any[]>(
-        `SELECT status, location_id, business_id, po_number, expected_date, updated_at FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
+        `SELECT status, location_id, business_id, po_number, expected_date, updated_at, supplier_id, currency_code, exchange_rate, consignment_supplier_id, freight, discount FROM ims_purchase_orders WHERE id = ? FOR UPDATE`, [id]
       );
       if (!currentPo) throw new Error('Purchase order not found');
+      if (items || data.supplier_id !== undefined || data.currency_code !== undefined || data.exchange_rate !== undefined || currentPo.consignment_supplier_id) {
+        const [ownershipItems] = items ? [items] : await conn.execute<any[]>('SELECT * FROM ims_purchase_order_items WHERE po_id = ?', [id]);
+        await assertConsignmentDocument(conn, String(currentPo.business_id), { ...currentPo, ...data }, ownershipItems, true);
+      }
+      if (currentPo.consignment_supplier_id && ((landedCosts ?? []).some(cost => Number(cost.amount) !== 0)
+        || Number(data.freight ?? currentPo.freight ?? 0) !== 0 || Number(data.discount ?? currentPo.discount ?? 0) !== 0)) {
+        throw new ConsignmentConflict('Consignment receipts do not support retailer freight, landed charges or header discounts.');
+      }
       const amendment = await beginOrderAmendment(conn, amendmentContext, {
         businessId: String(currentPo.business_id ?? ''), orderKind: 'purchase_order', orderId: id,
         orderStatus: String(currentPo.status), beforeHeader: currentPo,
@@ -1965,6 +2074,7 @@ export const ImsPORepo = {
                VALUES (?, ?, ?, ?, 'purchase_order', ?, ?, ?, 'Purchase order amended')`,
               [currentPo.business_id, delta.variantId, delta.locationId, delta.quantityDelta > 0 ? 'po_approved' : 'po_unapproved', id, delta.quantityDelta, Number(stockAfter?.qty_on_hand ?? 0)],
             );
+            await snapshotMovementOwnership(conn, String(currentPo.business_id), 0, delta.variantId, currentPo.consignment_supplier_id ?? null);
           }
         }
 
@@ -2091,6 +2201,7 @@ export const ImsPORepo = {
         `SELECT * FROM ims_purchase_order_items WHERE po_id = ? FOR UPDATE`, [id]
       );
       const items = itemRows as ImsPOItem[];
+      await assertConsignmentDocument(conn, String(po.business_id), po, items, true);
 
       // Load landed costs for distribution on receive
       let landedCostRows: LandedCostRow[] = [];
@@ -2109,7 +2220,7 @@ export const ImsPORepo = {
           operation: to === 'cancelled' ? 'cancelling' : 'reverting',
         });
       }
-      if (to === 'complete' && !String(po.supplier_invoice_number ?? '').trim()) {
+      if (to === 'complete' && !po.consignment_supplier_id && !String(po.supplier_invoice_number ?? '').trim()) {
         throw new OrderLifecycleConflict('A supplier invoice number is required before completing this purchase order.');
       }
       if (from === 'partially_received' && to === 'complete') {
@@ -2122,6 +2233,10 @@ export const ImsPORepo = {
       }
       const includeLandedCosts = avgCostInclusion?.includeLandedCosts !== false;
       const includeFreight = avgCostInclusion?.includeFreight ?? (freightTreatment === 'capitalise');
+      if (po.consignment_supplier_id && (landedCostRows.some(cost => Number(cost.amount) !== 0)
+        || Number(po.freight ?? 0) !== 0 || Number(po.discount ?? 0) !== 0)) {
+        throw new ConsignmentConflict('Consignment receipts require supplier-only costs; freight and landed costs are unsupported.');
+      }
 
       const reverseReceivedStock = async (options: { restoreIncoming: boolean; removeOutstandingIncoming: boolean }) => {
         const grouped = new Map<string, { receivedQty: number; outstandingQty: number }>();
@@ -2216,6 +2331,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?,?,?)`,
             [po.business_id, plan.variantId, po.location_id, id, -plan.receivedQty, Number(stockRow?.qty_on_hand ?? 0), plan.receiptUnitCost, 'PO receipt reversed'],
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), 0, plan.variantId, po.consignment_supplier_id ?? null);
         }
 
         for (const [variantId, quantities] of grouped) {
@@ -2268,6 +2384,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_approved','purchase_order',?,?,?,?)`,
             [po.business_id, item.variant_id, po.location_id, id, item.qty_ordered, s?.qty_on_hand ?? 0, item.unit_cost]
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), 0, String(item.variant_id), po.consignment_supplier_id ?? null);
         }
       }
 
@@ -2290,6 +2407,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?)`,
             [po.business_id, item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), 0, String(item.variant_id), po.consignment_supplier_id ?? null);
         }
       }
 
@@ -2416,6 +2534,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_received','purchase_order',?,?,?,?,?,?)`,
             [po.business_id, item.variant_id, po.location_id, id, qty_rcvd, new_soh, true_cost_aud, costingState.method, costingState.epochId]
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), Number(movementResult.insertId), String(item.variant_id), po.consignment_supplier_id ?? null);
           if (costingState.method === 'fifo') {
             await createFifoCostLayer(conn, {
               businessId: String(po.business_id ?? ''), state: costingState, variantId: String(item.variant_id),
@@ -2542,6 +2661,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_received','purchase_order',?,?,?,?,?,?)`,
             [po.business_id, item.variant_id, po.location_id, id, remaining, new_soh, true_cost_aud, costingState.method, costingState.epochId]
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), Number(movementResult.insertId), String(item.variant_id), po.consignment_supplier_id ?? null);
           if (costingState.method === 'fifo') {
             await createFifoCostLayer(conn, {
               businessId: String(po.business_id ?? ''), state: costingState, variantId: String(item.variant_id),
@@ -2581,6 +2701,7 @@ export const ImsPORepo = {
              VALUES (?,?,?,'po_unapproved','purchase_order',?,?,?)`,
             [po.business_id, item.variant_id, po.location_id, id, -item.qty_ordered, s?.qty_on_hand ?? 0]
           );
+          await snapshotMovementOwnership(conn, String(po.business_id), 0, String(item.variant_id), po.consignment_supplier_id ?? null);
         }
       }
 
@@ -2741,6 +2862,7 @@ export const ImsPORepo = {
         `SELECT label, reference, amount, sort_order FROM ims_po_landed_costs WHERE po_id = ? ORDER BY sort_order, id FOR UPDATE`,
         [id],
       );
+      await assertConsignmentDocument(conn, businessId, source, items, true);
       const poNumber = await nextReplacementOrderNumberTx(conn, businessId, 'po');
       numberLockAcquired = true;
       const notes = [`Replacement for ${source.po_number}`, source.notes].filter(Boolean).join('\n\n');
@@ -2756,6 +2878,7 @@ export const ImsPORepo = {
          source.subtotal ?? 0, source.tax_amount ?? 0, source.total_amount ?? 0, id],
       );
       const replacementId = Number(headerResult.insertId);
+      if (source.consignment_supplier_id) await conn.execute('UPDATE ims_purchase_orders SET consignment_supplier_id = ? WHERE id = ? AND business_id = ?', [source.consignment_supplier_id, replacementId, businessId]);
       for (const item of items) {
         await conn.execute(
           `INSERT INTO ims_purchase_order_items
@@ -3442,6 +3565,7 @@ export const ImsSORepo = {
                delta.quantityDelta > 0 ? 'so_confirmed' : 'so_unconfirmed',
                preEdit.so_type === 'online' ? 'online' : 'wholesale', id, delta.quantityDelta, Number(stockAfter?.qty_on_hand ?? 0)],
             );
+            await snapshotMovementOwnership(conn, String(preEdit.business_id), 0, delta.variantId);
           }
         }
 
@@ -3592,6 +3716,7 @@ export const ImsSORepo = {
              VALUES (?,?,?,'so_confirmed',?,'sales_order',?,?,?)`,
             [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, item.qty_ordered, s?.qty_on_hand ?? 0]
           );
+          await snapshotMovementOwnership(conn, String(so.business_id), 0, String(item.variant_id));
         }
       }
 
@@ -3614,11 +3739,13 @@ export const ImsSORepo = {
              VALUES (?,?,?,'so_unconfirmed',?,'sales_order',?,?,?)`,
             [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -Number(item.qty_ordered), s?.qty_on_hand ?? 0]
           );
+          await snapshotMovementOwnership(conn, String(so.business_id), 0, String(item.variant_id));
         }
       }
 
       // ── confirmed/partially fulfilled → fulfilled ────────────
       if (['confirmed', 'partially_fulfilled'].includes(from) && to === 'fulfilled') {
+        const fulfilmentCosting = await lockInventoryCostState(conn, String(so.business_id));
         for (const item of items) {
           if (Number(item.is_stock_item ?? 1) === 0) {
             await conn.execute(
@@ -3650,9 +3777,6 @@ export const ImsSORepo = {
           }
           const new_soh  = old_soh - qty;
           const previousCost = Number(item.unit_cost ?? 0);
-          const weightedCost = Number(item.qty_ordered) > 0
-            ? ((fulfilledQty * previousCost) + (qty * avg_cost)) / Number(item.qty_ordered)
-            : avg_cost;
 
           await conn.execute(
             `UPDATE ims_stock
@@ -3661,16 +3785,32 @@ export const ImsSORepo = {
              WHERE variant_id=? AND location_id=?`,
             [new_soh, qty, item.variant_id, so.location_id]
           );
-          await conn.execute(
-            `UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = ? WHERE id = ?`,
-            [weightedCost, item.id]
-          );
-          await conn.execute(
+          const [saleMovement] = await conn.execute<any>(
             `INSERT INTO ims_stock_movements
-               (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,unit_cost)
-             VALUES (?,?,?,'so_fulfilled',?,'sales_order',?,?,?,?)`,
-            [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -qty, new_soh, avg_cost]
+               (business_id,variant_id,location_id,movement_type,channel,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id,source_line_id)
+             VALUES (?,?,?,'so_fulfilled',?,'sales_order',?,?,?,?,?,?,?)`,
+            [so.business_id, item.variant_id, so.location_id, so.so_type === 'online' ? 'online' : 'wholesale', id, -qty, new_soh, avg_cost, fulfilmentCosting.method, fulfilmentCosting.epochId, item.id]
           );
+          let shipmentCost = avg_cost;
+          if (fulfilmentCosting.method === 'fifo') {
+            const consumed = await consumeFifoCostLayers(conn, {
+              businessId: String(so.business_id), state: fulfilmentCosting, variantId: String(item.variant_id),
+              locationId: Number(so.location_id), stockMovementId: Number(saleMovement.insertId), quantity: qty,
+            });
+            shipmentCost = consumed.unitCost;
+          }
+          const weightedCost = Number(item.qty_ordered) > 0
+            ? ((fulfilledQty * previousCost) + (qty * shipmentCost)) / Number(item.qty_ordered)
+            : shipmentCost;
+          await conn.execute(`UPDATE ims_sales_order_items SET qty_fulfilled = qty_ordered, unit_cost = ? WHERE id = ?`, [weightedCost, item.id]);
+          await snapshotMovementOwnership(conn, String(so.business_id), Number(saleMovement.insertId), String(item.variant_id));
+          await captureConsignmentSale(conn, {
+            businessId: String(so.business_id), sourceId: id, sourceLineId: Number(item.id),
+            eventKey: `so-complete:${id}:${item.id}:${fulfilledQty}`, variantId: String(item.variant_id),
+            locationId: Number(so.location_id), channel: so.so_type === 'online' ? 'online' : 'wholesale',
+            eventDate: new Date().toLocaleDateString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }),
+            quantity: qty, unitCost: shipmentCost,
+          });
         }
         await conn.execute(
           `UPDATE ims_sales_orders SET fulfilled_date = CURDATE() WHERE id = ?`, [id]
@@ -4021,11 +4161,20 @@ export const ImsDashboardRepo = {
     const [lowStock] = await imsQuery<{ cnt: number }>(
       `SELECT COUNT(*) AS cnt FROM ims_stock WHERE qty_on_hand <= min_qty AND min_qty > 0 ${businessId ? 'AND business_id = ?' : ''}`, p
     );
-    const [soh] = await imsQuery<{ stock_value: number; stock_item_count: number }>(
-            `SELECT COALESCE(SUM(CASE WHEN s.qty_on_hand > 0 THEN s.qty_on_hand * COALESCE(v.avg_cost, 0) ELSE 0 END), 0) AS stock_value,
+    const stockPositionValue = `CASE WHEN cost_state.active_method = 'fifo' THEN
+      COALESCE((SELECT SUM(f.remaining_quantity * f.unit_cost) FROM ims_fifo_cost_layers f
+        WHERE f.business_id = s.business_id AND f.epoch_id = cost_state.active_epoch_id
+          AND f.variant_id = s.variant_id AND f.location_id = s.location_id),0)
+      ELSE s.qty_on_hand * COALESCE(v.avg_cost,0) END`;
+    const [soh] = await imsQuery<{ stock_value: number; consignment_stock_value: number; stock_item_count: number }>(
+            `SELECT COALESCE(SUM(CASE WHEN s.qty_on_hand > 0 AND COALESCE(c.is_consignment,0) = 0 THEN ${stockPositionValue} ELSE 0 END), 0) AS stock_value,
+              COALESCE(SUM(CASE WHEN s.qty_on_hand > 0 AND c.is_consignment = 1 THEN ${stockPositionValue} ELSE 0 END),0) AS consignment_stock_value,
               COUNT(CASE WHEN s.qty_on_hand > 0 THEN 1 END) AS stock_item_count
              FROM ims_stock s
              JOIN ims_product_variants v ON v.variant_id = s.variant_id
+             JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
+             LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id AND c.business_id = p.business_id
+             LEFT JOIN ims_inventory_cost_state cost_state ON cost_state.business_id = s.business_id
              ${businessId ? 'WHERE s.business_id = ?' : ''}`, p
     );
     const tz = process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney';
@@ -4095,6 +4244,7 @@ export const ImsDashboardRepo = {
       openSOs:        openSOs?.cnt   ?? 0,
       lowStock:       lowStock?.cnt  ?? 0,
       stockValue:     Number(soh?.stock_value     ?? 0),
+      consignmentStockValue: Number(soh?.consignment_stock_value ?? 0),
       stockItemCount: Number(soh?.stock_item_count ?? 0),
       openRegisters:  posRegistersWithTotals.filter(r => r.status === 'open'),
       posRegisters:   posRegistersWithTotals,
@@ -4190,6 +4340,16 @@ async function ensureBranchTransferTenantTables(): Promise<void> {
   }
   await imsExecute(`ALTER TABLE ims_branch_transfers MODIFY COLUMN status ENUM('draft','sent','partial','received','cancelled') NOT NULL DEFAULT 'draft'`).catch(() => {});
   _btTenantReady.add(key);
+}
+
+async function assertStocktakeItemIsEditable(itemId: number, businessId: string): Promise<void> {
+  const rows = await imsQuery<{ reference: string | null }>(
+    `SELECT st.reference FROM ims_stocktake_items i
+       JOIN ims_stocktakes st ON st.id = i.stocktake_id
+      WHERE i.id = ? AND st.business_id = ?`,
+    [itemId, businessId],
+  );
+  assertManualStocktakeItemEditAllowed(rows[0]?.reference);
 }
 
 export const ImsStocktakeRepo = {
@@ -4316,6 +4476,7 @@ export const ImsStocktakeRepo = {
 
   async removeItem(itemId: number, businessId: string): Promise<void> {
     await ensureStocktakeTenantTables();
+    await assertStocktakeItemIsEditable(itemId, businessId);
     await imsExecute(
       `DELETE i FROM ims_stocktake_items i
        JOIN ims_stocktakes st ON st.id = i.stocktake_id
@@ -4326,12 +4487,13 @@ export const ImsStocktakeRepo = {
 
   async addItem(stocktakeId: number, variantId: string, locationId: number, businessId: string): Promise<any> {
     await ensureStocktakeTenantTables();
-    const stocktakes = await imsQuery<{ location_id: number; status: string }>(
-      `SELECT location_id, status FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
+    const stocktakes = await imsQuery<{ location_id: number; status: string; reference: string | null }>(
+      `SELECT location_id, status, reference FROM ims_stocktakes WHERE id = ? AND business_id = ?`,
       [stocktakeId, businessId],
     );
     const stocktake = stocktakes[0];
     if (!stocktake) throw new Error('Stocktake not found');
+    assertManualStocktakeItemEditAllowed(stocktake.reference);
     if (stocktake.status !== 'draft' && stocktake.status !== 'in_progress') throw new Error('Stocktake is not editable');
     if (Number(locationId) !== Number(stocktake.location_id)) throw new Error('Stocktake location does not match');
     // Check not already present
@@ -4395,6 +4557,7 @@ export const ImsStocktakeRepo = {
 
   async updateItem(itemId: number, counted_qty: number | null, notes: string | undefined, businessId: string): Promise<void> {
     await ensureStocktakeTenantTables();
+    await assertStocktakeItemIsEditable(itemId, businessId);
     await imsExecute(
       `UPDATE ims_stocktake_items i
        JOIN ims_stocktakes st ON st.id = i.stocktake_id
@@ -4455,6 +4618,7 @@ export const ImsStocktakeRepo = {
              VALUES (?, ?, ?, 'stocktake', 'stocktake', ?, ?, ?, ?)`,
             [businessId, item.variant_id, full.location_id, id, counted - expected, counted, avgCostAtTime]
           );
+          await snapshotMovementOwnership(conn, businessId, 0, item.variant_id);
         }
       }
       await conn.execute(
@@ -4625,6 +4789,36 @@ async function nextBTNumber(businessId: string): Promise<string> {
   return `BT-${year}-${seq}`;
 }
 
+async function queueBranchTransferInventory(
+  conn: PoolConnection,
+  businessId: string,
+  transferId: number,
+  variantIds: string[],
+): Promise<void> {
+  const ids = [...new Set(variantIds)].sort();
+  if (!ids.length) return;
+  try {
+    await conn.execute(
+      `INSERT INTO ims_shopify_inventory_queue (variant_id, queued_at)
+       SELECT variant_id, CURRENT_TIMESTAMP FROM ims_product_variants
+        WHERE business_id = ? AND variant_id IN (${ids.map(() => '?').join(',')})
+       ON DUPLICATE KEY UPDATE queued_at = CURRENT_TIMESTAMP`,
+      [businessId, ...ids],
+    );
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'ims_branch_transfers',
+      operation: 'queue_shopify_inventory',
+      title: 'Branch transfer could not queue Shopify inventory updates',
+      error,
+      context: { variantCount: ids.length },
+      reference: { type: 'branch_transfer', id: transferId },
+    });
+    throw error;
+  }
+}
+
 /**
  * Move stock between the two branches of a transfer and record the matching
  * stock movements. `qty` is SIGNED relative to the transfer direction:
@@ -4635,10 +4829,10 @@ async function nextBTNumber(businessId: string): Promise<string> {
  * Must be called inside an open transaction (`conn`).
  */
 async function _btMove(
-  conn: any,
+  conn: PoolConnection,
   bt: { from_location_id: number; to_location_id: number },
   refId: number,
-  item: { variant_id: string; unit_cost: number },
+  item: { id?: number; variant_id: string; unit_cost: number },
   qty: number,
   businessId: string,
   costingState: InventoryCostState,
@@ -4648,9 +4842,21 @@ async function _btMove(
   const loseLoc   = qty > 0 ? bt.from_location_id : bt.to_location_id;
   const gainLoc   = qty > 0 ? bt.to_location_id   : bt.from_location_id;
   const mag       = Math.abs(qty);
+  if (qty < 0) {
+    const [originalOwners] = await conn.execute<(RowDataPacket & { consignment_supplier_id: number | null })[]>(
+      `SELECT DISTINCT consignment_supplier_id FROM ims_stock_movements
+        WHERE business_id = ? AND reference_type = 'branch_transfer' AND reference_id = ?
+          AND variant_id = ? AND location_id = ? AND movement_type = 'transfer_out' FOR UPDATE`,
+      [businessId, refId, variantId, bt.from_location_id],
+    );
+    const currentOwner = (await resolveCurrentOwnership(conn, businessId, variantId)).supplierId;
+    if (originalOwners.some(owner => (owner.consignment_supplier_id ?? null) !== currentOwner)) {
+      throw new ConsignmentConflict('This transfer cannot be reversed after its stock ownership changed. Request a reviewed stock correction.');
+    }
+  }
 
   // Org-wide avg doesn't change on a transfer; use current variant avg for movements.
-  const [[variantRow]] = await conn.execute(
+  const [[variantRow]] = await conn.execute<(RowDataPacket & { avg_cost: number | string })[]>(
     `SELECT COALESCE(avg_cost, 0) AS avg_cost FROM ims_product_variants WHERE variant_id = ?`,
     [variantId],
   );
@@ -4658,10 +4864,10 @@ async function _btMove(
 
   // ── Losing location (stock leaves) ──
   await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, loseLoc]);
-  const [[lose]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, loseLoc, businessId]);
+  const [[lose]] = await conn.execute<(RowDataPacket & { qty_on_hand: number | string })[]>(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, loseLoc, businessId]);
   const loseNew = Number(lose?.qty_on_hand ?? 0) - mag;
   await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [loseNew, variantId, loseLoc, businessId]);
-  const [outboundMovement] = await conn.execute<any>(
+  const [outboundMovement] = await conn.execute<ResultSetHeader>(
     `INSERT INTO ims_stock_movements
        (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
      VALUES (?,?,?,'transfer_out','branch_transfer',?,?,?,?,?,?)`,
@@ -4670,15 +4876,17 @@ async function _btMove(
 
   // ── Gaining location (stock arrives) ──
   await conn.execute(`INSERT IGNORE INTO ims_stock (business_id, variant_id, location_id, qty_on_hand) VALUES (?, ?, ?, 0)`, [businessId, variantId, gainLoc]);
-  const [[gain]] = await conn.execute(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
+  const [[gain]] = await conn.execute<(RowDataPacket & { qty_on_hand: number | string })[]>(`SELECT qty_on_hand FROM ims_stock WHERE variant_id=? AND location_id=? AND business_id=?`, [variantId, gainLoc, businessId]);
   const gainNew = Number(gain?.qty_on_hand ?? 0) + mag;
   await conn.execute(`UPDATE ims_stock SET qty_on_hand = ? WHERE variant_id=? AND location_id=? AND business_id=?`, [gainNew, variantId, gainLoc, businessId]);
-  const [inboundMovement] = await conn.execute<any>(
+  const [inboundMovement] = await conn.execute<ResultSetHeader>(
     `INSERT INTO ims_stock_movements
        (business_id,variant_id,location_id,movement_type,reference_type,reference_id,qty_change,qty_after_soh,unit_cost,cost_method_snapshot,cost_epoch_id)
      VALUES (?,?,?,'transfer_in','branch_transfer',?,?,?,?,?,?)`,
     [businessId, variantId, gainLoc, refId, mag, gainNew, orgAvgCost, costingState.method, costingState.epochId]
   );
+  await snapshotMovementOwnership(conn, businessId, Number(outboundMovement.insertId), variantId);
+  await snapshotMovementOwnership(conn, businessId, Number(inboundMovement.insertId), variantId);
   if (costingState.method === 'fifo') {
     await transferFifoCostLayers(conn, {
       businessId,
@@ -4689,7 +4897,7 @@ async function _btMove(
       outboundMovementId: Number(outboundMovement.insertId),
       inboundMovementId: Number(inboundMovement.insertId),
       transferId: refId,
-      transferItemId: Number((item as any).id) || null,
+      transferItemId: item.id ?? null,
       quantity: mag,
     });
   }
@@ -4831,6 +5039,7 @@ export const ImsBTRepo = {
         );
       }
 
+      await queueBranchTransferInventory(conn, businessId, transferId, items.map(item => item.variant_id));
       await conn.commit();
       return transferId;
     } catch (error) {
@@ -4872,10 +5081,12 @@ export const ImsBTRepo = {
       if (preEdit.status !== 'draft' && preEdit.status !== 'sent') {
         throw new BranchTransferEditConflict();
       }
-      const rebalanceCommitted = !!items && preEdit?.status === 'sent';
-      let oldCommitItems: any[] = [];
+      const sourceChanged = data.from_location_id !== undefined
+        && Number(data.from_location_id) !== Number(preEdit.from_location_id);
+      const rebalanceCommitted = preEdit.status === 'sent' && (!!items || sourceChanged);
+      let oldCommitItems: Array<RowDataPacket & Pick<ImsBTItem, 'variant_id' | 'qty_sent'>> = [];
       if (rebalanceCommitted) {
-        [oldCommitItems] = await conn.execute<any[]>(
+        [oldCommitItems] = await conn.execute<typeof oldCommitItems>(
           `SELECT variant_id, qty_sent FROM ims_branch_transfer_items WHERE transfer_id = ?`, [id]
         );
       }
@@ -4899,31 +5110,30 @@ export const ImsBTRepo = {
           );
         }
 
-        // Rebalance committed for a 'sent' transfer: release the OLD lines at the
-        // OLD source, then re-commit the NEW lines at the (possibly-changed) source.
-        if (rebalanceCommitted) {
-          const oldLoc = preEdit.from_location_id;
-          const newLoc = (data.from_location_id != null) ? data.from_location_id : preEdit.from_location_id;
-          for (const oi of oldCommitItems) {
-            if (!oi.variant_id) continue;
-            await conn.execute(
-              `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
-               WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
-              [oi.qty_sent, oi.variant_id, oldLoc, businessId]
-            );
-          }
-          for (const item of items) {
-            if (!item.variant_id) continue;
-            await conn.execute(
-              `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
-               VALUES (?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
-              [businessId, item.variant_id, newLoc, item.qty_sent]
-            );
-          }
-        }
-
         await conn.execute(`UPDATE ims_branch_transfers SET total_value = ? WHERE id = ? AND business_id = ?`, [total_value, id, businessId]);
+      }
+      if (rebalanceCommitted) {
+        const newCommitItems = items ?? oldCommitItems;
+        const newLocation = data.from_location_id ?? preEdit.from_location_id;
+        for (const item of oldCommitItems) {
+          await conn.execute(
+            `UPDATE ims_stock SET qty_committed = GREATEST(0, qty_committed - ?)
+             WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
+            [item.qty_sent, item.variant_id, preEdit.from_location_id, businessId],
+          );
+        }
+        for (const item of newCommitItems) {
+          await conn.execute(
+            `INSERT INTO ims_stock (business_id, variant_id, location_id, qty_committed)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE qty_committed = qty_committed + VALUES(qty_committed)`,
+            [businessId, item.variant_id, newLocation, item.qty_sent],
+          );
+        }
+        await queueBranchTransferInventory(conn, businessId, id, [
+          ...oldCommitItems.map(item => item.variant_id),
+          ...newCommitItems.map(item => item.variant_id),
+        ]);
       }
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
@@ -5044,6 +5254,9 @@ export const ImsBTRepo = {
       }
 
       await conn.execute(`UPDATE ims_branch_transfers SET status = ? WHERE id = ? AND business_id = ?`, [finalStatus, id, businessId]);
+      if (from === 'sent' || finalStatus === 'sent') {
+        await queueBranchTransferInventory(conn, businessId, id, items.map(item => item.variant_id));
+      }
       await conn.commit();
     } catch (err) { await conn.rollback(); throw err; }
     finally { conn.release(); }
@@ -5166,6 +5379,7 @@ export const ImsBTRepo = {
           WHERE id = ? AND business_id = ?`,
         [transferId, transferId, businessId],
       );
+      await queueBranchTransferInventory(conn, businessId, transferId, items.map(item => String(item.variant_id)));
       await conn.commit();
     } catch (error) {
       await conn.rollback();
@@ -5204,6 +5418,7 @@ export const ImsBTRepo = {
              WHERE variant_id = ? AND location_id = ? AND business_id = ?`,
             [qtySent, item.variant_id, bt.from_location_id, businessId]
           );
+          await queueBranchTransferInventory(conn, businessId, transferId, [String(item.variant_id)]);
         }
       }
       // Return any already-received units to the source branch.
@@ -5951,7 +6166,26 @@ async function restockCreditNoteItemsTx(
     );
     if (Number(variant?.is_stock_item ?? 1) === 0) continue;
     let returnUnitCost: number | null = null;
-    if (costing.costingState.method === 'average_cost' && item.source_so_item_id != null && costing.salesOrderId) {
+    const [consignmentReturns] = await conn.execute<any[]>(
+      `SELECT supplier_id, SUM(-quantity) AS quantity,
+              SUM(-quantity * unit_cost) / NULLIF(SUM(-quantity),0) AS unit_cost
+         FROM ims_consignment_events
+        WHERE business_id = ? AND source_id = ? AND source_type = 'refund' AND variant_id = ?
+          AND ${costing.source === 'pos' ? "channel = 'pos'" : "channel IN ('online','wholesale') AND source_line_id = ?"}
+        GROUP BY supplier_id`,
+      costing.source === 'pos'
+        ? [businessId, costing.posSaleId ?? 0, item.variant_id]
+        : [businessId, cnId, item.variant_id, item.id],
+    );
+    if (consignmentReturns.length) {
+      const owner = await resolveCurrentOwnership(conn, businessId, String(item.variant_id));
+      if (consignmentReturns.length !== 1 || Number(consignmentReturns[0].supplier_id) !== owner.supplierId
+        || Math.abs(Number(consignmentReturns[0].quantity) - qty) > 0.00005) {
+        throw new ConsignmentConflict('Restocking this return would mix supplier ownership or ambiguous original quantities. Use a reviewed no-restock quantity refund and a separate stock correction.');
+      }
+      returnUnitCost = Number(consignmentReturns[0].unit_cost);
+    }
+    if (!consignmentReturns.length && costing.costingState.method === 'average_cost' && item.source_so_item_id != null && costing.salesOrderId) {
       const [[sourceItem]] = await conn.execute<any[]>(
         `SELECT soi.unit_cost
            FROM ims_sales_order_items soi
@@ -5965,7 +6199,7 @@ async function restockCreditNoteItemsTx(
         if (Number.isFinite(capturedCost) && capturedCost >= 0) returnUnitCost = capturedCost;
       }
     }
-    if (costing.costingState.method === 'average_cost' && costing.source === 'pos' && costing.posSaleId) {
+    if (!consignmentReturns.length && costing.costingState.method === 'average_cost' && costing.source === 'pos' && costing.posSaleId) {
       const [linkedSales] = await conn.execute<any[]>(
         `SELECT original.id AS original_sale_id, SUM(ABS(returned_item.qty)) AS return_quantity,
                 (SELECT SUM(sold.qty) FROM pos_sale_items sold
@@ -6019,6 +6253,7 @@ async function restockCreditNoteItemsTx(
       [businessId, item.variant_id, locationId, channel, cnId, item.id, qty, s?.qty_on_hand ?? 0, returnUnitCost,
         costing.costingState.method, costing.costingState.epochId],
     );
+    await snapshotMovementOwnership(conn, businessId, Number(movementResult.insertId), String(item.variant_id));
     if (costing.costingState.method === 'fifo') {
       if (costing.source === 'pos' && costing.posSaleId) {
         await createFifoPosReturnLayers(conn, {
@@ -6289,6 +6524,24 @@ export const ImsCNRepo = {
       );
       const items = itemRows as ImsCNItem[];
       await validateCustomerReturnCapsTx(conn, businessId, cn.so_id, items, id);
+      if (cn.source !== 'pos') {
+        for (const item of items) {
+          if (item.variant_id && cn.so_id && item.source_so_item_id) {
+            await captureConsignmentRefund(conn, {
+              businessId, sourceId: id, sourceLineId: Number(item.id), sourceChannel: 'sales_order',
+              originalSourceId: Number(cn.so_id), originalSourceLineId: Number(item.source_so_item_id),
+              variantId: String(item.variant_id), locationId: Number(cn.location_id),
+              eventDate: new Date().toLocaleDateString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }),
+              quantity: Number(item.qty), eventKey: `customer-credit:${id}:${item.id}`,
+            });
+          } else if (item.variant_id && (await resolveCurrentOwnership(conn, businessId, String(item.variant_id))).ownership === 'consignment') {
+            throw new ConsignmentConflict('Consignment customer returns require an original fulfilled sales-order line and an explicit refunded quantity; money-only and unlinked credits require manual review.');
+          } else if (!item.variant_id && cn.so_id) {
+            const [[originalFact]] = await conn.execute<any[]>('SELECT id FROM ims_consignment_events WHERE business_id = ? AND source_id = ? AND source_type = ? AND channel IN (?,?) LIMIT 1', [businessId, cn.so_id, 'sale', 'online', 'wholesale']);
+            if (originalFact) throw new ConsignmentConflict('Money-only credits on consignment sales require manual supplier review; a supplier quantity deduction cannot be inferred.');
+          }
+        }
+      }
 
       let channel: string | null = cn.source === 'pos' ? 'pos' : null;
       if (cn.so_id) {
@@ -6504,6 +6757,7 @@ export const ImsCNRepo = {
 export type SupplierCNStatus = 'draft' | 'complete' | 'cancelled' | 'reversed';
 
 export interface ImsSupplierCN {
+  consignment_supplier_id?: number | null;
   id: number;
   business_id: string;
   scn_number: string;
@@ -6744,6 +6998,7 @@ async function returnStockToSupplierTx(
       [businessId, item.variant_id, locationId, scnId, item.id, -qty, newSoh, unitCost,
         costingState.method, costingState.epochId],
     );
+    await snapshotMovementOwnership(conn, businessId, Number(movementResult.insertId), String(item.variant_id));
     if (costingState.method === 'fifo') {
       await consumeFifoCostLayers(conn, {
         businessId,
@@ -6836,6 +7091,12 @@ export const ImsSupplierCNRepo = {
       hasNumberLock = true;
       await conn.beginTransaction();
       await validateSupplierReturnCapsTx(conn, businessId, data.po_id, items as ImsSupplierCNItem[]);
+      const consignmentSupplierId = await assertConsignmentDocument(conn, businessId, data, items);
+      if (consignmentSupplierId) {
+        if (!data.po_id || items.some(item => !item.source_po_item_id || !item.variant_id || Number(item.restock ?? 1) !== 1 || Number(item.qty) <= 0)) throw new ConsignmentConflict('Consignment supplier returns require positive, stock-only quantities linked to the original purchase-order lines.');
+        const [[po]] = await conn.execute<any[]>('SELECT consignment_supplier_id FROM ims_purchase_orders WHERE id = ? AND business_id = ? FOR UPDATE', [data.po_id, businessId]);
+        if (Number(po?.consignment_supplier_id) !== consignmentSupplierId) throw new ConsignmentConflict('The supplier return must retain its original consignment purchase-order owner.');
+      }
       const [[numberRow]] = await conn.execute<any[]>(
         `SELECT MAX(CAST(REGEXP_REPLACE(scn_number, '[^0-9]', '') AS UNSIGNED)) AS max_num
            FROM ims_supplier_credit_notes WHERE business_id = ?`,
@@ -6844,13 +7105,13 @@ export const ImsSupplierCNRepo = {
       const scnNumber = `SCN-${(Number(numberRow?.max_num ?? 0) + 1).toString().padStart(5, '0')}`;
       const [res] = await conn.execute(
         `INSERT INTO ims_supplier_credit_notes
-           (business_id,scn_number,supplier_id,po_id,location_id,status,scn_date,reference,supplier_credit_ref,
+           (consignment_supplier_id,business_id,scn_number,supplier_id,po_id,location_id,status,scn_date,reference,supplier_credit_ref,
             currency_code,exchange_rate,tax_treatment,subtotal,tax_amount,total_amount,notes,created_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [businessId, scnNumber, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [consignmentSupplierId, businessId, scnNumber, data.supplier_id ?? null, data.po_id ?? null, data.location_id, 'draft',
          data.scn_date, data.reference ?? null, data.supplier_credit_ref ?? null,
          data.currency_code ?? 'AUD', data.exchange_rate ?? 1, data.tax_treatment,
-         subtotal, tax_amount, total_amount, data.notes ?? null, createdBy ?? null],
+         consignmentSupplierId ? 0 : subtotal, consignmentSupplierId ? 0 : tax_amount, consignmentSupplierId ? 0 : total_amount, data.notes ?? null, createdBy ?? null],
       );
       const scnId = (res as any).insertId;
       for (const item of items) {
@@ -6886,11 +7147,17 @@ export const ImsSupplierCNRepo = {
     try {
       await conn.beginTransaction();
       const [[current]] = await conn.execute<any[]>(
-        `SELECT po_id, tax_treatment FROM ims_supplier_credit_notes
+        `SELECT * FROM ims_supplier_credit_notes
           WHERE id = ? AND business_id = ? AND status = 'draft' FOR UPDATE`,
         [id, businessId],
       );
       if (!current) throw new Error('Draft supplier credit note not found');
+      const [ownershipItems] = items ? [items] : await conn.execute<any[]>('SELECT * FROM ims_supplier_credit_note_items WHERE scn_id = ?', [id]);
+      await assertConsignmentDocument(conn, businessId, { ...current, ...data }, ownershipItems, true);
+      if (current.consignment_supplier_id && (data.po_id !== undefined && Number(data.po_id) !== Number(current.po_id)
+        || ownershipItems.some(item => !item.source_po_item_id || !item.variant_id || Number(item.restock ?? 1) !== 1 || Number(item.qty) <= 0))) {
+        throw new ConsignmentConflict('Consignment supplier returns are stock-only and must keep their original purchase-order linkage.');
+      }
       const allowed = ['location_id','scn_date','supplier_id','po_id','reference','supplier_credit_ref','currency_code','exchange_rate','tax_treatment','notes'];
       const sets: string[] = [];
       const vals: any[] = [];
@@ -6905,7 +7172,7 @@ export const ImsSupplierCNRepo = {
         const taxTreatment = data.tax_treatment ?? current.tax_treatment ?? 'ex_tax';
         const totals = calculateSupplierCreditTotals(items, taxTreatment);
         sets.push('subtotal = ?', 'tax_amount = ?', 'total_amount = ?');
-        vals.push(totals.subtotal, totals.tax_amount, totals.total_amount);
+        vals.push(current.consignment_supplier_id ? 0 : totals.subtotal, current.consignment_supplier_id ? 0 : totals.tax_amount, current.consignment_supplier_id ? 0 : totals.total_amount);
       }
       if (sets.length) {
         await conn.execute(
@@ -6972,6 +7239,20 @@ export const ImsSupplierCNRepo = {
         `SELECT * FROM ims_supplier_credit_note_items WHERE scn_id = ? FOR UPDATE`,
         [id],
       );
+      await assertConsignmentDocument(conn, businessId, scn, itemRows, true);
+      if (scn.consignment_supplier_id) {
+        if (!scn.po_id || itemRows.some(item => !item.source_po_item_id || Number(item.restock ?? 1) !== 1 || Number(item.qty) <= 0)) throw new ConsignmentConflict('Consignment supplier returns must be linked stock-only quantities.');
+        for (const item of itemRows) await captureSourceFact(conn, {
+          businessId, supplierId: Number(scn.consignment_supplier_id), sourceType: 'supplier_return', sourceId: id,
+          sourceLineId: Number(item.id), eventKey: `supplier-return:${id}:${item.id}`,
+          variantId: String(item.variant_id), sku: item.code, productName: item.name, locationId: Number(scn.location_id),
+          channel: 'supplier_return', eventDate: String(scn.scn_date).slice(0, 10), quantity: -Number(item.qty),
+          unitCost: computeReceivedUnitCostAud({
+            unitCost: Number(item.unit_cost), discountPct: 0, taxRate: Number(item.tax_rate ?? 0),
+            taxTreatment: scn.tax_treatment ?? 'ex_tax', exchangeRate: 1, landedCostPerUnitAud: 0,
+          }), taxRate: scn.tax_treatment === 'no_tax' ? 0 : Number(item.tax_rate ?? 0) * 100,
+        });
+      }
       await validateSupplierReturnCapsTx(conn, businessId, scn.po_id, itemRows as ImsSupplierCNItem[], id);
       await returnStockToSupplierTx(conn, businessId, id, Number(scn.location_id), itemRows as ImsSupplierCNItem[], costingState);
       await conn.execute(

@@ -175,6 +175,8 @@ export async function loadPostingReconciliations(businessId: string, request: Re
       liveVerificationComplete, state: verifiedMembers.some(run => run.liveVerification === 'not_found') ? 'Linked Xero journal not found'
         : options.verifyXero && verifiable.some(run => run.liveVerification === 'unavailable') ? 'Live Xero verification unavailable'
         : totals.uncertainCount ? 'Status uncertain' : calculation.blocked ? 'Posting blocked by incomplete costs'
+          : calculation.totalCOGS === 0 && totals.postedTotal === 0 && calculation.excludedConsignmentMovementCount > 0
+            ? 'Consignment intentionally excluded from Xero COGS'
           : members.length === 0 && heldPeriodStart && heldPeriodStart < from ? 'Not posted - earlier period unresolved'
             : members.length === 0 ? 'Not posted'
           : liveVerificationComplete && verifiedMembers.some(run => run.liveXeroStatus === 'DRAFT') ? 'Draft journals awaiting posting'
@@ -195,7 +197,7 @@ export async function loadPostingReconciliations(businessId: string, request: Re
     })),
   } }));
   return { success: true as const, tableAvailable, xeroShortCode, from: request.from, to: request.to, page: request.page, pageSize, total: periods.size, rows: namedRows,
-    scope: 'Configured completed accounting periods overlapping the selected date range, including periods with no posting run. Each reconciliation uses its complete stock-movement period, without sales filters.',
+    scope: 'Configured completed accounting periods overlapping the selected date range, including periods with no posting run. Each reconciliation uses its complete stock-movement period, without sales filters. Consignment internal COGS is intentionally excluded from Xero totals and posting differences; excluded amounts and quantities are reported separately.',
     statusEvidence: options.verifyXero
       ? 'Displayed journal statuses are checked directly with Xero when this tab loads. If that check is unavailable, the screen labels the fallback recorded status as unverified. Draft, voided, deleted and uncertain runs are not counted as verified posted.'
       : 'Last Xero status recorded by Solvantis; live verification was not requested. Draft, voided, deleted and uncertain runs are not counted as posted.',

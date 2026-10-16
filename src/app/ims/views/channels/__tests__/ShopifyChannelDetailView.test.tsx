@@ -16,6 +16,7 @@ vi.mock('../../../components/ShopifyView', () => ({
 vi.mock('../ChannelProductRulesDialog', () => ({ default: () => null }));
 
 import ShopifyChannelDetailView from '../ShopifyChannelDetailView';
+import { FeatureToggleProvider } from '../../../components/FeatureToggleProvider';
 
 const instance = {
   channelInstanceId: 'shopify-1',
@@ -82,5 +83,15 @@ describe('ShopifyChannelDetailView', () => {
     expect(screen.getByText('Daily online-sales batch sync')).toBeTruthy();
     expect(screen.getByText('Allow Shopify payout posting')).toBeTruthy();
     expect(screen.getByText('Automatically post balanced payouts')).toBeTruthy();
+  });
+
+  it('hides the rule editor and automatic assignment when Channel Listing Rules is off', async () => {
+    render(<FeatureToggleProvider loaded settings={{ feature_toggle_channel_rules: 'no' }}>
+      <ShopifyChannelDetailView instance={instance} canManage xeroAccountingEnabled onBack={vi.fn()} onChanged={vi.fn()} />
+    </FeatureToggleProvider>);
+    await userEvent.click(screen.getByRole('button', { name: 'Products' }));
+    expect(screen.queryByRole('button', { name: 'Product rules' })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Automatic assignment' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Automatic publication' })).toBeTruthy();
   });
 });

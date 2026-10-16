@@ -80,6 +80,11 @@ export async function POST(req: Request) {
   try {
     await ensureMigration();
     const body = await req.json();
+    if (Object.prototype.hasOwnProperty.call(body, 'is_consignment')) {
+      if (Number(body.is_consignment) === 1 && !['Admin', 'SuperAdmin'].includes(session.tier ?? '')) return NextResponse.json({ success: false, error: 'Only administrators can change consignment ownership.' }, { status: 403 });
+      if (![0, 1, false, true].includes(body.is_consignment)) return NextResponse.json({ success: false, error: 'Invalid consignment setting.' }, { status: 400 });
+      body.is_consignment = Number(body.is_consignment);
+    }
     const channels = validateContactChannels(body);
     if (channels.errors.length) {
       return NextResponse.json({ success: false, error: channels.errors.join(' ') }, { status: 400 });
@@ -97,7 +102,7 @@ export async function POST(req: Request) {
       const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
       body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);
     }
-    const id = await ImsContactsRepo.create(body, businessId);
+    const id = await ImsContactsRepo.create(body, businessId, { isAdmin: ['Admin', 'SuperAdmin'].includes(session.tier ?? ''), actorId: session.userId });
     const created = await ImsContactsRepo.get(id, businessId);
     const shopifySync = created ? await syncRetailCustomerToMappedShopifyInstances(created, businessId) : null;
     if (created) {
@@ -105,6 +110,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ success: true, id, shopifySync });
   } catch (e: any) {
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

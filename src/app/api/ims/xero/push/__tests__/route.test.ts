@@ -15,6 +15,7 @@ const {
   mockImsQuery,
   mockQuery,
   mockAssertXeroPostingEnabled,
+  mockIsConsignmentPurchase,
 } = vi.hoisted(() => ({
   mockGetImsSession: vi.fn(),
   mockTriggerPOXeroSync: vi.fn(),
@@ -30,6 +31,7 @@ const {
   mockImsQuery: vi.fn(),
   mockQuery: vi.fn(),
   mockAssertXeroPostingEnabled: vi.fn(),
+  mockIsConsignmentPurchase: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({
@@ -48,6 +50,10 @@ vi.mock('@/lib/ims/xeroHooks', () => ({
 
 vi.mock('@/services/IMSMySQLService', () => ({
   imsQuery: mockImsQuery,
+}));
+vi.mock('@/lib/xero/consignmentEligibility', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/xero/consignmentEligibility')>(),
+  isConsignmentPurchase: mockIsConsignmentPurchase,
 }));
 
 vi.mock('@/services/MySQLService', () => ({
@@ -93,6 +99,7 @@ describe('POST /api/ims/xero/push', () => {
     mockImsQuery.mockResolvedValue([]);
     mockQuery.mockResolvedValue([]);
     mockAssertXeroPostingEnabled.mockResolvedValue(undefined);
+    mockIsConsignmentPurchase.mockResolvedValue(false);
   });
 
   it('returns 401 when IMS session is missing', async () => {
@@ -102,6 +109,22 @@ describe('POST /api/ims/xero/push', () => {
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'Not authenticated' });
+  });
+
+  it.each(['po', 'scn', 'po_payment'])('intentionally excludes consignment %s manual retries', async type => {
+    mockIsConsignmentPurchase.mockResolvedValue(true);
+    const response = await POST(makeRequest({ type, id: 42, parentId: 7 }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ status: 'excluded' });
+    expect(mockTriggerPOXeroSync).not.toHaveBeenCalled();
+    expect(mockTriggerSupplierCNXeroSync).not.toHaveBeenCalled();
+    expect(mockTriggerPOPaymentXeroSync).not.toHaveBeenCalled();
+    expect(mockIsConsignmentPurchase).toHaveBeenCalledWith('biz-1', type === 'scn' ? 'supplier_credit_note' : 'purchase_order', type === 'po_payment' ? 7 : 42);
+  });
+  it('validates a missing payment parent before attempting ownership lookup', async () => {
+    const response = await POST(makeRequest({ type: 'po_payment', id: 42 }));
+    expect(response.status).toBe(400);
+    expect(mockIsConsignmentPurchase).not.toHaveBeenCalled();
   });
 
   it('returns 423 before reading the request payload or loading IMS records when posting is paused', async () => {

@@ -7,7 +7,8 @@
  * and never double-counts against Shopify's own order decrements.
  *
  * A DB trigger on ims_stock_movements queues every touched variant into
- * ims_shopify_inventory_queue; drainInventoryQueue() processes that queue.
+ * ims_shopify_inventory_queue. Branch transfers also queue commitment-only
+ * changes in their stock transaction; drainInventoryQueue() processes the queue.
  */
 import { imsQuery, imsExecute } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';

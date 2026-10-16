@@ -1,5 +1,5 @@
 import { calculateCogsForPeriod, CogsCalculation } from '@/lib/xero/cogsCalculator';
-import { CogsJournalBucket, CogsPeriod, roundCurrency } from '@/lib/xero/cogsPeriods';
+import { CogsJournalBucket, CogsPostingBucket, CogsPeriod, roundCurrency } from '@/lib/xero/cogsPeriods';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { execute, query } from '@/services/MySQLService';
 import { syncCogsJournal } from '@/services/XeroSyncService';
@@ -44,16 +44,17 @@ function parseBuckets(value: PostedBucketRow['breakdown_json']): CogsJournalBuck
   } catch { return []; }
 }
 
-function currentBuckets(calculation: CogsCalculation, locationNames: Map<number, string>): CogsJournalBucket[] {
+function currentBuckets(calculation: CogsCalculation, locationNames: Map<number, string>): CogsPostingBucket[] {
   const buckets = calculation.breakdown.map(bucket => ({ locationId: bucket.locationId || null,
     locationName: locationNames.get(bucket.locationId) || (bucket.locationId ? `Location ID ${bucket.locationId}` : 'Location not recorded'),
-    channel: bucket.channel, amount: roundCurrency(bucket.totalCOGS) }));
+    channel: bucket.channel, amount: roundCurrency(bucket.totalCOGS),
+    ownership: 'owned' as const, ownershipEvidence: 'movement_snapshot' as const }));
   const difference = roundCurrency(calculation.totalCOGS - buckets.reduce((sum, bucket) => sum + bucket.amount, 0));
   if (difference && buckets.length) buckets[buckets.length - 1].amount = roundCurrency(buckets[buckets.length - 1].amount + difference);
   return buckets;
 }
 
-export function calculateCogsBucketDeltas(current: CogsJournalBucket[], postedRows: PostedBucketRow[]): CogsJournalBucket[] {
+export function calculateCogsBucketDeltas(current: CogsPostingBucket[], postedRows: PostedBucketRow[]): CogsPostingBucket[] {
   const previous = new Map<string, CogsJournalBucket>();
   let snapshottedTotal = 0;
   let postedTotal = 0;
@@ -72,9 +73,11 @@ export function calculateCogsBucketDeltas(current: CogsJournalBucket[], postedRo
     previous.delete(key);
     return { ...bucket, amount };
   });
-  for (const bucket of previous.values()) deltas.push({ ...bucket, amount: roundCurrency(-bucket.amount) });
+  for (const bucket of previous.values()) deltas.push({ ...bucket, amount: roundCurrency(-bucket.amount),
+    ownership: 'owned', ownershipEvidence: 'posted_journal_snapshot' });
   const legacyTotal = roundCurrency(postedTotal - snapshottedTotal);
-  if (legacyTotal) deltas.push({ locationId: null, locationName: 'Prior unsplit journals', channel: 'legacy', amount: -legacyTotal });
+  if (legacyTotal) deltas.push({ locationId: null, locationName: 'Prior unsplit journals', channel: 'legacy', amount: -legacyTotal,
+    ownership: 'owned', ownershipEvidence: 'posted_journal_snapshot' });
   return deltas.filter(bucket => bucket.amount !== 0);
 }
 
@@ -168,6 +171,22 @@ export async function retryCogsRun(input: { businessId: string; runId: number })
   if (calculation.totalCOGS !== previousTarget) {
     return { outcome: 'changed', runId: run.id, previousTarget, currentTarget: calculation.totalCOGS, period };
   }
+  if (calculation.blocked) {
+    return { outcome: 'ineligible', runId: run.id, reason: 'Resolve missing or unexplained zero costs before retrying this journal.' };
+  }
+  const postedRows = await query<PostedBucketRow>(
+    `SELECT posted_delta, breakdown_json FROM xero_cogs_journal_runs
+      WHERE business_id = ? AND period_start = ? AND period_end = ? AND id <> ?
+        AND status = 'success' AND xero_state = 'POSTED' AND xero_id IS NOT NULL ORDER BY id`,
+    [input.businessId, periodStart, periodEnd, run.id],
+  );
+  const expectedBuckets = calculateCogsBucketDeltas(currentBuckets(calculation, new Map()), postedRows ?? []);
+  const signature = (values: CogsJournalBucket[]) => JSON.stringify(values
+    .map(bucket => [bucket.locationId, bucket.channel, roundCurrency(bucket.amount)])
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))));
+  if (signature(buckets) !== signature(expectedBuckets)) {
+    return { outcome: 'changed', runId: run.id, previousTarget, currentTarget: calculation.totalCOGS, period };
+  }
 
   try {
     const posted = await syncCogsJournal({
@@ -176,7 +195,8 @@ export async function retryCogsRun(input: { businessId: string; runId: number })
       label: period.label,
       journalDate: period.journalDate,
       amount: roundCurrency(Number(run.posted_delta)),
-      buckets,
+      buckets: buckets.map(bucket => ({ ...bucket, ownership: 'owned',
+        ownershipEvidence: expectedBuckets.find(expected => expected.locationId === bucket.locationId && expected.channel === bucket.channel)!.ownershipEvidence })),
       runKind: run.run_kind,
     });
     await execute(

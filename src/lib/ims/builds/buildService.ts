@@ -196,9 +196,11 @@ async function loadVariants(
   const [rows] = await connection.execute<VariantRow[]>(
     `SELECT v.variant_id, v.product_id, v.sku, v.is_active,
             p.name AS product_name, p.is_active AS product_active, p.is_stock_item, p.uses_builds,
-            COALESCE(v.avg_cost, v.cost_aud, 0) AS avg_cost, COALESCE(v.cost_aud, 0) AS cost_aud
+            COALESCE(v.avg_cost, v.cost_aud, 0) AS avg_cost, COALESCE(v.cost_aud, 0) AS cost_aud,
+            COALESCE(c.is_consignment,0) AS is_consignment
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id AND p.business_id = v.business_id
+       LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id AND c.business_id = p.business_id
       WHERE v.business_id = ? AND v.variant_id IN (${variantIds.map(() => '?').join(',')})
       ORDER BY v.variant_id${lock ? ' FOR UPDATE' : ''}`,
     [businessId, ...variantIds],
@@ -207,6 +209,7 @@ async function loadVariants(
   for (const id of variantIds) {
     const row = variants.get(id);
     if (!row) throw new ProductBuildConflictError(`Variant ${id} no longer exists.`, 'invalid_build_variant');
+    if (Number(row.is_consignment) === 1) throw new ProductBuildConflictError('Consignment build components and outputs are not supported.', 'consignment_build_unsupported');
     if (!Number(row.is_active) || !Number(row.product_active) || !Number(row.is_stock_item)) {
       throw new ProductBuildConflictError(`Variant ${id} must be an active stock item.`, 'invalid_build_variant');
     }

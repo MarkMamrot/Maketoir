@@ -4,6 +4,7 @@ import { getImsSession } from '@/lib/auth/imsSession';
 import { SalesChannelInstanceRepository } from '@/lib/channels/channelInstanceRepository';
 import { evaluateChannelProducts } from '@/lib/channels/channelProductAssignmentRepository';
 import { getChannelProductLinks } from '@/lib/channels/channelProductLinks';
+import { getChannelProductReadiness } from '@/lib/channels/channelProductReadiness';
 import { createDefaultSalesChannelRegistry } from '@/lib/channels/defaultRegistry';
 import { channelProductAssignmentMode } from '@/lib/channels/types';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
@@ -26,7 +27,10 @@ export async function GET(_: Request, { params }: Context) {
     if (!products[0]) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
     const registry = createDefaultSalesChannelRegistry();
-    const instances = await SalesChannelInstanceRepository.listForBusiness(businessId);
+    const [instances, readiness] = await Promise.all([
+      SalesChannelInstanceRepository.listForBusiness(businessId),
+      getChannelProductReadiness(businessId, [productId]),
+    ]);
     const destinations = await Promise.all(instances.map(async instance => {
       const evaluation = await evaluateChannelProducts({
         businessId,
@@ -60,7 +64,7 @@ export async function GET(_: Request, { params }: Context) {
       };
     }));
 
-    return NextResponse.json({ success: true, productId, destinations });
+    return NextResponse.json({ success: true, productId, destinations, publicationIssues: readiness[0].issues });
   } catch (error) {
     await reportRuntimeIssue({
       businessId,

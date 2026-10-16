@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { ConsignmentConflict } from '../consignment/ownership';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { ImsPORepo, ImsSupplierCNRepo } from '@/lib/ims/ImsRepository';
 import { getXeroInvoiceFinancialState } from '@/services/XeroSyncService';
@@ -197,6 +198,7 @@ export async function resolveSupplierOutstanding(input: {
       `SELECT * FROM ims_purchase_order_items WHERE po_id=? ORDER BY id FOR UPDATE`,
       [input.poId],
     );
+    if (po.consignment_supplier_id && (input.settlement !== 'none' || input.preview.accounting.kind === 'create_credit_note')) throw new ConsignmentConflict('Consignment shortfalls are stock-only. Supplier financial credits, refunds and allocations are not supported.');
     const outstanding = items.filter(
       (i) => Number(i.qty_ordered) - Number(i.qty_received ?? 0) > 0,
     );
@@ -268,6 +270,7 @@ export async function resolveSupplierOutstanding(input: {
         ],
       );
       childPoId = Number(child.insertId);
+      await conn.execute('UPDATE ims_purchase_orders SET consignment_supplier_id = ? WHERE id = ? AND business_id = ?', [po.consignment_supplier_id ?? null, childPoId, input.businessId]);
       for (const item of childItems) {
         const line =
           item.qty_ordered *

@@ -4,6 +4,7 @@ import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { CogsFrequency, getCogsPeriodStartingAt, getLastCompletedCogsPeriod } from '@/lib/xero/cogsPeriods';
 import { execute, query } from '@/services/MySQLService';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const FREQUENCIES = new Set<CogsFrequency>(['daily', 'weekly', 'monthly', 'quarterly']);
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
@@ -162,17 +163,25 @@ export async function GET(req: Request) {
     });
   } catch (error: unknown) {
     console.error('[xero/cogs/settings GET]', errorMessage(error));
-    return NextResponse.json({ settings: defaultSettings(), warning: 'COGS settings unavailable; using defaults.' });
+    await reportRuntimeIssue({
+      businessId: databaseId, source: 'XeroCogsSettings', operation: 'load_settings',
+      title: 'Unable to load Xero Sales COGS settings', error,
+    });
+    return NextResponse.json({ error: 'Unable to load COGS settings. Retry before making changes.' }, { status: 500 });
   }
 }
 
 export async function PUT(req: Request) {
   const { user, response } = requireAdminSession();
   if (response) return response;
+  if (!['Admin', 'SuperAdmin'].includes(user.tier)) {
+    return NextResponse.json({ error: 'Only an Admin can change Sales COGS settings.' }, { status: 403 });
+  }
 
+  let databaseId = '';
   try {
     const body = await req.json();
-    const databaseId = String(body.databaseId ?? '');
+    databaseId = String(body.databaseId ?? '');
     const frequency = String(body.frequency ?? '') as CogsFrequency;
     const reliableFrom = body.reliableFrom == null || body.reliableFrom === '' ? null : String(body.reliableFrom);
     const enabled = body.enabled === true;
@@ -253,6 +262,10 @@ export async function PUT(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     console.error('[xero/cogs/settings PUT]', errorMessage(error));
+    await reportRuntimeIssue({
+      businessId: databaseId || null, source: 'XeroCogsSettings', operation: 'save_settings',
+      title: 'Unable to save Xero Sales COGS settings', error,
+    });
     return NextResponse.json({ error: 'Unable to save COGS settings.' }, { status: 500 });
   }
 }

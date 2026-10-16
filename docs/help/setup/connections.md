@@ -15,6 +15,8 @@ Use Setup to maintain business information, team access, POS payment options, an
 
 ## Choose a Setup area
 
+Settings keeps Save and Cancel actions together in a spaced row below the fields they control. Actions wrap onto another line when space is limited, and multi-column forms stack on narrower screens. Quick links remain separate from saving: save or cancel your edits before moving to another workspace.
+
 | Need | Open | Result |
 | --- | --- | --- |
 | Update business facts or brand details | Business or Brand Profile | Reviewed information used by supported reports and drafting tools |

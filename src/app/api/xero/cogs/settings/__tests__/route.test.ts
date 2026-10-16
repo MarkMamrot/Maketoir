@@ -16,6 +16,7 @@ vi.mock('@/lib/sessionUtils', () => ({
 vi.mock('@/services/MySQLService', () => ({ execute: mockExecute, query: mockQuery }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mockRunImsForBusiness }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: mockGetBusinessTimeZone }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn() }));
 
 import { GET, PUT } from '../route';
 
@@ -30,7 +31,7 @@ function putRequest(body: unknown): Request {
 describe('/api/xero/cogs/settings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRequireAdminSession.mockReturnValue({ user: { id: 'u1' }, response: null });
+    mockRequireAdminSession.mockReturnValue({ user: { id: 'u1', tier: 'Admin' }, response: null });
     mockAssertBusinessAccess.mockReturnValue(null);
     mockQuery.mockResolvedValue([]);
     mockExecute.mockResolvedValue({ affectedRows: 1 });
@@ -42,6 +43,20 @@ describe('/api/xero/cogs/settings', () => {
     const response = await GET(new Request('http://localhost/api/xero/cogs/settings?databaseId=biz-1'));
     const json = await response.json();
     expect(json.settings).toMatchObject({ enabled: false, frequency: 'monthly', reliableFrom: null });
+  });
+
+  it('returns an explicit failure rather than disabled defaults when settings cannot be read', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('Database unavailable'));
+    const response = await GET(new Request('http://localhost/api/xero/cogs/settings?databaseId=biz-1'));
+    expect(response.status).toBe(500);
+    expect(await response.json()).not.toHaveProperty('settings');
+  });
+
+  it.each(['StandardUser', 'Advisor'])('does not allow %s to change scheduling', async tier => {
+    mockRequireAdminSession.mockReturnValue({ user: { id: 'u1', tier }, response: null });
+    const response = await PUT(putRequest({ databaseId: 'biz-1', enabled: false, frequency: 'monthly' }));
+    expect(response.status).toBe(403);
+    expect(mockExecute).not.toHaveBeenCalled();
   });
 
   it('returns when the next configured period becomes eligible', async () => {

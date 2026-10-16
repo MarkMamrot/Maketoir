@@ -98,7 +98,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e?.name === 'ConsignmentConflict' ? 409 : 500 });
   }
 }
 
@@ -120,7 +120,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   } catch (e: any) {
     return NextResponse.json(
       { success: false, error: e.message, ...(e?.code ? { code: e.code } : {}) },
-      { status: e instanceof FifoCostingConflict ? e.status : 500 },
+      { status: e instanceof FifoCostingConflict || e?.name === 'ConsignmentConflict' ? e.status : 500 },
     );
   }
 }

@@ -29,7 +29,7 @@ describe('historical valuation database snapshot', () => {
     expect(result.data[0]).toMatchObject({ cost: 7, soh: 3, total_value: 21, cost_source: 'current_fallback', inferred_opening: true });
     expect(mocks.query.mock.calls[1][0]).toBe('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY');
     const catalogue = mocks.query.mock.calls.find(([sql]) => String(sql).includes('LIMIT 1000'))!;
-    expect(catalogue[1]).toEqual(['tenant-1', '', 'v1', 'Acme', 7, 'Tee']);
+    expect(catalogue[1]).toEqual(['2026-10-01 13:00:00.000', 'tenant-1', '', 'v1', 'Acme', 7, 'Tee']);
     expect(catalogue[0]).not.toContain('is_active');
     const movements = mocks.query.mock.calls.find(([sql]) => String(sql).includes('FROM ims_stock_movements'))!;
     expect(movements[1]).toEqual(['tenant-1', 'tenant-1', 'v1']);
@@ -44,6 +44,15 @@ describe('historical valuation database snapshot', () => {
     expect(mocks.rollback).toHaveBeenCalledOnce();
     expect(mocks.release).toHaveBeenCalledOnce();
     expect(mocks.commit).not.toHaveBeenCalled();
+  });
+  it('classifies ownership from dated product history rather than the current supplier flag', async () => {
+    const result = await loadHistoricalValuation('tenant-1', '2026-10-01 13:00:00.000', { ...filters, ownership: 'consignment' });
+    const catalogue = mocks.query.mock.calls.find(([sql]) => String(sql).includes('LIMIT 1000'))!;
+    expect(catalogue[0]).toContain('history.effective_at < ?');
+    expect(catalogue[0]).toContain('history.business_id = p.business_id');
+    expect(catalogue[0]).toContain('COALESCE(ownership_history.is_consignment, 0) = 1');
+    expect(catalogue[0]).not.toContain('c.is_consignment');
+    expect(result.data[0].cost).toBe(7);
   });
   it('uses closed historical FIFO epochs, dated allocations and current active layers for fallback costs', async () => {
     const defaultQuery = mocks.query.getMockImplementation()!;

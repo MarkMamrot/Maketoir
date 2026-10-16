@@ -10,6 +10,10 @@ import ProductImageGallery from './components/ProductImageGallery';
 import AiModelSettingsSection from './components/AiModelSettingsSection';
 import AccountAiCreditsSection from './components/AccountAiCreditsSection';
 import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWizard';
+import { FeatureToggleProvider, useFeatureEnabled, useFeatureToggles } from './components/FeatureToggleProvider';
+import { FeatureToggleSettings } from './views/settings/FeatureToggleSettings';
+import { XeroSyncPreferences, XERO_PREFERENCES_UPDATED_EVENT } from './views/settings/XeroSyncPreferences';
+import { featureForView, isFeatureEnabled, isFeatureViewEnabled } from '@/lib/ims/featureToggles';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
@@ -48,7 +52,7 @@ import { TeamCommunicationsDrawer } from '@/components/help/TeamCommunicationsDr
 import { ConnectionsTab, SalesCacheTab } from '../setup/page';
 import { getCollapsedSidebarAction, isSidebarSectionActive } from '@/lib/navigation/sidebarNavigation';
 import { resolveSettingsSection, settingsOwnedUpdates, settingsPath, visibleSettingsMenu, type SettingsSection } from '@/lib/navigation/imsSettingsNavigation';
-import { SettingsShell, useSettingsDirty } from './views/settings/SettingsShell';
+import { SettingsActions, SettingsShell, useSettingsDirty } from './views/settings/SettingsShell';
 import { LoyaltyRewardsSettings } from './views/settings/LoyaltyRewardsSettings';
 import { LoyaltyPortalSettings } from './views/settings/LoyaltyPortalSettings';
 import { IntegrationSettingsSection } from './views/settings/IntegrationSettingsSection';
@@ -62,6 +66,8 @@ import {
 } from '@/lib/xero/documentPolicies';
 import { OrderPlannerView } from '../dashboard/OrderPlannerView';
 import { MainSections } from './views/MainSections';
+import { ConsignmentNotice } from './views/purchasing/ConsignmentNotice';
+import { ConsignmentCogsExclusions } from './views/reports/ConsignmentCogsExclusions';
 import { LoyaltySettingsSection } from './views/settings/LoyaltySettingsSection';
 import { ShippingSettingsSection } from './views/settings/ShippingSettingsSection';
 import { ShipOrdersWorkspace } from './views/orders/ShipOrdersWorkspace';
@@ -129,6 +135,7 @@ const AutomationWorkspace = dynamic(() => import('./views/AutomationWorkspace'),
 });
 
 type ImsView = ImsAutomationView
+  | 'report-consignment-activity' | 'consignment-statements'
   | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
@@ -167,6 +174,7 @@ const NAV = [
     { id: 'purchase-orders',  label: 'Purchase Orders' },
     { id: 'order-planner',    label: 'Order Planner' },
     { id: 'supplier-credit-notes', label: 'Supplier Credit Notes' },
+    { id: 'consignment-statements', label: 'Consignment Statements' },
   ]},
   { id: '__contacts',      label: 'Contacts',         section: 'contacts', children: [
     { id: 'contacts',      label: 'Contacts' },
@@ -181,6 +189,7 @@ const NAV = [
   { id: 'stocktakes',       label: 'Stocktakes',       section: null },
   { id: '__reports',       label: 'Reports',          section: 'reports', children: [
     { id: 'reports', label: 'Reports Overview' },
+    { id: 'report-consignment-activity', label: 'Consignment Activity' },
     { id: 'inactive-candidates', label: 'Inactive Candidates', href: '/ims#inactive-candidates' },
     { id: 'lost-candidates', label: 'Possible Losses', href: '/ims#lost-candidates' },
     { id: 'space-analysis', label: 'Space Efficiency', href: '/ims#space-analysis' },
@@ -683,6 +692,7 @@ function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; on
   const [nestedOpen, setNestedOpen] = useState<Record<string, boolean>>({});
   const [collapsed, setCollapsed] = useState(false);
   const { settings: sidebarSettings, capabilities } = useImsSettings();
+  const featureToggles = useFeatureToggles();
   const showMultipleLocations = sidebarSettings.use_multiple_locations !== 'no';
   const showBuilds = sidebarSettings.builds_enabled === 'yes';
   const showWholesale = sidebarSettings.sells_wholesale !== 'no';
@@ -805,6 +815,7 @@ function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; on
       {!collapsed && NAV.filter(item => item.id !== '__locations' || showLocations).map(item => {
         const visibleChildren = 'children' in item
           ? (item as any).children.filter((child: any) => {
+            if (featureForView(child.id) && (!featureToggles.loaded || !isFeatureViewEnabled(featureToggles.settings, child.id))) return false;
             if (child.id === 'location-daybooks') return showLocationDaybooks;
             if (child.id === '__marketing') return showMarketing;
             if (child.id === 'ai-helper') return showAiHelper;
@@ -897,7 +908,7 @@ function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; on
                       borderLeft: '3px solid transparent',
                       borderRadius: 0,
                     }}
-                  >{child.label}</button>
+                  >{child.id === 'consignment-statements' && !isFeatureEnabled(featureToggles.settings, 'feature_toggle_consignment_tracking') ? 'Consignment Statement History' : child.label}</button>
                 ))}
                 {item.id === '__sales' && showWholesalePreview && (
                   <a href="/wholesale/preview" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
@@ -1136,11 +1147,12 @@ function DashboardView({ businessId, xeroAccountingEnabled, shopifyEnabled, nati
   const completeOnboardingStep = async (stepId: string) => {
     setOnboardingSaving(true);
     try {
-      await fetch('/api/onboarding', {
+      const response = await fetch('/api/onboarding', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completeStep: stepId }),
       });
+      if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error ?? 'Onboarding progress could not be saved.');
       loadOnboarding();
     } finally { setOnboardingSaving(false); }
   };
@@ -1977,7 +1989,7 @@ const BLANK_CONTACT = {
   email: '', phone: '', mobile: '',
   address: '', address2: '', suburb: '',
   city: '', state: '', postcode: '', country: 'Australia',
-  notes: '', is_active: 1,
+  notes: '', is_active: 1, is_consignment: 0,
   store_credit: 0, on_account_limit: '' as string | number,
   date_of_birth: '', gender: '',
   promo_email: 0, promo_sms: 0,
@@ -2058,7 +2070,8 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
   both:            'Supplier & B2B Customer',
 };
 
-function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mode?: 'admin' | 'crm'; isAdvisor?: boolean; onOpenProfile: (id: number) => void }) {
+function ContactsView({ mode = 'admin', isAdvisor = false, canManageConsignment = false, onOpenProfile }: { mode?: 'admin' | 'crm'; isAdvisor?: boolean; canManageConsignment?: boolean; onOpenProfile: (id: number) => void }) {
+  const consignmentTracking = useFeatureEnabled('feature_toggle_consignment_tracking');
   const isCrmMode = mode === 'crm';
   const { settings: contactSettings } = useImsSettings();
   const DEFAULT_STATUS_FILTER = '1';
@@ -2303,6 +2316,8 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
         gender: f.gender || null,
       };
       if (modal.edit) delete payload.store_credit;
+      if (canManageConsignment && (f.type === 'supplier' || f.type === 'both')) payload.is_consignment = Number(f.is_consignment) === 1;
+      else delete payload.is_consignment;
       const result = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!modal.edit && (form.type === 'lead' || form.type === 'retail_customer')) {
         setTypeFilter(form.type);
@@ -2582,7 +2597,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
         );
         const nameCell = (c: any) => isAdvisor
           ? <strong style={{ color: 'var(--sv-text-main)' }}>{c.name}</strong>
-          : <button onClick={() => isCrmMode ? onOpenProfile(c.id) : openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong></button>;
+          : <button onClick={() => isCrmMode ? onOpenProfile(c.id) : openEdit(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}><strong style={{ color: 'var(--sv-action)' }}>{c.name}</strong>{Number(c.is_consignment) === 1 && <ConsignmentNotice compact />}</button>;
         const actions = (c: any) => (
           <div style={{ display: 'flex', gap: 4 }}>
             {!isCrmMode && !isAdvisor && <button onClick={() => openEdit(c)} style={btnStyle('ghost', 'xs')}>Edit</button>}
@@ -2845,6 +2860,11 @@ function ContactsView({ mode = 'admin', isAdvisor = false, onOpenProfile }: { mo
             {isSupplier && (
               <div style={{ marginTop: 14 }}>
                 <SectionLabel>Supplier Settings</SectionLabel>
+                <label><input type="checkbox" checked={Number(f.is_consignment) === 1} disabled={!canManageConsignment}
+                  onChange={e => setForm(p => ({ ...p, is_consignment: e.target.checked ? 1 : 0 } as typeof p))} /> Consignment supplier</label>
+                <p style={{ fontSize: 12 }}>Admin-only ownership setting. Applies supplier-wide to associated products from now onward; it does not rewrite historical ownership or settle earlier activity.</p>
+                {Number(f.is_consignment) === 1 && <ConsignmentNotice />}
+                {Number(f.is_consignment) === 1 && <p><a href="#report-consignment-activity" onClick={closeModal}>Consignment Activity</a>{consignmentTracking && <> · <a href="#consignment-statements" onClick={closeModal}>Consignment Statements</a></>}</p>}
                 <Field label="Supplier early-payment default">
                   <select value={f.supplier_early_payment_discount_rule_id ?? ''} onChange={sf('supplier_early_payment_discount_rule_id')} style={inputStyle}>
                     <option value="">No default</option>
@@ -6090,7 +6110,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   }, []);
   const [primaryImages, setPrimaryImages] = useState<Record<string, string>>({});
   const [importProductsOpen, setImportProductsOpen] = useState(false);
-  const [contacts, setContacts] = useState<{ id: number; name: string; type: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: number; name: string; type: string; is_consignment?: number }[]>([]);
   const [productLocations, setProductLocations] = useState<Array<{ id: number; name: string; is_active?: number }>>([]);
   const [openingStock, setOpeningStock] = useState<Record<string, OpeningStockValue>>({});
   const [pendingProductSave, setPendingProductSave] = useState<PendingProductSave | null>(null);
@@ -6098,6 +6118,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const openingStockScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(openingStockScrollRef);
   const { settings: productSettings } = useImsSettings();
+  const customsEnabled = useFeatureEnabled('feature_toggle_customs');
+  const channelRulesEnabled = useFeatureEnabled('feature_toggle_channel_rules');
   const productFeatures = parseProductSettings(productSettings);
   const buildsEnabled = productSettings.builds_enabled === 'yes';
   const showCategories = productFeatures.showCategories;
@@ -6194,7 +6216,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
     setRuleFilterRules([]);
     setRuleMatchedProductIds(null);
     setRuleFilterError('');
-    if (!ruleFilterChannelId) return;
+    if (!channelRulesEnabled || !ruleFilterChannelId) return;
     const controller = new AbortController();
     fetch(`/api/ims/channels/${encodeURIComponent(ruleFilterChannelId)}/product-rules?limit=1`, { signal: controller.signal })
       .then(async response => {
@@ -6204,12 +6226,13 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       })
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setRuleFilterError(error instanceof Error ? error.message : 'Product rules could not be loaded.'); });
     return () => controller.abort();
-  }, [ruleFilterChannelId]);
+  }, [channelRulesEnabled, ruleFilterChannelId]);
 
   useEffect(() => {
     setRuleMatchedProductIds(null);
     setRuleFilterError('');
-    if (!ruleFilterChannelId || !ruleFilterId) return;
+    setRuleFilterLoading(false);
+    if (!channelRulesEnabled || !ruleFilterChannelId || !ruleFilterId) return;
     const controller = new AbortController();
     setRuleFilterLoading(true);
     fetch(`/api/ims/channels/${encodeURIComponent(ruleFilterChannelId)}/product-rules?matchesOnly=1&ruleId=${encodeURIComponent(ruleFilterId)}`, { signal: controller.signal })
@@ -6223,7 +6246,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
       .catch(error => { if (!(error instanceof DOMException && error.name === 'AbortError')) setRuleFilterError(error instanceof Error ? error.message : 'Rule matches could not be loaded.'); })
       .finally(() => { if (!controller.signal.aborted) setRuleFilterLoading(false); });
     return () => controller.abort();
-  }, [ruleFilterChannelId, ruleFilterId]);
+  }, [channelRulesEnabled, ruleFilterChannelId, ruleFilterId]);
 
   // Deep-link: auto-open a product when the URL hash is #products/<product_id>
   // Works on first load AND when navigating back/forward.
@@ -6563,7 +6586,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
   const typeOptions    = [...new Set(products.map((p: any) => p.product_type).filter(Boolean))].sort() as string[];
 
   const filtered = products.filter((p: any) => {
-    if (ruleFilterId && !ruleMatchedProductIds?.has(String(p.product_id))) return false;
+    if (channelRulesEnabled && ruleFilterId && !ruleMatchedProductIds?.has(String(p.product_id))) return false;
     if (filterBrand && !(p.brand || '').toLowerCase().includes(filterBrand.toLowerCase())) return false;
     if (filterSupplier && !(p.supplier_name || '').toLowerCase().includes(filterSupplier.toLowerCase())) return false;
     if (filterType  && p.product_type !== filterType) return false;
@@ -6916,8 +6939,8 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           <option value="">All Product Types</option>
           {typeOptions.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        {!isAdvisor && <select aria-label="Sales channel rule filter" value={ruleFilterChannelId} onChange={event => { setRuleFilterChannelId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(180px, 100%)', maxWidth: '100%', flex: '1 1 180px' }}><option value="">All sales channels</option>{ruleFilterChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName} ({channel.providerDisplayName})</option>)}</select>}
-        {!isAdvisor && <select aria-label="Saved product rule" value={ruleFilterId} disabled={!ruleFilterChannelId || ruleFilterRules.length === 0} onChange={event => { setRuleFilterId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(170px, 100%)', maxWidth: '100%', flex: '1 1 170px', opacity: !ruleFilterChannelId || ruleFilterRules.length === 0 ? .55 : 1 }}><option value="">All products</option>{ruleFilterRules.length > 1 && <option value="all">All Include rules</option>}{ruleFilterRules.map(rule => <option key={String(rule.id)} value={String(rule.id)}>{rule.name}</option>)}</select>}
+        {!isAdvisor && channelRulesEnabled && <select aria-label="Sales channel rule filter" value={ruleFilterChannelId} onChange={event => { setRuleFilterChannelId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(180px, 100%)', maxWidth: '100%', flex: '1 1 180px' }}><option value="">All sales channels</option>{ruleFilterChannels.map(channel => <option key={channel.channelInstanceId} value={channel.channelInstanceId}>{channel.displayName} ({channel.providerDisplayName})</option>)}</select>}
+        {!isAdvisor && channelRulesEnabled && <select aria-label="Saved product rule" value={ruleFilterId} disabled={!ruleFilterChannelId || ruleFilterRules.length === 0} onChange={event => { setRuleFilterId(event.target.value); setPage(1); }} style={{ ...inputStyle, minWidth: 'min(170px, 100%)', maxWidth: '100%', flex: '1 1 170px', opacity: !ruleFilterChannelId || ruleFilterRules.length === 0 ? .55 : 1 }}><option value="">All products</option>{ruleFilterRules.length > 1 && <option value="all">All Include rules</option>}{ruleFilterRules.map(rule => <option key={String(rule.id)} value={String(rule.id)}>{rule.name}</option>)}</select>}
         {(filter || filterBrand || filterSupplier || filterType || filterActive !== 'all' ||
           filterWebsite !== 'all' || filterShopify !== 'all' || filterSohVal !== '' || filterAvailVal !== '' || ruleFilterId) && (
           <button onClick={() => {
@@ -7226,6 +7249,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                             onMouseLeave={e => (e.currentTarget.style.textDecoration = 'none')}
                             title={`Right-click → Open in new tab to view ${p.name}`}
                           >{p.name}</a>
+                          {Number(p.is_consignment) === 1 && <ConsignmentNotice compact />}
                         </strong>
                       </div>
                     </td>
@@ -7470,11 +7494,12 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
                 style={inputStyle}
               >
                 <option value="">— None —</option>
-                {contacts.filter((c: any) => c.type === 'supplier').map((c: any) => (
+                {contacts.filter((c: any) => c.type === 'supplier' || c.type === 'both').map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </Field>
+            {Number(contacts.find((contact: any) => Number(contact.id) === Number(form.supplier_contact_id))?.is_consignment) === 1 && <ConsignmentNotice />}
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -7506,6 +7531,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
             </div>
           </div>
 
+          {customsEnabled && <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--sv-text-dim)', textTransform: 'uppercase', letterSpacing: .8 }}>Customs &amp; compliance</span>
@@ -7539,6 +7565,7 @@ function ProductsView({ onNavigateToPO, onNavigateToSO, isAdvisor = false, busin
           </div>
 
           {/* ── Media ── */}
+          </>}
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '30px 0 16px' }}>
               <div style={{ flex: 1, height: 1, background: 'var(--sv-etch)' }} />
@@ -9810,8 +9837,8 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     { id: 'freight', label: 'Freight', width: 95, group: 'Financial', render: order => fmtFx(order.freight, order.currency_code) },
     { id: 'discount', label: 'Discount', width: 95, group: 'Financial', render: order => fmtFx(order.discount, order.currency_code) },
     { id: 'total_amount', label: 'Total', width: 110, group: 'Financial', render: order => fmtFx(order.total_amount, order.currency_code) },
-    { id: 'amount_paid', label: 'Paid', width: 105, group: 'Financial', render: order => fmtFx(order.amount_paid, order.currency_code) },
-    { id: 'balance', label: 'Balance', width: 105, group: 'Financial', render: order => fmtFx(order.balance, order.currency_code) },
+    { id: 'amount_paid', label: 'Paid', width: 105, group: 'Financial', render: order => order.consignment_supplier_id ? 'Not applicable' : fmtFx(order.amount_paid, order.currency_code) },
+    { id: 'balance', label: 'Balance', width: 105, group: 'Financial', render: order => order.consignment_supplier_id ? 'Stock-only' : fmtFx(order.balance, order.currency_code) },
     { id: 'currency_code', label: 'Currency', width: 90, group: 'Financial', render: order => order.currency_code || 'AUD' },
     { id: 'exchange_rate', label: 'Exchange Rate', width: 115, group: 'Financial', render: order => Number(order.exchange_rate ?? 1).toFixed(4) },
   ], []);
@@ -9947,6 +9974,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
   // Effective default purchase tax rate (decimal), considering the selected supplier.
   const showFxCosts = settings.use_foreign_currencies !== 'no';
   const selectedSupplier = suppliers.find((s: any) => String(s.id) === String(form.supplier_id));
+  const consignmentPo = modal.edit ? Boolean(modal.edit.consignment_supplier_id) : Number(selectedSupplier?.is_consignment) === 1;
   const selectedSupplierEarlyPaymentRule = poEarlyPaymentRules.find((rule: any) => Number(rule.id) === Number(selectedSupplier?.supplier_early_payment_discount_rule_id));
   const poDefaultTaxRate = (() => {
     if (selectedSupplier && !Number(selectedSupplier.charges_tax ?? 1)) return 0;
@@ -9962,9 +9990,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       if (sup) {
         tax_treatment = !Number(sup.charges_tax ?? 1) ? 'no_tax' : Number(sup.prices_include_tax ?? 0) ? 'inc_tax' : 'ex_tax';
       }
-      return { ...p, supplier_id: supplierId, tax_treatment, tax_code: settings?.purchase_tax_code ?? p.tax_code ?? '' };
+      return { ...p, supplier_id: supplierId, tax_treatment, tax_code: settings?.purchase_tax_code ?? p.tax_code ?? '',
+        ...(Number(sup?.is_consignment) === 1 && !modal.edit ? { currency_code: 'AUD', exchange_rate: '1', freight: '0', discount: '0' } : {}) };
     });
-    setPoEarlyPaymentChoice('contact_default');
+    setPoEarlyPaymentChoice(Number(sup?.is_consignment) === 1 ? 'none' : 'contact_default');
+    if (Number(sup?.is_consignment) === 1 && !modal.edit) { setLandedCosts([]); setLcForm(null); }
     if (sup) {
       const charges = Number(sup.charges_tax ?? 1);
       const rate = !charges ? 0
@@ -10196,7 +10226,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
     e.preventDefault();
     if (!form.location_id) { alert('Location is required.'); return; }
     if (lineItems.length === 0 || lineItems.some(i => !i.variant_id)) { alert('Add at least one line item with a variant selected.'); return; }
-    if (targetStatus === 'complete' && !String(form.supplier_invoice_number ?? '').trim()) {
+    if (targetStatus === 'complete' && !consignmentPo && !String(form.supplier_invoice_number ?? '').trim()) {
       alert('Enter the supplier invoice number before marking this purchase order Complete.');
       return;
     }
@@ -10282,7 +10312,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
 
   const changeStatus = async (po: any, status: string) => {
     const labels: Record<string, string> = { confirmed: 'confirm', draft: 'revert to draft', cancelled: 'cancel' };
-    if (status === 'complete' && !String(po.supplier_invoice_number ?? '').trim()) {
+    if (status === 'complete' && !po.consignment_supplier_id && !String(po.supplier_invoice_number ?? '').trim()) {
       alert('Enter the supplier invoice number before marking this purchase order Complete.');
       return;
     }
@@ -10667,6 +10697,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                       const background = i % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)';
                       return <td key={field.id} title={typeof field.render(po) === 'string' ? String(field.render(po)) : undefined} style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: frozen ? 'sticky' : undefined, left: field.id === 'po_number' ? 44 : field.id === 'supplier_name' ? 154 : undefined, zIndex: frozen ? 3 : undefined, background: frozen ? background : undefined, boxShadow: field.id === 'supplier_name' ? '1px 0 0 var(--sv-etch)' : undefined }}>
                         {field.id === 'po_number' ? <button data-testid={`po-open-${po.id}`} onClick={() => openView(po)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--sv-mint)', fontSize: 12.5, fontWeight: 700, padding: 0 }}>{po.po_number}</button> : field.render(po)}
+                        {field.id === 'supplier_name' && Boolean(po.consignment_supplier_id) && <ConsignmentNotice compact />}
                       </td>;
                     })}
                     <td style={{ padding: '10px 12px' }}>
@@ -10709,6 +10740,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
       {modal.open && (
         <Modal title={modal.edit ? `Edit ${modal.edit.po_number}` : 'New Purchase Order'} onClose={() => setModal({ open: false, edit: null })} wide>
           <form data-testid="po-form" onSubmit={handleSubmit}>
+            {consignmentPo && <><ConsignmentNotice /><p>Consignment receiving uses AUD at exchange rate 1, matched stock lines for one supplier, and no freight, landed costs or header discount. Per-line supplier-cost discounts remain available.</p></>}
             {!modal.edit && (
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '10px 14px', background: 'var(--sv-bg-subtle)', borderRadius: 8, border: '1px dashed var(--sv-border)', cursor: 'pointer' }}>
                 <span style={{ fontSize: 20 }}>📄</span>
@@ -10759,7 +10791,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                 </select>
               </Field>
             </Row3>
-            {!modal.edit && <Row2>
+            {!modal.edit && !consignmentPo && <Row2>
               <Field label="Early-payment discount">
                 <select value={poEarlyPaymentChoice} onChange={e => setPoEarlyPaymentChoice(e.target.value)} style={inputStyle}>
                   <option value="contact_default">{selectedSupplierEarlyPaymentRule ? `Supplier default: ${selectedSupplierEarlyPaymentRule.name}` : 'Supplier default: none set'}</option>
@@ -10780,7 +10812,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </Field>
               {showFxCosts && (
                 <Field label="Currency">
-                  <select disabled={isPartiallyReceived} value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
+                  <select disabled={isPartiallyReceived || consignmentPo} value={form.currency_code ?? 'AUD'} onChange={e => handleCurrencyChange(e.target.value)} style={inputStyle}>
                     {PO_CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </Field>
@@ -10789,7 +10821,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             {showFxCosts && (form.currency_code ?? 'AUD') !== 'AUD' && (
               <Row2>
                 <Field label={`Exchange Rate (1 ${form.currency_code} = ? AUD)`}>
-                  <input disabled={isPartiallyReceived} type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
+                  <input disabled={isPartiallyReceived || consignmentPo} type="number" min="0.000001" step="0.000001" value={form.exchange_rate} onChange={sf('exchange_rate')} style={inputStyle} placeholder="e.g. 1.5200" />
                   {form._rateHint && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 3 }}>{form._rateHint}</div>}
                 </Field>
               </Row2>
@@ -10905,11 +10937,11 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   ))}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Freight (+)</span>
-                    <input disabled={isPartiallyReceived} type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isPartiallyReceived || consignmentPo} type="number" min="0" step="0.01" value={form.freight} onChange={sf('freight')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
                     <span>Discount (−)</span>
-                    <input disabled={isPartiallyReceived} type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
+                    <input disabled={isPartiallyReceived || consignmentPo} type="number" min="0" step="0.01" value={form.discount} onChange={sf('discount')} placeholder="0.00" style={{ ...inputStyle, width: 110, fontSize: 12, textAlign: 'right' }} />
                   </div>
                   {taxTreatment !== 'no_tax' && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--sv-text-dim)', marginBottom: 4 }}>
@@ -10947,7 +10979,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Landed Costs</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>not on invoice · added to avg. cost on receive</span>
-                    {!lcForm && <button type="button" disabled={isPartiallyReceived} onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
+                    {!lcForm && <button type="button" disabled={isPartiallyReceived || consignmentPo} onClick={() => setLcForm({ label: '', reference: '', amount: '' })} style={btnStyle('mint', 'xs')}>+ Add</button>}
                   </div>
                 </div>
                 {landedCosts.length > 0 && (
@@ -11013,7 +11045,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
                     && confirm('All stock has been received and a supplier invoice number is present. Mark this purchase order Complete now?\n\nSelect Cancel to save it as In Progress.');
                   handleSubmit(e as any, false, undefined, completeNow ? 'complete' : ((hasAny || modal.edit?.status === 'partially_received') ? 'partially_received' : undefined));
                 }} style={btnStyle('ghost')}>{saving ? 'Saving…' : 'Save'}</button>
-                <button data-testid="po-receive-complete" type="button" disabled={saving || !String(form.supplier_invoice_number ?? '').trim()} title={String(form.supplier_invoice_number ?? '').trim() ? 'Saves received quantities and explicitly marks this PO Complete. Xero then follows the configured completion policy.' : 'Enter a supplier invoice number before completing this PO.'} onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
+                <button data-testid="po-receive-complete" type="button" disabled={saving || (!consignmentPo && !String(form.supplier_invoice_number ?? '').trim())} title={consignmentPo ? 'Complete stock-only receiving; no supplier invoice or Xero bill is created.' : 'Enter a supplier invoice number before completing this PO.'} onClick={e => handleSubmit(e as any, false, undefined, 'complete')} style={btnStyle('mint')}>{saving ? 'Saving…' : 'Save and Complete'}</button>
               </div>
             ) : (
               <FormActions onCancel={() => { setModal({ open: false, edit: null }); setLandedCosts([]); setLcForm(null); }} saving={saving} isEdit={!!modal.edit}
@@ -11143,6 +11175,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </div>
             );
           })()}
+          {viewModal.po.consignment_supplier_id && <ConsignmentNotice />}
           {viewModal.po.notes && <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--sv-bg-2)', borderRadius: 6, fontSize: 13, color: 'var(--sv-text-dim)' }}>{viewModal.po.notes}</div>}
           <DetailSectionDivider label="Products and totals" />
           <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
@@ -11212,6 +11245,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
           </table>
 
           <PurchaseOrderFinancialSections landedCosts={(() => {
+            if (viewModal.po.consignment_supplier_id) return null;
             const lcs: any[] = viewModal.po.landed_costs || [];
             const canEdit = viewModal.po.status === 'draft' || viewModal.po.status === 'confirmed' || viewModal.po.status === 'partially_received';
             return (
@@ -11292,6 +11326,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
               </div>
             );
           })()} payments={(() => {
+            if (viewModal.po.consignment_supplier_id) return null;
             const currency = (viewModal.po.currency_code || 'AUD').toUpperCase();
             const isFx = currency !== 'AUD';
             const displayRate = normalizeDisplayFxRate(currency, viewModal.po.exchange_rate);
@@ -11420,7 +11455,7 @@ function PurchaseOrdersView({ pendingOpenId, onPendingHandled, onSupplierReturn,
             );
           })()} />
           <DetailSectionDivider label="Accounting" />
-          <PoAccountingSection po={viewModal.po} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />
+          {!viewModal.po.consignment_supplier_id && <PoAccountingSection po={viewModal.po} settings={settings} xeroAccountingEnabled={xeroAccountingEnabled} onVoided={async () => { try { const d = await apiFetch(`/api/ims/purchase-orders/${viewModal.po.id}`); setViewModal(v => ({ ...v, po: d.data })); } catch {} }} />}
 
           <StockAllocationPanel
             mode="purchase_order"
@@ -13545,7 +13580,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
   const getScnActionOptions = (scn: any) => {
     const actions = [{ value: 'view', label: 'View' }];
     if (isAdvisor) {
-      if (canSyncXero && xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
+      if (!scn.consignment_supplier_id && canSyncXero && xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
       return actions;
     }
     if (scn.status === 'draft') actions.push(
@@ -13554,7 +13589,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
       { value: 'cancel', label: 'Cancel' },
       { value: 'delete', label: 'Delete Draft' },
     );
-    if (xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) {
+    if (!scn.consignment_supplier_id && xeroAccountingEnabled && scn.status === 'complete' && ['queued', 'error'].includes(scn.xero_sync_status)) {
       actions.push({ value: 'retry_xero', label: 'Retry Xero Sync' });
     }
     if (scn.status === 'complete') actions.push({ value: 'reverse', label: 'Reverse Mistaken Completion' });
@@ -13619,13 +13654,13 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
                 const selectedAction = scnActionSelections[scn.id] ?? actions[0]?.value ?? 'view';
                 return (
                   <tr key={scn.id} style={{ borderTop: '1px solid var(--sv-etch)', background: ri % 2 === 1 ? 'rgba(148,163,184,0.04)' : 'transparent' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 600, position: 'sticky', left: 0, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button></td>
+                    <td style={{ padding: '10px 12px', fontWeight: 600, position: 'sticky', left: 0, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)' }}><button onClick={() => openView(scn)} style={{ background: 'none', border: 'none', color: 'var(--sv-action)', cursor: 'pointer', padding: 0, font: 'inherit', fontWeight: 600 }}>{scn.scn_number}</button>{Boolean(scn.consignment_supplier_id) && <ConsignmentNotice compact />}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', position: 'sticky', left: 150, zIndex: 3, background: ri % 2 === 1 ? 'color-mix(in srgb, rgb(148 163 184) 4%, var(--sv-bg-1))' : 'var(--sv-bg-1)', boxShadow: '1px 0 0 var(--sv-etch)' }}>{scn.supplier_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)' }}>{scn.scn_date?.slice(0, 10)}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{scn.location_name ?? '—'}</td>
                     <td style={{ padding: '10px 12px', color: 'var(--sv-text-main)' }}>{money(scn.total_amount)}</td>
                     <td style={{ padding: '10px 12px' }}><StatusBadge status={scn.status} /></td>
-                    {xeroAccountingEnabled && <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.xero_sync_status ?? '—'}</td>}
+                    {xeroAccountingEnabled && <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--sv-text-dim)' }}>{scn.consignment_supplier_id ? 'Not posted — consignment' : scn.xero_sync_status ?? '—'}</td>}
                     <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                         <select
@@ -13653,6 +13688,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.6)', zIndex: 300, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 24, overflowY: 'auto' }}>
           <form onSubmit={handleSave} style={{ background: 'var(--sv-bg-1)', border: '1px solid var(--sv-etch)', borderRadius: 12, width: 900, maxWidth: '98vw', padding: 24 }}>
             <h2 style={{ margin: '0 0 16px', fontSize: 17, color: 'var(--sv-text-strong)' }}>{modal.edit ? `Edit ${modal.edit.scn_number}` : 'New Supplier Credit Note'}</h2>
+            {(modal.edit ? Boolean(modal.edit.consignment_supplier_id) : Number(suppliers.find(s => Number(s.id) === Number(form.supplier_id))?.is_consignment) === 1) && <ConsignmentNotice />}
             {form.po_id && (
               <div style={{ marginBottom: 12, padding: '8px 12px', background: 'rgba(96,165,250,.08)', border: '1px solid rgba(96,165,250,.25)', borderRadius: 8, fontSize: 12, color: 'var(--sv-text-main)' }}>
                 Linked to completed PO <strong>{form.reference || `#${form.po_id}`}</strong>. Keep <strong>Return stock</strong> selected for goods physically leaving; clear it for a money-only supplier credit.
@@ -13731,6 +13767,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
               <h2 style={{ margin: 0, fontSize: 17, color: 'var(--sv-text-strong)' }}>{viewModal.scn.scn_number} <StatusBadge status={viewModal.scn.status} /></h2>
               <button onClick={() => { setViewModal({ open: false, scn: null }); setScnFiles([]); setScnFileSync({}); setScnXeroLatest(null); setScnXeroAwaitingResult(false); }} style={btnStyle('ghost', 'sm')}>Close</button>
             </div>
+            {viewModal.scn.consignment_supplier_id && <ConsignmentNotice />}
             <DetailSectionDivider label="Credit summary" marginTop={0} />
             <div style={{ fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.9, marginBottom: 12 }}>
               <div><strong>Supplier:</strong> {viewModal.scn.supplier_name ?? '—'}</div>
@@ -13918,6 +13955,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
             <DetailSectionDivider label="Xero" marginTop={12} />
             {(() => {
               const scn = viewModal.scn;
+              if (scn.consignment_supplier_id) return <p>Stock-only supplier return. No Xero credit is created.</p>;
               const xeroStatus = scn.xero_sync_status as string | null;
               const xeroId = scn.xero_credit_note_id as string | null;
               const xeroAt = scn.xero_synced_at ? new Date(scn.xero_synced_at).toLocaleString() : null;
@@ -13979,7 +14017,7 @@ function SupplierCreditNotesView({ isAdvisor = false, prefill = null, onPrefillC
             {!isAdvisor && viewModal.scn.status === 'draft' && (
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
                 <button onClick={() => { setViewModal({ open: false, scn: null }); openEdit(viewModal.scn); }} style={btnStyle('ghost')}>Edit</button>
-                <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>{xeroAccountingEnabled ? 'Complete & Post to Xero' : 'Complete'}</button>
+                <button onClick={() => handleComplete(viewModal.scn)} style={btnStyle('mint')}>{viewModal.scn.consignment_supplier_id ? 'Complete stock-only return' : xeroAccountingEnabled ? 'Complete & Post to Xero' : 'Complete'}</button>
               </div>
             )}
             {!isAdvisor && viewModal.scn.status === 'complete' && (
@@ -14432,6 +14470,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
   const [soActionSelections, setSoActionSelections] = useState<Record<string, string>>({});
   const [selectedSoIds, setSelectedSoIds] = useState<Set<number>>(new Set());
   const [shipOrdersOpen, setShipOrdersOpen] = useState(false);
+  const shippingWorkspaceEnabled = useFeatureEnabled('feature_toggle_shipping');
   const [batchMoveOpen, setBatchMoveOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [totalRows, setTotalRows] = useState(0);
@@ -15264,7 +15303,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
     <div style={{ width: '100%', minWidth: 0, maxWidth: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--sv-text-strong)', margin: 0, flex: 1 }}>Sales Orders</h1>
-        {!isAdvisor && <button type="button" onClick={() => { setSelectedSoIds(new Set()); setShipOrdersOpen(true); }} style={{ ...btnStyle('secondary'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Shipping Workspace</button>}
+        {!isAdvisor && shippingWorkspaceEnabled && <button type="button" onClick={() => { setSelectedSoIds(new Set()); setShipOrdersOpen(true); }} style={{ ...btnStyle('secondary'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Shipping Workspace</button>}
         {!isAdvisor && <button onClick={() => setImportSOsOpen(true)} style={btnStyle('ghost')}>⬆ Import SOs</button>}
         <OrderDisplayFieldsMenu fields={soDisplayFields} selectedIds={selectedSoFieldIds} defaultIds={DEFAULT_SALES_ORDER_DISPLAY_FIELDS} onChange={setSelectedSoFieldIds} />
         {!isAdvisor && <button data-testid="so-new" onClick={openNew} style={btnStyle('action')}>+ New SO</button>}
@@ -15356,7 +15395,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
             <table style={{ width: soTableWidth, minWidth: '100%', borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
               {renderSoColGroup()}
             <thead>
-              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all actionable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={selectedSoFields.length + 1} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong><button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor || !selectedCanShip} title={selectedCanShip ? 'Prepare the selected orders for shipping' : 'Shipping requires only Confirmed or In Progress shippable orders'} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button><button type="button" onClick={() => setBatchMoveOpen(true)} disabled={isAdvisor || !selectedCanBatchMove} title={selectedCanBatchMove ? 'Move all outstanding quantities into one selected order' : 'Select at least two ordinary open B2B Sales Orders'} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftRight size={14} />Move into one order</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
+              {selectedSoIds.size > 0 ? <tr style={{ background: 'var(--sv-bg-2)' }}><th style={{ padding: '7px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all actionable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th><th colSpan={selectedSoFields.length + 1} style={{ padding: '7px 10px', textAlign: 'left' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}><strong style={{ fontSize: 12 }}>{selectedSoIds.size} selected</strong>{shippingWorkspaceEnabled && <button type="button" onClick={() => setShipOrdersOpen(true)} disabled={isAdvisor || !selectedCanShip} title={selectedCanShip ? 'Prepare the selected orders for shipping' : 'Shipping requires only Confirmed or In Progress shippable orders'} style={{ ...btnStyle('action', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><PackageCheck size={14} />Ship Orders</button>}<button type="button" onClick={() => setBatchMoveOpen(true)} disabled={isAdvisor || !selectedCanBatchMove} title={selectedCanBatchMove ? 'Move all outstanding quantities into one selected order' : 'Select at least two ordinary open B2B Sales Orders'} style={{ ...btnStyle('secondary', 'sm'), display: 'inline-flex', alignItems: 'center', gap: 6 }}><ArrowLeftRight size={14} />Move into one order</button></div></th></tr> : <tr style={{ background: 'var(--sv-bg-2)' }}>
                 <th style={{ padding: '10px 8px', position: 'sticky', left: 0, zIndex: 4, background: 'var(--sv-bg-2)' }}><input type="checkbox" aria-label="Select all actionable orders on this page" checked={allSelectableSelected} onChange={event => setSelectedSoIds(event.target.checked ? new Set(selectableSOs.map((so: any) => Number(so.id))) : new Set())} /></th>
                 {selectedSoFields.map(field => (
                   <th key={field.id} onClick={() => toggleSort(field.sortKey ?? field.id)}
@@ -15443,7 +15482,7 @@ function SalesOrdersView({ pendingOpenId, onPendingHandled, isAdvisor = false, o
         </div>
       )}
 
-      {shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
+      {shippingWorkspaceEnabled && shipOrdersOpen && <ShipOrdersWorkspace orders={selectedSOs} onClose={() => setShipOrdersOpen(false)} />}
       {batchMoveOpen && <SalesOrderBatchMoveModal orders={selectedSOs} onClose={() => setBatchMoveOpen(false)} onMoved={() => { setSelectedSoIds(new Set()); load(); }} />}
 
       {sourcingReview.open && sourcingReview.preview && (
@@ -18797,6 +18836,13 @@ function PosRegistersReportView({ onBack }: { onBack: () => void }) {
 
 const REPORT_CATALOG = [
   {
+    id: 'report-consignment-activity' as ImsView,
+    title: 'Consignment Activity',
+    description: 'Period sales, refunds and supplier costs. Not a settlement or outstanding balance; available with tracking off.',
+    icon: '📦',
+    category: 'Inventory',
+  },
+  {
     id: 'report-cogs-traceability' as ImsView,
     title: 'Sales & COGS Traceability',
     description: 'Trace recorded sales and costs by channel, product and warehouse, with FIFO receipt evidence and accounting reconciliation.',
@@ -19183,6 +19229,7 @@ function SettingsView() {
 
 function XeroView({
   businessId,
+  canManage = false,
   isAdvisor = false,
   advisorMappingEnabled = false,
   advisorPayoutsEnabled = false,
@@ -19193,6 +19240,7 @@ function XeroView({
   onOpenPosSalesDay,
 }: {
   businessId: string;
+  canManage?: boolean;
   isAdvisor?: boolean;
   advisorMappingEnabled?: boolean;
   advisorPayoutsEnabled?: boolean;
@@ -19354,6 +19402,7 @@ function XeroView({
       </div>
 
       {!status?.connected ? (
+        <>
         <div style={{ padding: 24, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', maxWidth: 520 }}>
           <p style={{ color: 'var(--sv-text-main)', margin: '0 0 16px', lineHeight: 1.6 }}>
             Connect your Xero organisation to sync purchase orders, sales, and monthly COGS journals automatically.
@@ -19369,6 +19418,8 @@ function XeroView({
             </button>
           )}
         </div>
+        <XeroSyncPreferences businessId={businessId} canManage={canManage} />
+        </>
       ) : (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -19393,7 +19444,7 @@ function XeroView({
             </div>
           )}
 
-          {destination === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} />}
+          {destination === 'overview' && <XeroOverviewTab status={status} getBusinessId={getBusinessId} canManage={canManage} />}
           {(destination === 'setup-automation' || destination === 'setup-ledger' || destination === 'setup-payments') && <XeroMappingTab getBusinessId={getBusinessId} />}
           {destination === 'activity-cogs' && <CogsReconciliationTab getBusinessId={getBusinessId} />}
           {destination === 'activity-payouts' && <ShopifyPayoutsTab getBusinessId={getBusinessId} />}
@@ -19438,7 +19489,7 @@ function HintBadge({ text }: { text: string }) {
   );
 }
 
-function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId: () => string }) {
+function XeroOverviewTab({ status, getBusinessId, canManage }: { status: any; getBusinessId: () => string; canManage: boolean }) {
   const [tokenExpiry, setTokenExpiry] = React.useState<Date | null>(
     status?.tokenExpiry ? new Date(status.tokenExpiry) : null
   );
@@ -19456,6 +19507,19 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
   const [cogsBusy, setCogsBusy] = React.useState<'preview' | 'post' | null>(null);
   const [cogsMessage, setCogsMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [cogsPreview, setCogsPreview] = React.useState<any>(null);
+  const cogsBusinessId = getBusinessId();
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/xero/cogs/settings?databaseId=${encodeURIComponent(cogsBusinessId)}`)
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.settings) throw new Error(data.error || 'Unable to load COGS settings');
+        if (!cancelled) setCogsSettings(data.settings);
+      }).catch(error => {
+        if (!cancelled) setCogsMessage({ ok: false, text: error instanceof Error ? error.message : 'Unable to load COGS settings' });
+      });
+    return () => { cancelled = true; };
+  }, [cogsBusinessId]);
 
   const saveCogsSettings = async () => {
     if (!cogsSettings) return;
@@ -19695,14 +19759,14 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
           </div>
           {cogsSettings && (
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--sv-text-main)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={cogsSettings.enabled} onChange={e => setCogsSettings(s => s ? ({ ...s, enabled: e.target.checked }) : s)} />
+              <input type="checkbox" checked={cogsSettings.enabled} disabled={!canManage || savingCogs} onChange={e => setCogsSettings(s => s ? ({ ...s, enabled: e.target.checked }) : s)} />
               Automatic sync
             </label>
           )}
         </div>
 
         {!cogsSettings ? (
-          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading COGS settings...</div>
+          <div style={{ marginTop: 16, fontSize: 12, color: 'var(--sv-text-dim)' }}>{cogsMessage?.ok === false ? 'COGS settings are unavailable. Reload this view to retry.' : 'Loading COGS settings...'}</div>
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginTop: 16 }}>
@@ -19710,7 +19774,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
                 <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>Frequency</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', border: '1px solid var(--sv-etch)', borderRadius: 6, overflow: 'hidden' }}>
                   {(['daily', 'weekly', 'monthly', 'quarterly'] as const).map(frequency => (
-                    <button key={frequency} onClick={() => setCogsSettings(s => s ? ({ ...s, frequency }) : s)} style={{
+                    <button key={frequency} disabled={!canManage || savingCogs} onClick={() => setCogsSettings(s => s ? ({ ...s, frequency }) : s)} style={{
                       border: 'none', borderRight: frequency === 'quarterly' ? 'none' : '1px solid var(--sv-etch)', padding: '7px 5px', cursor: 'pointer',
                       background: cogsSettings.frequency === frequency ? 'var(--sv-action)' : 'var(--sv-bg-1)',
                       color: cogsSettings.frequency === frequency ? '#fff' : 'var(--sv-text-main)', fontSize: 11, textTransform: 'capitalize',
@@ -19720,12 +19784,12 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 6, fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)' }}>First reliable COGS date</label>
-                <input type="date" value={cogsSettings.reliableFrom || ''} onChange={e => setCogsSettings(s => s ? ({ ...s, reliableFrom: e.target.value || null }) : s)} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
+                <input type="date" value={cogsSettings.reliableFrom || ''} disabled={!canManage || savingCogs} onChange={e => setCogsSettings(s => s ? ({ ...s, reliableFrom: e.target.value || null }) : s)} style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--sv-etch)', borderRadius: 6, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }} />
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-              <button onClick={saveCogsSettings} disabled={savingCogs} style={{ padding: '7px 14px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{savingCogs ? 'Saving...' : 'Save schedule'}</button>
+              <button onClick={saveCogsSettings} disabled={!canManage || savingCogs} style={{ padding: '7px 14px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{savingCogs ? 'Saving...' : 'Save schedule'}</button>
               <button onClick={previewCogs} disabled={cogsBusy !== null} style={{ padding: '7px 14px', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-etch)', borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'preview' ? 'Calculating...' : 'Preview completed period'}</button>
             </div>
 
@@ -19741,7 +19805,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
                 <strong style={{ color: '#f87171' }}>Automatic COGS is held.</strong>{' '}
                 Period {cogsSettings.heldPeriodStart || 'unknown'} requires attention ({cogsSettings.heldReason.replace('_', ' ')}{cogsSettings.heldRunId ? `, run ${cogsSettings.heldRunId}` : ''}).
                 {cogsSettings.heldReason === 'blocked' ? (
-                  <button onClick={resumeCogsSchedule} disabled={savingCogs} style={{ display: 'block', marginTop: 8, padding: '6px 12px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.35)', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600 }}>Resume after correcting costs</button>
+                  <button onClick={resumeCogsSchedule} disabled={!canManage || savingCogs} style={{ display: 'block', marginTop: 8, padding: '6px 12px', background: 'rgba(248,113,113,.15)', color: '#f87171', border: '1px solid rgba(248,113,113,.35)', borderRadius: 6, cursor: savingCogs ? 'not-allowed' : 'pointer', fontSize: 11, fontWeight: 600 }}>Resume after correcting costs</button>
                 ) : (
                   <div style={{ marginTop: 5, color: 'var(--sv-text-dim)' }}>Reconcile the run in Xero before resuming; ambiguous or failed posts are never retried automatically.</div>
                 )}
@@ -19757,6 +19821,7 @@ function XeroOverviewTab({ status, getBusinessId }: { status: any; getBusinessId
                     <div style={{ marginTop: 4, fontSize: 11, color: 'var(--sv-text-dim)' }}>
                       {cogsPreview.calculation?.includedMovementCount || 0} included movements · {cogsPreview.calculation?.excludedHistoricalMovementCount || 0} imported excluded · {cogsPreview.calculation?.orphanedMovementCount || 0} orphaned
                     </div>
+                    <ConsignmentCogsExclusions calculation={cogsPreview.calculation || {}} />
                     {cogsPreview.calculation?.blocked && <div style={{ marginTop: 5, fontSize: 11, color: '#f87171' }}>{cogsPreview.calculation?.missingCostMovementCount || 0} missing-cost and {cogsPreview.calculation?.zeroCostMovementCount || 0} zero-cost movements require correction or an override reason.</div>}
                   </div>
                   <button onClick={postCogs} disabled={cogsBusy !== null || Number(cogsPreview.calculation?.totalCOGS || 0) === 0} style={{ padding: '7px 14px', background: cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.15)' : 'rgba(16,185,129,.15)', color: cogsPreview.calculation?.blocked ? '#f87171' : '#34d399', border: `1px solid ${cogsPreview.calculation?.blocked ? 'rgba(248,113,113,.35)' : 'rgba(16,185,129,.35)'}`, borderRadius: 6, cursor: cogsBusy ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 600 }}>{cogsBusy === 'post' ? 'Posting...' : 'Post to Xero'}</button>
@@ -22836,7 +22901,7 @@ export default function ImsPage() {
   const [syncingSteps, setSyncingSteps] = useState<string[]>([]);
   const [syncLog, setSyncLog] = useState<{ step: string; status: string; message: string }[]>([]);
   const [fullSyncConfirm, setFullSyncConfirm] = useState<'products' | 'sales' | 'pos' | null>(null);
-  const { settings: pageSettings, capabilities: pageCapabilities, loaded: settingsLoaded } = useImsSettings();
+  const { settings: pageSettings, capabilities: pageCapabilities, loaded: settingsLoaded, loadError: pageSettingsError, refetchSettings: refetchPageSettings } = useImsSettings();
   const buildsEnabled = pageSettings.builds_enabled === 'yes';
   const [salesMonthsInput, setSalesMonthsInput] = useState(6);
   const [poMonthsInput, setPoMonthsInput] = useState(60);
@@ -22926,6 +22991,7 @@ export default function ImsPage() {
     'branch-transfers','smart-device-receive','order-planner','receive-transfers',
     'pos-sales','cash-banking','online-sales','stocktakes',
     'reports','report-sales-detail','report-sales-by-branch','report-sales-summary','report-sales-search',
+    'report-consignment-activity','consignment-statements',
     'report-inventory-valuation','report-product-margin',
     'report-pos-price-changes','report-pos-registers','report-cash-banking','report-stock-availability','report-bookkeeper-audit','report-cogs-traceability',
     'xero','sales-channels','online-shop', ...IMS_AUTOMATION_VIEW_IDS,
@@ -23065,6 +23131,12 @@ export default function ImsPage() {
   }, [buildsEnabled, hasRestoredInitialHash, settingsLoaded, setViewSafe, view]);
 
   useEffect(() => {
+    if (!hasRestoredInitialHash || !settingsLoaded || isFeatureViewEnabled(pageSettings, view)) return;
+    window.history.replaceState(window.history.state, '', '#dashboard');
+    setViewSafe('dashboard');
+  }, [hasRestoredInitialHash, settingsLoaded, pageSettings, view, setViewSafe]);
+
+  useEffect(() => {
     if (pageSettings.connect_accounting_software !== 'yes') return;
     fetch('/api/ims/xero/queued').then(r => r.ok ? r.json() : { count: 0 }).then(d => setXeroQueuedCount(d.count ?? 0)).catch(() => {});
   }, [pageSettings.connect_accounting_software]);
@@ -23180,6 +23252,7 @@ export default function ImsPage() {
   if (!user) return null;
 
   return (
+    <FeatureToggleProvider key={user.businessId} settings={pageSettings} loaded={settingsLoaded}>
     <div style={{ minHeight: '100vh', background: '#eef1f4', padding: '14px 14px 18px', boxSizing: 'border-box', color: '#0f172a', fontFamily: 'Inter, "Segoe UI", sans-serif' }}>
       <div style={{ background: '#0b1220', borderRadius: '18px 18px 0 0', border: '1px solid rgba(148,163,184,.26)', borderBottom: 'none', boxShadow: '0 18px 42px rgba(15,23,42,.12)', overflow: 'clip' }}>
         {/* Xero Queued Banner */}
@@ -23452,7 +23525,8 @@ export default function ImsPage() {
         <div style={{ display: 'flex', gap: 0, padding: 0, background: '#f3f4f6', minHeight: 'calc(100vh - 160px)' }}>
           <Sidebar active={view} onSelect={(v) => setViewSafe(v)} userTier={user?.tier} features={user?.features} />
           <main style={{ flex: 1, minWidth: 0, minHeight: 0, borderRadius: 0, background: '#ffffff', border: '1px solid #e5e7eb', borderLeft: 'none', boxShadow: 'none', overflow: 'clip', display: 'flex', flexDirection: 'column', padding: '18px 22px 28px' }}>
-            {isImsAutomationView(view) ? (
+            {pageSettingsError && <div role="alert"><p>{pageSettingsError}</p><button type="button" onClick={refetchPageSettings}>Retry loading business settings</button></div>}
+            {featureForView(view) && (!settingsLoaded || !isFeatureViewEnabled(pageSettings, view)) ? <p role="status">{settingsLoaded ? 'This feature is turned off for this business.' : 'Loading business features...'}</p> : isImsAutomationView(view) ? (
               settingsLoaded && canAccessImsAutomationView(view, user?.tier, user?.features, pageCapabilities.shopifyEnabled)
                 ? <AutomationWorkspace
                     key={view}
@@ -23630,6 +23704,7 @@ export default function ImsPage() {
       />
 
     </div>
+    </FeatureToggleProvider>
   );
 }
 
@@ -25509,6 +25584,10 @@ function StocktakeVariantSearch({ stocktakeId, locationId, onAdd }: {
 }
 
 function StocktakesView({ businessId, isAdvisor = false }: { businessId: string; isAdvisor?: boolean }) {
+  const { capabilities: stocktakeCapabilities, loaded: stocktakeSettingsLoaded, loadError: stocktakeSettingsError } = useImsSettings();
+  const [stocktakeXeroPolicy, setStocktakeXeroPolicy] = useState<XeroDocumentPolicy | null>(null);
+  const [stocktakeXeroPolicyError, setStocktakeXeroPolicyError] = useState('');
+  const [stocktakeXeroRevision, setStocktakeXeroRevision] = useState(0);
   const stocktakeHeaderScrollRef = useRef<HTMLDivElement | null>(null);
   const stocktakeBodyScrollRef = useRef<HTMLDivElement | null>(null);
   useTableArrowScroll(stocktakeBodyScrollRef);
@@ -25544,6 +25623,33 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
   const [applying, setApplying]         = useState(false);
   const [savingDraft, setSavingDraft]   = useState(false);
   const [xeroSyncing, setXeroSyncing]   = useState(false);
+  useEffect(() => {
+    const refresh = () => setStocktakeXeroRevision(value => value + 1);
+    window.addEventListener(XERO_PREFERENCES_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(XERO_PREFERENCES_UPDATED_EVENT, refresh);
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setStocktakeXeroPolicy(null); setStocktakeXeroPolicyError('');
+    if (!stocktakeCapabilities.xeroAccountingEnabled || !detailModal.open) return;
+    fetch(`/api/xero/document-policies?databaseId=${encodeURIComponent(businessId)}`)
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Unable to load Xero posting preferences.');
+        if (!cancelled) setStocktakeXeroPolicy(data.policy);
+      }).catch(error => {
+        if (!cancelled) setStocktakeXeroPolicyError(error instanceof Error ? error.message : 'Unable to load Xero posting preferences.');
+      });
+    return () => { cancelled = true; };
+  }, [businessId, stocktakeCapabilities.xeroAccountingEnabled, detailModal.open, detailModal.st?.id, stocktakeXeroRevision]);
+  const stocktakeXeroPostingAllowed = stocktakeSettingsLoaded && stocktakeCapabilities.xeroAccountingEnabled
+    && stocktakeXeroPolicy?.postingEnabled && stocktakeXeroPolicy.stocktakeJournalEnabled;
+  const stocktakeXeroPostingMessage = stocktakeSettingsError || (!stocktakeSettingsLoaded ? 'Loading Xero preferences...'
+    : !stocktakeCapabilities.xeroAccountingEnabled ? 'Xero integration is off. Stocktake completed locally.'
+    : stocktakeXeroPolicyError || (!stocktakeXeroPolicy ? 'Loading Xero preferences...'
+      : !stocktakeXeroPolicy.postingEnabled ? 'Xero posting is paused. Stocktake completed locally.'
+      : !stocktakeXeroPolicy.stocktakeJournalEnabled ? 'Stocktake adjustments are off. Stocktake completed locally.'
+      : 'Pending Xero posting. Check the connection and account mappings before retrying.'));
   // (add-item search state is now handled inside StocktakeVariantSearch)
 
   const load = useCallback(() => {
@@ -25768,14 +25874,15 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
         setXeroSyncing(true);
         const xeroRes = await fetch('/api/xero/sync/stocktake-journal', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ databaseId: businessId, stocktakeId: id }),
+          body: JSON.stringify({ databaseId: businessId, stocktakeId: id, automatic: true }),
         });
         const xd = await xeroRes.json();
-        if (!xeroRes.ok) xeroMsg = `\n\n⚠ Xero sync failed: ${xd.error || 'Unknown'}. Retry from the accounting panel.`;
+        if (!xeroRes.ok) xeroMsg = `\n\n⚠ Stocktake completed in Solvantis, but Xero posting needs attention: ${xd.error || 'Unknown'}. Check the connection and account mappings, then retry only Xero sync from the accounting panel.`;
+        else if (xd.skipped) xeroMsg = '';
         else if (xd.lines === 0) xeroMsg = '\n\nXero: no variances to post.';
         else xeroMsg = `\n\n✓ Xero journal posted: ${xd.lines} variance line${xd.lines !== 1 ? 's' : ''}, total $${Number(xd.totalValue).toFixed(2)}.`;
       } catch (xe: any) {
-        xeroMsg = `\n\n⚠ Xero sync error: ${xe.message}.`;
+        xeroMsg = `\n\n⚠ Stocktake completed in Solvantis, but Xero posting could not be confirmed: ${xe.message}. Check the accounting panel before retrying Xero sync; do not complete the stocktake again.`;
       } finally { setXeroSyncing(false); }
       alert(`Stocktake complete. Applied ${d.applied} items, ${d.variances} variance${d.variances !== 1 ? 's' : ''} recorded.${xeroMsg}`);
       setUncommittedStocktakeId(null);
@@ -26395,8 +26502,9 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                   <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--sv-text-strong)' }}>Accounting / Xero</span>
                   {ss === 'synced' && <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>✓ Synced to Xero{detailModal.st.xero_synced_at ? ` — ${String(detailModal.st.xero_synced_at).slice(0, 10)}` : ''}</span>}
                   {ss === 'error'  && <span style={{ fontSize: 12, color: '#f87171', fontWeight: 600 }}>⚠ Sync failed</span>}
-                  {!ss            && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>○ Not yet synced to Xero</span>}
-                  {detailModal.st.status === 'completed' && ss !== 'synced' && (
+                  {ss !== 'synced' && <span role={stocktakeXeroPolicyError || stocktakeSettingsError ? 'alert' : undefined} style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{stocktakeXeroPostingMessage}</span>}
+                  {(stocktakeXeroPolicyError || stocktakeSettingsError) && <button type="button" onClick={() => { setStocktakeXeroRevision(value => value + 1); if (stocktakeSettingsError) window.dispatchEvent(new Event(IMS_SETTINGS_UPDATED_EVENT)); }} style={btnStyle('ghost', 'sm')}>Reload Xero preferences</button>}
+                  {detailModal.st.status === 'completed' && ss !== 'synced' && stocktakeXeroPostingAllowed && (
                     <button type="button" disabled={applying || xeroSyncing} onClick={async () => {
                       setXeroSyncing(true);
                       try {
@@ -26425,7 +26533,7 @@ function StocktakesView({ businessId, isAdvisor = false }: { businessId: string;
                       Reversal: {reversalStatus === 'blocked' ? 'Needs Attention' : String(reversalStatus).replaceAll('_', ' ')}
                     </span>
                   )}
-                  {detailModal.st.status === 'reverted' && (reversalStatus === 'queued' || reversalStatus === 'error') && !isAdvisor && (
+                  {detailModal.st.status === 'reverted' && (reversalStatus === 'queued' || reversalStatus === 'error') && !isAdvisor && stocktakeXeroPostingAllowed && (
                     <button type="button" disabled={xeroSyncing} onClick={async () => {
                       setXeroSyncing(true);
                       try {
@@ -27258,7 +27366,7 @@ function LocationsSettingsSection({ settings, saveSettings, policiesOnly = false
           const effective = value === 'enabled' || (value === 'inherit' && settings.build_from_sale_enabled === 'yes');
           return <div key={location.id} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--sv-etch)' }}><span style={{ fontSize: 12, fontWeight: 600 }}>{location.name}</span><select value={value} disabled={!locs.length || saving} onChange={event => { const next = event.target.value; setBuildOverrides(previous => ({ ...previous, [key]: next })); setBuildDirty(previous => new Set(previous).add(key)); }} style={{ padding: '7px 9px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', fontSize: 12 }}><option value="inherit">Use business default</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option></select><span style={{ color: effective ? 'var(--sv-mint)' : 'var(--sv-text-dim)', fontSize: 11, fontWeight: 700 }}>Effective: {effective ? 'Enabled' : 'Disabled'}</span></div>;
         })}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button type="button" data-primary disabled={!buildDirty.size || saving || !locs.length} onClick={async () => { setSaving(true); setSaved(false); setError(''); try { await saveSettings(Object.fromEntries([...buildDirty].map(key => [key, buildOverrides[key] ?? 'inherit']))); setBuildDirty(new Set()); setSaved(true); } catch (error) { setError(error instanceof Error ? error.message : 'Location policies could not be saved.'); } finally { setSaving(false); } }} style={{ ...btnStyle('action', 'sm'), opacity: !buildDirty.size ? .55 : 1 }}>{saving ? 'Saving…' : 'Save location policies'}</button><button type="button" disabled={saving} onClick={() => { setBuildOverrides(Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('build_from_sale_location:')))); setBuildDirty(new Set()); }}>Cancel</button></div>
+        <SettingsActions><button type="button" data-primary disabled={!buildDirty.size || saving || !locs.length} onClick={async () => { setSaving(true); setSaved(false); setError(''); try { await saveSettings(Object.fromEntries([...buildDirty].map(key => [key, buildOverrides[key] ?? 'inherit']))); setBuildDirty(new Set()); setSaved(true); } catch (error) { setError(error instanceof Error ? error.message : 'Location policies could not be saved.'); } finally { setSaving(false); } }} style={{ ...btnStyle('action', 'sm'), opacity: !buildDirty.size ? .55 : 1 }}>{saving ? 'Saving…' : 'Save location policies'}</button><button type="button" disabled={saving} onClick={() => { setBuildOverrides(Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('build_from_sale_location:')))); setBuildDirty(new Set()); }}>Cancel</button></SettingsActions>
       </div>}
       {error && <p role="alert">{error}</p>}
     </div>
@@ -27426,7 +27534,7 @@ function WholesaleSettingsSection({ settings, saveSettings, section = 'wholesale
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8 }}>
+      <SettingsActions>
         <button
           data-primary onClick={handleSave} disabled={saving || !dirty}
           style={{ padding: '9px 22px', background: 'var(--sv-action)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
@@ -27436,7 +27544,7 @@ function WholesaleSettingsSection({ settings, saveSettings, section = 'wholesale
         <button type="button" disabled={saving} onClick={() => { setDraft(baseline); setSaved(false); setError(''); }}>Cancel</button>
         {saved && <span style={{ fontSize: 13, color: '#34d399' }}>✓ Saved</span>}
         {error && <span style={{ fontSize: 13, color: '#f87171' }}>{error}</span>}
-      </div>
+      </SettingsActions>
     </div>
   );
 }
@@ -27809,6 +27917,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
         {active === 'ai-models' && <AiModelSettingsSection />}
         {active === 'ai-account' && <AccountAiCreditsSection />}
         {(active === 'connections' || connectionProvider) && <IntegrationSettingsSection {...integrationProps} provider={connectionProvider} />}
+        {active === 'xero' && <XeroSyncPreferences businessId={businessId} canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} />}
         {active === 'api-tools' && userTier === 'SuperAdmin' && <AdvancedIntegrationTools businessId={businessId} />}
 
         {active === 'payment-discounts' && (
@@ -27833,12 +27942,12 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               <OperationToggle setting={PRODUCT_SETTING_KEYS.allowOpeningStock} defaultValue="yes" label="Add stock with new products" description="Show opening stock quantity by variant and location while creating a tracked product." />
               <OperationToggle setting={PRODUCT_SETTING_KEYS.showReplenishmentQuantities} defaultValue="no" label="Minimum and reorder quantities" description="Also show Min qty and Reorder qty beside opening stock in New Product. Off by default." />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <SettingsActions>
               <button type="button" onClick={saveTaxSettings} disabled={!loaded || taxSaving || (taxDirtyKeys.size === 0 && !onlineChannelsDirty)} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
               <button type="button" disabled={taxSaving} onClick={() => { setTaxDraft({ ...TAX_SETTING_DEFAULTS, ...settings }); setTaxDirtyKeys(new Set()); setTaxSaveError(''); setTaxSaved(false); }}>Cancel</button>
               {taxSaved && <span style={{ fontSize: 13, color: 'var(--sv-mint)' }}>Saved</span>}
               {taxSaveError && <span style={{ fontSize: 13, color: 'var(--sv-red)' }}>{taxSaveError}</span>}
-            </div>
+            </SettingsActions>
           </div>
         )}
 
@@ -27866,6 +27975,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                 <div style={{ fontSize: 11, color: 'var(--sv-text-dim)', marginTop: 5 }}>{(poDraft['freight_treatment'] || 'expense') === 'expense' ? 'Freight posts to Freight Paid account. Set under Xero → Chart of Accounts.' : 'Freight spreads into product avg. costs and posts to Inventory Asset in Xero automatically.'}</div>
               </div>
             </div>
+            <SettingsActions>
             <button data-primary onClick={async () => {
               setPoSaving(true); setDocumentError('');
               try {
@@ -27876,6 +27986,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               finally { setPoSaving(false); }
             }} disabled={!loaded || poSaving || !documentDirty} style={btnStyle('action', 'sm')}>{poSaving ? 'Saving…' : 'Save'}</button>
             <button type="button" disabled={poSaving} onClick={() => { setPoDraft(poBaseline.current); setDocumentDirty(false); setDocumentError(''); }}>Cancel</button>
+            </SettingsActions>
             {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
@@ -27903,6 +28014,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               <div style={{ marginBottom: 14 }}><label style={labelStyle}>Payment Reference / Instructions</label><textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' as const }} maxLength={500} value={soDraft['sales_document_payment_instructions'] || ''} onChange={e => setSoDraft(p => ({ ...p, sales_document_payment_instructions: e.target.value }))} placeholder="Use the Sales Order reference with your payment." /></div>
               <div><label style={labelStyle}>Terms &amp; Conditions</label><textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' as const }} value={soDraft['so_terms'] || ''} onChange={e => setSoDraft(p => ({ ...p, so_terms: e.target.value }))} placeholder="e.g. Payment due 14 days from invoice date." /></div>
             </div>
+            <SettingsActions>
             <button data-primary onClick={async () => {
               setSoSaving(true); setDocumentError('');
               try {
@@ -27913,6 +28025,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               finally { setSoSaving(false); }
             }} disabled={!loaded || soSaving || !documentDirty} style={btnStyle('action', 'sm')}>{soSaving ? 'Saving…' : 'Save'}</button>
             <button type="button" disabled={soSaving} onClick={() => { setSoDraft(soBaseline.current); setDocumentDirty(false); setDocumentError(''); }}>Cancel</button>
+            </SettingsActions>
             {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
@@ -27934,7 +28047,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                 Advisor Access
                 <HintBadge text="Advisor mapping, payout review, and Xero sync permissions are granted separately." />
               </h3>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={(taxDraft.advisor_xero_mapping_enabled ?? '').match(/^(true|1)$/) !== null}
@@ -27949,7 +28062,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                 </span>
                 {xeroAdvisorSaving && <span style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>saving...</span>}
               </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, cursor: xeroAdvisorSaving ? 'default' : 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={(taxDraft.advisor_xero_payouts_enabled ?? '').match(/^(true|1)$/) !== null}
@@ -27969,8 +28082,10 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               </label>
               {xeroAdvisorSyncError && <p role="alert" style={{ fontSize: 12, color: '#ef4444', marginBottom: 0 }}>{xeroAdvisorSyncError}</p>}
             </div>
+            <SettingsActions>
             <button type="button" data-primary onClick={saveTaxSettings} disabled={!loaded || taxSaving || !taxDirtyKeys.size}>{taxSaving ? 'Saving...' : 'Save permissions'}</button>
             <button type="button" onClick={() => { setTaxDraft({ ...settings }); setTaxDirtyKeys(new Set()); }}>Cancel</button>
+            </SettingsActions>
             {taxSaveError && <p role="alert">{taxSaveError}</p>}
 
             <div style={{ padding: 20, background: 'var(--sv-bg-2)', borderRadius: 10, border: '1px solid var(--sv-etch)', marginBottom: 14 }}>
@@ -28058,6 +28173,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                 );
               })()}
             </div>
+            <SettingsActions>
             <button type="button" data-primary disabled={!loaded || profileSaving || !documentDirty} onClick={async () => {
               setProfileSaving(true); setDocumentError('');
               try { await saveSettings({ online_pick_priority: profileDraft.online_pick_priority ?? '[]' }); setDocumentDirty(false); }
@@ -28065,6 +28181,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               finally { setProfileSaving(false); }
             }}>{profileSaving ? 'Saving...' : 'Save priority'}</button>
             <button type="button" disabled={profileSaving} onClick={() => { setProfileDraft(settings); setDocumentDirty(false); }}>Cancel</button>
+            </SettingsActions>
             {documentError && <p role="alert">{documentError}</p>}
           </div>
         )}
@@ -28084,9 +28201,10 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
         {active === 'locations' && (
           <LocationsSettingsSection settings={settings} saveSettings={saveSettings} />
         )}
-        {active === 'builds' && <div><OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="Offer staff a reviewed build when finished stock is short. Every build requires confirmation." /><button type="button" data-primary onClick={saveTaxSettings} disabled={!loaded || taxSaving || !taxDirtyKeys.size}>Save business policy</button><button type="button" onClick={() => { setTaxDraft({ ...settings }); setTaxDirtyKeys(new Set()); }}>Cancel</button>{taxSaveError && <p role="alert">{taxSaveError}</p>}<LocationsSettingsSection settings={settings} saveSettings={saveSettings} policiesOnly /></div>}
+        {active === 'builds' && <div><OperationToggle setting="build_from_sale_enabled" label="Offer build from sale" description="Offer staff a reviewed build when finished stock is short. Every build requires confirmation." /><SettingsActions><button type="button" data-primary onClick={saveTaxSettings} disabled={!loaded || taxSaving || !taxDirtyKeys.size}>Save business policy</button><button type="button" onClick={() => { setTaxDraft({ ...settings }); setTaxDirtyKeys(new Set()); }}>Cancel</button></SettingsActions>{taxSaveError && <p role="alert">{taxSaveError}</p>}<LocationsSettingsSection settings={settings} saveSettings={saveSettings} policiesOnly /></div>}
         {active === 'inventory-costing' && <InventoryCostingSettings />}
         {active === 'accounts-email' && (canManageAccounts ? <AccountsEmailSettings onHelp={() => onHelp('settings-accounts-email')} /> : <p>Only administrators can manage accounts recipients.</p>)}
+        {active === 'feature-toggle' && <FeatureToggleSettings settings={settings} loaded={loaded} loadError={loadError} canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} saveSettings={saveSettings} />}
         {active === 'pos-layby' && <LaybyFeeSettings locations={pickLocations} />}
         {active === 'sales-cache' && userTier === 'SuperAdmin' && <SalesCacheTab />}
         {active === 'initial-import' && <div><SetupImportCard section={{ key: 'stock-snapshot', label: 'Opening Stock Snapshot', description: 'Run last. Sets opening stock and incoming quantities from Cin7. Overwrites existing balances; use only during initial setup.', endpoint: '/api/ims/import/stock-snapshot' }} /><StockCostImportCard /><StockMinsImportCard /></div>}
@@ -28157,10 +28275,10 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                 </>}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <SettingsActions>
               <button type="button" onClick={() => setProfileDraft(settings)} style={btnStyle('ghost', 'sm')}>Cancel</button>
               <button type="button" disabled={profileSaving} onClick={saveBusinessProfile} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Profile'}</button>
-            </div>
+            </SettingsActions>
           </div>
         )}
 
@@ -28337,12 +28455,12 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <SettingsActions>
               <button data-primary type="button" disabled={!loaded || taxSaving || (!taxDirtyKeys.size && !onlineChannelsDirty)} onClick={saveTaxSettings} style={btnStyle('action', 'sm')}>{taxSaving ? 'Saving…' : 'Save Settings'}</button>
               <button type="button" disabled={taxSaving} onClick={() => { setTaxDraft({ ...TAX_SETTING_DEFAULTS, ...settings }); setTaxDirtyKeys(new Set()); setOnlineChannelDraft({ shopifyEnabled: capabilities.shopifyEnabled, nativeShopEnabled: capabilities.nativeShopEnabled }); setOnlineChannelsDirty(false); setTaxSaved(false); setTaxSaveError(''); }}>Cancel</button>
               {taxSaved && <span style={{ fontSize: 12, color: 'var(--sv-mint)' }}>Saved</span>}
               {(loadError || taxSaveError) && <span role="alert" style={{ fontSize: 12, color: 'var(--sv-red)' }}>{loadError || taxSaveError}</span>}
-            </div>
+            </SettingsActions>
           </div>{/* ─ end general ─ */}
 
           {/* ── POS SECTION ── */}
@@ -28383,18 +28501,20 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                   ))}
                   {paymentTypes.length === 0 && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>No payment types configured.</span>}
                 </div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <input disabled={!paymentTypesLoaded || ptSaving} style={{ ...inputStyle, flex: 1, maxWidth: 220 }} value={newPaymentType} onChange={e => setNewPaymentType(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && newPaymentType.trim()) { setPaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} placeholder="Add payment type…" />
                   <button type="button" disabled={!paymentTypesLoaded || !newPaymentType.trim() || ptSaving} onClick={() => { if (newPaymentType.trim()) { setPaymentTypes([...paymentTypes, newPaymentType.trim()]); setNewPaymentType(''); } }} style={btnStyle('action', 'sm')}>Add to draft</button>
                 </div>
+                <SettingsActions>
                 <button type="button" data-primary disabled={!paymentTypesLoaded || ptSaving || JSON.stringify(paymentTypes) === JSON.stringify(savedPaymentTypes)} onClick={() => savePaymentTypes(paymentTypes)}>{ptSaving ? 'Saving...' : 'Save payment types'}</button>
                 <button type="button" disabled={ptSaving} onClick={() => { setPaymentTypes(savedPaymentTypes); setNewPaymentType(''); }}>Cancel payment changes</button>
+                </SettingsActions>
                 <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--sv-etch)' }}>
                   <label style={{ ...labelStyle, display: 'flex', alignItems: 'center', fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                     Default Cash Float
                     <HintBadge text="Expected till amount at register open. Used during opening and end-of-day reconciliation." />
                   </label>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, color: 'var(--sv-text-dim)' }}>$</span>
                     <input disabled={!floatLoaded || defaultFloatSaving} type="number" min="0" step="0.01" style={{ ...inputStyle, width: 120 }} value={defaultFloatInput} onChange={e => setDefaultFloatInput(e.target.value)} />
                     <button type="button" data-primary disabled={!floatLoaded || defaultFloatSaving || defaultFloatInput === String(defaultFloat)} onClick={saveDefaultFloat} style={btnStyle('action', 'sm')}>{defaultFloatSaving ? 'Saving…' : 'Save float'}</button>
@@ -28660,7 +28780,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                     {logoSaving && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Saving…</span>}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <SettingsActions>
                   <button type="button" disabled={profileSaving} onClick={() => { setProfileDraft(settings); setDocumentDirty(false); }} style={btnStyle('ghost', 'sm')}>Cancel</button>
                   <button data-primary type="button" disabled={profileSaving || !loaded} onClick={async () => {
                     setProfileSaving(true); setDocumentError('');
@@ -28668,7 +28788,7 @@ function SettingsModal({ isOpen, userTier, onSectionChange, canManageAccounts, o
                     catch (error) { setDocumentError(error instanceof Error ? error.message : 'POS settings could not be saved.'); }
                     finally { setProfileSaving(false); }
                   }} style={btnStyle('action', 'sm')}>{profileSaving ? 'Saving…' : 'Save Settings'}</button>
-                </div>
+                </SettingsActions>
                 {documentError && <p role="alert">{documentError}</p>}
               </div>
             )}

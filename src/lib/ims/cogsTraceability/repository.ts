@@ -121,7 +121,7 @@ export async function loadEvidence(businessId: string, request: ReportRequest) {
   const movementSelect = `SELECT sm.id, sm.reference_id AS documentId, sm.reference_type AS referenceType,
       sm.source_line_id AS sourceLineId, sm.variant_id AS variantId, sm.location_id AS locationId,
       location.name AS warehouse, DATE_FORMAT(sm.created_at, '%Y-%m-%d %H:%i:%s') AS date, sm.movement_type AS type, sm.qty_change AS qtyChange,
-      sm.unit_cost AS unitCost, sm.cost_method_snapshot AS costMethod,
+      sm.unit_cost AS unitCost, sm.cost_method_snapshot AS costMethod, sm.consignment_supplier_id AS consignmentSupplierId,
       CASE WHEN sm.movement_type = 'pos_sale' THEN COALESCE(ps.is_historical, 0)
            WHEN sm.movement_type = 'so_fulfilled' THEN (COALESCE(so.is_historical, 0) <> 0 OR so.cin7_order_id IS NOT NULL)
            WHEN cn.source = 'pos' THEN COALESCE(return_sale.is_historical, 0) ELSE 0 END AS historical,

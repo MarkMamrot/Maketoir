@@ -2,6 +2,7 @@
 
 import { AlertCircle, Check, CheckCircle2, Clock3, Download, ListChecks, MapPin, Pencil, Plus, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, SlidersHorizontal, Store, TestTube2, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useFeatureEnabled } from '../../components/FeatureToggleProvider';
 
 import AmazonChannelDetailView from './AmazonChannelDetailView';
 import BuiltInSalesChannels from './BuiltInSalesChannels';
@@ -167,6 +168,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
   const [refundResolutionRefundId, setRefundResolutionRefundId] = useState('');
   const [refundResolutionLoading, setRefundResolutionLoading] = useState(false);
   const [productRulesInstance, setProductRulesInstance] = useState<ChannelInstance | null>(null);
+  const channelRulesEnabled = useFeatureEnabled('feature_toggle_channel_rules');
   const [shopifyDetailId, setShopifyDetailId] = useState<string | null>(null);
   const [amazonDetailId, setAmazonDetailId] = useState<string | null>(null);
 
@@ -1000,12 +1002,12 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
                       {activationChangingId === instance.channelInstanceId ? 'Saving...' : instance.enabled ? 'Deactivate' : 'Activate'}
                     </button>
                   )}
-                  {canManage && (
+                  {canManage && channelRulesEnabled && (
                     <button type="button" onClick={() => setProductRulesInstance(instance)} style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       <SlidersHorizontal size={14} aria-hidden="true" /> Product rules
                     </button>
                   )}
-                  {canManage && (
+                  {canManage && channelRulesEnabled && (
                     <label style={{ minHeight: 29, padding: '4px 9px', border: '1px solid var(--sv-border)', borderRadius: 4, color: '#334155', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700 }}>
                       <input
                         type="checkbox"
@@ -1306,7 +1308,7 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
         </div>
       )}
 
-      {productRulesInstance && (
+      {channelRulesEnabled && productRulesInstance && (
         <ChannelProductRulesDialog
           instance={productRulesInstance}
           onClose={() => setProductRulesInstance(null)}

@@ -93,10 +93,18 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_reversals',
 ];
 const MISC_TENANT_TABLES = [
+  'ims_consignment_tracking_state',
+  'ims_consignment_tracking_intervals',
+  'ims_consignment_ownership_history',
+  'ims_consignment_events',
+  'ims_consignment_statements',
+  'ims_consignment_statement_audit',
+  'ims_consignment_deliveries',
   'ims_amazon_pii_disposals',
   'ims_amazon_delivery_evidence',
   'ims_amazon_delivery_poll_state',
   'pos_register_float_corrections',
+  'pos_register_closing_corrections',
   'ims_shopify_inventory_queue',
   'ims_po_files',
   'ims_payment_methods',
@@ -1343,6 +1351,10 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ['ims_contacts', 'is_consignment', 'TINYINT NOT NULL DEFAULT 0'],
+  ['ims_purchase_orders', 'consignment_supplier_id', 'INT NULL'],
+  ['ims_supplier_credit_notes', 'consignment_supplier_id', 'INT NULL'],
+  ['ims_stock_movements', 'consignment_supplier_id', 'INT NULL'],
   ['ims_amazon_delivery_evidence', 'id', 'BIGINT AUTO_INCREMENT PRIMARY KEY'],
   ['ims_amazon_pii_disposals', 'id', 'BIGINT AUTO_INCREMENT PRIMARY KEY'],
   ['ims_amazon_pii_disposals', 'business_id', 'VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL'],
@@ -1714,6 +1726,16 @@ if (
 }
 
 const INDEXES = [
+  ['ims_consignment_deliveries', 'uq_consignment_delivery_operation', 'UNIQUE INDEX uq_consignment_delivery_operation (business_id, operation_key)'],
+  ['ims_consignment_events', 'uq_consignment_event', 'UNIQUE INDEX uq_consignment_event (business_id, event_key)'],
+  ['ims_consignment_events', 'idx_consignment_activity', 'INDEX idx_consignment_activity (business_id, event_date, supplier_id)'],
+  ['ims_consignment_events', 'idx_consignment_claim', 'INDEX idx_consignment_claim (business_id, tracking_interval_id, statement_id)'],
+  ['ims_consignment_events', 'idx_consignment_original', 'INDEX idx_consignment_original (business_id, original_event_id)'],
+  ['ims_consignment_ownership_history', 'idx_consignment_ownership', 'INDEX idx_consignment_ownership (business_id, product_id, effective_at, id)'],
+  ['ims_consignment_tracking_intervals', 'idx_consignment_interval', 'INDEX idx_consignment_interval (business_id, disabled_at)'],
+  ['ims_consignment_statements', 'idx_consignment_statement', 'INDEX idx_consignment_statement (business_id, status, supplier_id)'],
+  ['ims_consignment_statement_audit', 'idx_consignment_audit', 'INDEX idx_consignment_audit (business_id, statement_id, id)'],
+  ['ims_consignment_deliveries', 'idx_consignment_delivery', 'INDEX idx_consignment_delivery (business_id, statement_id, status)'],
   ['ims_amazon_delivery_evidence', 'uq_amazon_delivery_operation', 'UNIQUE KEY uq_amazon_delivery_operation (business_id, operation_key)'],
   ['ims_amazon_pii_disposals', 'uq_amazon_pii_order', 'UNIQUE KEY uq_amazon_pii_order (business_id, so_id)'],
   ['ims_amazon_pii_disposals', 'uq_amazon_pii_external', 'UNIQUE KEY uq_amazon_pii_external (business_id, channel_instance_id, external_order_id)'],

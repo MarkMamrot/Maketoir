@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildHistoricalValuation, inventoryValuationCsv, physicalMovementDelta, reconstructLayer,
   valuationDate, type HistoricalLayer, type HistoricalMovement, type HistoricalVariant, type ValuationResult,
+  parseValuationOwnership, valuationOwnershipTotals,
 } from '../inventoryValuation';
 
 const variant: HistoricalVariant = {
@@ -26,6 +27,19 @@ function calculate(overrides: Partial<Parameters<typeof buildHistoricalValuation
 }
 
 describe('inventory valuation dates', () => {
+  it('defaults monetary valuation to owned and validates explicit ownership filters', () => {
+    expect(parseValuationOwnership(null)).toBe('owned');
+    expect(parseValuationOwnership('consignment')).toBe('consignment');
+    expect(parseValuationOwnership('all')).toBe('all');
+    expect(() => parseValuationOwnership('')).toThrow('Ownership');
+    expect(() => parseValuationOwnership('supplier')).toThrow('Ownership');
+  });
+  it('keeps owned asset value separate from indicative consignment costs', () => {
+    expect(valuationOwnershipTotals([
+      { total_value: 120 }, { total_value: 500, is_consignment: true },
+      { total_value: 30, is_consignment: false },
+    ])).toEqual({ owned_value: 150, consignment_value: 500 });
+  });
   it('defaults to business today, not UTC today', () => {
     expect(valuationDate(null, 'Australia/Sydney', new Date('2026-10-13T16:00:00Z'))).toEqual({
       asAt: '2026-10-14', today: '2026-10-14', historical: false, cutoff: '2026-10-14 13:00:00.000',
@@ -48,6 +62,15 @@ describe('inventory valuation dates', () => {
 });
 
 describe('historical physical stock and Average Cost', () => {
+  it('retains historical ownership without removing physical cost evidence', () => {
+    const result = calculate({ variants: [{ ...variant, is_consignment: true }] });
+    expect(result.data[0]).toMatchObject({ soh: 10, cost: 20, total_value: 200, is_consignment: true });
+    const csv = inventoryValuationCsv({
+      ...result, success: true, as_at: '2026-01-31', business_today: '2026-10-16',
+      time_zone: 'Australia/Sydney', historical: true,
+    });
+    expect(csv).toContain('"Consignment","Indicative supplier cost - not owned inventory"');
+  });
   it('replays receipts at weighted average and excludes later activity', () => {
     const result = calculate({
       stock: [{ variant_id: 'v1', location_id: 1, qty_on_hand: 22 }],

@@ -11,6 +11,7 @@ export const IMS_SETTINGS_MENU = [
   { id: 'business', label: 'Business & Team', children: [
     { id: 'business-profile', label: 'Business profile', description: 'Business identity, contact details and document logo.' },
     { id: 'general', label: 'Business operations', description: 'Choose the workflows and inventory capabilities this business uses.' },
+    { id: 'feature-toggle', label: 'Feature Toggle', description: 'Show or hide optional tools for everyone in this business. Only administrators can change these switches.' },
     { id: 'tax', label: 'Tax rates & labels', description: 'Rates and labels for Solvantis documents. Prices remain tax-inclusive.' },
     { id: 'users', label: 'Users', description: 'Manage the people who can access this business.' },
     { id: 'advisor-access', label: 'Advisor permissions', description: 'Choose which inventory and accounting actions Advisors may perform.' },

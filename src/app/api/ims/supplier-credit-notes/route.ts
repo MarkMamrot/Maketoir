@@ -56,6 +56,6 @@ export async function POST(req: NextRequest) {
     const scn = await ImsSupplierCNRepo.get(id, businessId);
     return NextResponse.json({ success: true, data: scn });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: e.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: e.message }, { status: e?.name === 'ConsignmentConflict' ? 409 : 500 });
   }
 }

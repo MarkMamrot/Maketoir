@@ -258,6 +258,17 @@
       "availability": "confirmed"
     },
     {
+      "id": "public-capability:ims-consignment",
+      "title": "Consignment stock and supplier statements",
+      "summary": "Identify supplier-owned consignment stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.",
+      "capabilities": [
+        "ims",
+        "orders"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
       "id": "public-capability:ims-purchase-orders",
       "title": "Purchase Orders",
       "summary": "Create, confirm, review and correct supplier purchase orders, including stock and non-stock expense lines.",
@@ -438,6 +449,17 @@
       "id": "public-capability:ims-business-operations-pos-settings",
       "title": "Business Operations and POS Settings",
       "summary": "Complete onboarding, choose operational capabilities and inventory costing, manage POS registers, configure accounts email recipients and branch layby cancellation fees.",
+      "capabilities": [
+        "ims",
+        "navigation"
+      ],
+      "product": "ims",
+      "availability": "confirmed"
+    },
+    {
+      "id": "public-capability:ims-feature-toggle",
+      "title": "Feature Toggle",
+      "summary": "Admins and SuperAdmins can choose optional workspace features and review the separate default-off Consignment Tracking cutover or handover.",
       "capabilities": [
         "ims",
         "navigation"

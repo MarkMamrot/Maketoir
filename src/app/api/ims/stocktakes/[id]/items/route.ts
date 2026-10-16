@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getImportSession } from '@/app/api/ims/import/_helpers';
 import { ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
+import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
 
 type Params = { params: { id: string } };
 
@@ -31,6 +32,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     const item = await ImsStocktakeRepo.addItem(id, variant_id, location_id ?? 0, session.businessId);
     return NextResponse.json({ item }, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 400 });
+    return NextResponse.json({ error: e.message }, { status: e instanceof StocktakeOperationConflict ? 409 : 400 });
   }
 }

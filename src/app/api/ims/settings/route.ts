@@ -37,6 +37,8 @@ import {
 import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
 import { ADVISOR_XERO_SYNC_SETTING } from '@/lib/xero/advisorSyncAccess';
 import { DELIVERY_TRACKING_CHANNELS_KEY } from '@/lib/ims/shipping/deliveryTrackingSettingsRepository';
+import { FEATURE_TOGGLE_KEYS } from '@/lib/ims/featureToggles';
+import { CONSIGNMENT_TRACKING_KEY } from '@/lib/ims/consignment/domain';
 
 const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
   'shopify_order_sync_enabled',
@@ -94,6 +96,10 @@ export async function GET() {
     settings[ADVISOR_XERO_SYNC_SETTING] ??= 'false';
     applyProductSettingDefaults(settings);
     applyTaxSettingDefaults(settings);
+    for (const key of FEATURE_TOGGLE_KEYS) {
+      if (key !== CONSIGNMENT_TRACKING_KEY) settings[key] ??= 'yes';
+    }
+    settings[CONSIGNMENT_TRACKING_KEY] ??= 'no';
     applyWholesalePortalSettingDefaults(settings);
     // Include the domain only when the Shopify operation is available.
     const conn = onlineChannels.shopifyEnabled ? await ConnectionsRepository.get(businessId) : null;
@@ -136,6 +142,20 @@ export async function PUT(req: Request) {
     // Accept either { key, value } or { settings: { key: value, ... } }
     const pairs: Record<string, string> =
       body.settings ?? (body.key !== undefined ? { [body.key]: body.value } : onlineChannels ? {} : body);
+
+    if (Object.keys(pairs).some(key => key.trim().toLowerCase() === CONSIGNMENT_TRACKING_KEY)) {
+      return NextResponse.json({ success: false, error: 'Use the consignment tracking transition endpoint with an explicit cutover or handover acknowledgement.' }, { status: 400 });
+    }
+
+    const featureKeys = Object.keys(pairs).filter(key => key.trim().toLowerCase().startsWith('feature_toggle_'));
+    if (featureKeys.length) {
+      if (!['Admin', 'SuperAdmin'].includes(session.tier ?? '')) {
+        return NextResponse.json({ error: 'Only administrators can change feature toggles.' }, { status: 403 });
+      }
+      if (featureKeys.some(key => !FEATURE_TOGGLE_KEYS.some(allowed => allowed === key) || !['yes', 'no'].includes(pairs[key]))) {
+        return NextResponse.json({ error: 'Feature toggles must use a supported feature and a yes or no value.' }, { status: 400 });
+      }
+    }
 
     if (Object.keys(pairs).some(key => key.trim().toLowerCase() === DELIVERY_TRACKING_CHANNELS_KEY)) {
       return NextResponse.json({

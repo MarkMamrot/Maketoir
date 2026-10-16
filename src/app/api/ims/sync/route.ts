@@ -1,7 +1,8 @@
 import { assertCin7StockOverwriteAllowed } from '@/lib/ims/builds/cin7StockOverwriteGuard';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { v4 as uuidv4 } from 'uuid';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { assertExternalCatalogueOwnershipSafe, ConsignmentConflict, resolveCurrentOwnership } from '@/lib/ims/consignment/ownership';
 import { getCin7Credentials, cin7FetchAllPages, cin7ForEachPage } from '@/lib/cin7Helpers';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
 import { convertCin7BaseAmountToForeign, normalizeCin7PurchaseOrderMetadata } from '@/lib/ims/purchaseOrderInput';
@@ -424,10 +425,14 @@ export async function POST(req: Request) {
               ? (Array.isArray(p.tags) ? JSON.stringify(p.tags) : String(p.tags))
               : null;
 
+            const catalogueConnection = await getIMSPool().getConnection();
+            try {
+            await catalogueConnection.beginTransaction();
+            await assertExternalCatalogueOwnershipSafe(catalogueConnection, businessId, supplierContactId, prodCin7Map.get(cin7Id));
             let imsProdId: string;
             if (!prodCin7Map.has(cin7Id)) {
               imsProdId = uuidv4();
-              await imsExecute(
+              await catalogueConnection.execute(
                 `INSERT INTO ims_products
                    (product_id, business_id, name, description, product_type, brand, tags, style_code,
                     is_active, is_online, supplier_contact_id, cin7_product_id,
@@ -445,7 +450,7 @@ export async function POST(req: Request) {
               productNew++;
             } else {
               imsProdId = prodCin7Map.get(cin7Id)!;
-              await imsExecute(
+              await catalogueConnection.execute(
                 `UPDATE ims_products
                  SET name = ?,
                      description      = COALESCE(?, description),
@@ -470,7 +475,7 @@ export async function POST(req: Request) {
                 ],
               );
               if (createdAt) {
-                await imsExecute(
+                await catalogueConnection.execute(
                   'UPDATE ims_products SET created_at = ? WHERE product_id = ? AND created_at IS NULL',
                   [createdAt, imsProdId],
                 );
@@ -534,7 +539,8 @@ export async function POST(req: Request) {
                 ?? (opt.barcode ? variantByBarcodeMap.get(opt.barcode) : undefined);
 
               if (existingVariantId) {
-                await imsExecute(
+                if ((await resolveCurrentOwnership(catalogueConnection, businessId, existingVariantId)).ownership === 'consignment') throw new ConsignmentConflict('Cin7 cannot reassign or overwrite a consignment variant.');
+                await catalogueConnection.execute(
                   `UPDATE ims_product_variants SET
                      product_id = ?, sku = ?, barcode = ?,
                      option1_name = ?, option1_value = ?,
@@ -564,7 +570,7 @@ export async function POST(req: Request) {
                 if (opt.barcode) variantByBarcodeMap.set(opt.barcode, existingVariantId);
               } else {
                 const newVariantId = uuidv4();
-                await imsExecute(
+                await catalogueConnection.execute(
                   `INSERT INTO ims_product_variants
                      (variant_id, business_id, product_id, sku, barcode,
                       option1_name, option1_value,
@@ -595,6 +601,8 @@ export async function POST(req: Request) {
               variantSynced++;
             }
             if (p.brand) uniqueBrands.add(p.brand.trim());
+            await catalogueConnection.commit();
+            } catch (error) { await catalogueConnection.rollback(); throw error; } finally { catalogueConnection.release(); }
           } // end for pageProducts
           send({ step: 'products', status: 'running', message: `Page ${pageNum} done — ${productNew} products, ${variantSynced} variants so far` });
           }); // end cin7ForEachPage

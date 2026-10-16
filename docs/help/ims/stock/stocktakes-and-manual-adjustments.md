@@ -13,6 +13,7 @@ Use a stocktake for a controlled physical count and a manual quantity adjustment
 - Enter counts manually or with Barcode/SKU Scan.
 - Decide whether uncounted items stay unchanged or count as zero.
 - Complete the count and review quantity and value differences.
+- Review any separate Xero posting warning without repeating the stocktake.
 - Reverse a mistaken supported stocktake without deleting later movements.
 - Use a manual adjustment only for a known isolated discrepancy.
 - Start a focused draft stocktake from Shipping Workspace when its pre-label check finds a physical stock discrepancy.
@@ -59,6 +60,14 @@ When Shipping Workspace reports missing on-hand stock, **Start stock adjustment*
 Stock On Hand filtering uses the selected stocktake location. A variant with no stock row at that location is treated as zero, so **Equal to 0** includes it and **Greater than 0** excludes it. Negative and decimal thresholds are supported.
 
 When an opening quantity entered while creating a tracked product differs from stock already on hand, Solvantis creates and completes a stocktake for that location. Unchanged quantities, including the default zero for a new variant, do not create a stocktake or adjustment. Min Qty and Reorder Qty are saved with that location's stock settings without requiring a quantity change. Products with **Tracks Inventory** off do not receive opening-stock stocktakes.
+
+### Xero posting after completion
+
+Under **Settings > Integrations > Xero > Sync preferences**, **Stocktake adjustments** controls the separate inventory adjustment journal. **Automatic Sales COGS** is a different workflow and does not control stocktake journals. Preferences can be saved even while Xero is disconnected.
+
+When the Xero integration is off, posting is paused, or Stocktake adjustments is off, the stocktake completes locally without a Xero warning. When stocktake posting is on but Xero is disconnected, mappings are missing, or posting fails, the stocktake still completes locally and shows that Xero needs attention.
+
+Use the completed stocktake's **Accounting / Xero** panel to check the result. Fix the connection or mappings, enable posting when appropriate, then use **Sync to Xero** or **Retry Xero Sync**. Saving preferences or reconnecting alone does not post historical stocktakes. If a network interruption left the result unconfirmed, check its current accounting status before retrying. Never complete the stocktake again to retry accounting.
 
 ### Make a manual adjustment
 

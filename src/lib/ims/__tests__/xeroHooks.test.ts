@@ -96,6 +96,8 @@ vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
 import {
   triggerPOPaymentXeroSync,
   triggerPOXeroSync,
+  triggerPOXeroUpdate,
+  triggerPOXeroVoid,
   triggerSOPaymentXeroSync,
   triggerSOXeroSync,
   triggerSOXeroUpdate,
@@ -103,12 +105,14 @@ import {
   triggerCNXeroSync,
   triggerSupplierCNXeroSync,
   triggerSupplierCNXeroUpdate,
+  triggerSupplierCNXeroVoid,
 } from '../xeroHooks';
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 describe('triggerSupplierCNXeroUpdate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockImsQuery.mockResolvedValue([{ consignment_supplier_id: null }]);
     mockConnectionsGet.mockResolvedValue({ xero_tenant_id: 'tenant', xero_refresh_token: 'token' });
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockReportRuntimeIssue.mockResolvedValue(null);
@@ -162,6 +166,7 @@ describe('triggerSupplierCNXeroUpdate', () => {
 describe('PO and SO Xero document policies', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockImsQuery.mockResolvedValue([{ consignment_supplier_id: null }]);
     mockConnectionsGet.mockResolvedValue({ xero_tenant_id: 'tenant', xero_refresh_token: 'token' });
     mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
     mockReportRuntimeIssue.mockResolvedValue(null);
@@ -350,7 +355,8 @@ describe('PO and SO Xero document policies', () => {
       id: 12, po_number: 'PO-00012', status: 'complete', xero_bill_id: 'xero-po-12',
       payments: [{ id: 31, payment_method_id: 5, amount: 3000, payment_date: '2026-09-11', currency_code: 'USD', exchange_rate: '1.402100' }],
     });
-    mockImsQuery.mockResolvedValue([{ xero_account_code: '090' }]);
+    mockImsQuery.mockImplementation((sql: string) => Promise.resolve(sql.includes('consignment_supplier_id')
+      ? [{ consignment_supplier_id: null }] : [{ xero_account_code: '090' }]));
     mockApproveBill.mockResolvedValue(true);
     mockSyncPOPayment.mockResolvedValue('payment-31');
 
@@ -365,7 +371,8 @@ describe('PO and SO Xero document policies', () => {
       po_number: 'PO-00012',
       payments: [{ id: 31, payment_method_id: 5, amount: 10, payment_date: '2026-08-01' }],
     });
-    mockImsQuery.mockResolvedValue([{ xero_account_code: '' }]);
+    mockImsQuery.mockImplementation((sql: string) => Promise.resolve(sql.includes('consignment_supplier_id')
+      ? [{ consignment_supplier_id: null }] : [{ xero_account_code: '' }]));
 
     await triggerPOPaymentXeroSync('biz-1', 12, 31);
 
@@ -397,6 +404,7 @@ describe('credit note Xero document policies', () => {
     mockReportRuntimeIssue.mockResolvedValue(null);
     mockSyncCNAsCreditNote.mockResolvedValue('xero-cn-4');
     mockSyncSupplierCNAsCreditNote.mockResolvedValue('xero-scn-5');
+    mockImsQuery.mockResolvedValue([{ consignment_supplier_id: null }]);
   });
 
   it('keeps manual customer credit notes local when configured as no sync', async () => {
@@ -472,5 +480,35 @@ describe('credit note Xero document policies', () => {
 
     expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
     expect(mockApproveCreditNote).not.toHaveBeenCalled();
+  });
+});
+
+describe('consignment hook eligibility before queueing and retries', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockImsQuery.mockResolvedValue([{ consignment_supplier_id: 9 }]);
+  });
+
+  it.each([
+    ['PO create/retry', () => triggerPOXeroSync('biz-1', 42, 'complete')],
+    ['PO edit', () => triggerPOXeroUpdate('biz-1', 42)],
+    ['PO reversal', () => triggerPOXeroVoid('biz-1', 42)],
+    ['supplier credit create/retry', () => triggerSupplierCNXeroSync('biz-1', 42)],
+    ['supplier credit edit', () => triggerSupplierCNXeroUpdate('biz-1', 42)],
+    ['supplier credit reversal', () => triggerSupplierCNXeroVoid('biz-1', 42)],
+  ] as const)('does not run %s for an immutable consignment purchase', async (_name, action) => {
+    await action();
+    expect(mockConnectionsGet).not.toHaveBeenCalled();
+    expect(mockSyncPOAsDraftBill).not.toHaveBeenCalled();
+    expect(mockUpdateXeroDraftBill).not.toHaveBeenCalled();
+    expect(mockSyncPOAttachmentsToXero).not.toHaveBeenCalled();
+    expect(mockSyncSupplierCNAsCreditNote).not.toHaveBeenCalled();
+    expect(mockApproveCreditNote).not.toHaveBeenCalled();
+  });
+
+  it('rejects a manual PO payment before setting posting state', async () => {
+    await expect(triggerPOPaymentXeroSync('biz-1', 42, 7)).rejects.toMatchObject({ status: 409 });
+    expect(mockSyncPOPayment).not.toHaveBeenCalled();
+    expect(mockConnectionsGet).not.toHaveBeenCalled();
   });
 });

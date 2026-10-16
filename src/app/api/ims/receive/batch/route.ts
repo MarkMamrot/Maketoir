@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { assertConsignmentDocument, ConsignmentConflict, snapshotMovementOwnership } from '@/lib/ims/consignment/ownership';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { triggerPOXeroSync } from '@/lib/ims/xeroHooks';
@@ -209,7 +210,7 @@ export async function POST(req: Request) {
       // Guard: never receive stock into an already-completed PO (prevents the
       // double-count that happens if the receive is submitted/retried twice).
       const [[poRow]] = await conn.execute<any[]>(
-        `SELECT status, is_historical, po_number, exchange_rate, tax_treatment, freight, discount, xero_bill_id, supplier_invoice_number
+        `SELECT *
          FROM ims_purchase_orders
          WHERE id = ? FOR UPDATE`,
         [po_id]
@@ -226,7 +227,7 @@ export async function POST(req: Request) {
         await conn.rollback();
         return NextResponse.json({ error: 'This purchase order is already fully received.' }, { status: 409 });
       }
-      if (mark_po_received && !String(poRow.supplier_invoice_number ?? '').trim()) {
+      if (mark_po_received && !poRow.consignment_supplier_id && !String(poRow.supplier_invoice_number ?? '').trim()) {
         await conn.rollback();
         return NextResponse.json({ error: 'A supplier invoice number is required before completing this purchase order.' }, { status: 409 });
       }
@@ -276,6 +277,10 @@ export async function POST(req: Request) {
         [po_id],
       );
       const totalLandedAud = ((landedRows as any[]) ?? []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+      await assertConsignmentDocument(conn, businessId, poRow, poLineItems, true);
+      if (poRow.consignment_supplier_id && (totalLandedAud !== 0 || Number(poRow.freight ?? 0) !== 0 || Number(poRow.discount ?? 0) !== 0)) {
+        throw new ConsignmentConflict('Consignment receipts support supplier-only AUD costs, without freight, landed costs or header discounts.');
+      }
 
       let effectiveRate = normalizeExchangeRate(Number(poRow.exchange_rate ?? 1));
       const [paymentAggRows] = await conn.execute<any[]>(
@@ -416,6 +421,7 @@ export async function POST(req: Request) {
            VALUES (?, ?, ?, 'po_received', NULL, 'purchase_order', ?, ?, ?, ?, ?, ?)`,
           [businessId, variant_id, location_id, po_id, appliedQty, newQty, receivedUnitCostAud, costingState.method, costingState.epochId]
         );
+        await snapshotMovementOwnership(conn, businessId, Number(movementResult.insertId), String(variant_id), poRow.consignment_supplier_id ?? null);
         if (costingState.method === 'fifo') {
           await createFifoCostLayer(conn, {
             businessId, state: costingState, variantId: String(variant_id), locationId: Number(location_id),
@@ -556,6 +562,7 @@ export async function POST(req: Request) {
             ]
           );
           backorderPoId = (bkResult[0] as any).insertId;
+          if (origPo.consignment_supplier_id) await conn.execute('UPDATE ims_purchase_orders SET consignment_supplier_id = ? WHERE id = ? AND business_id = ?', [origPo.consignment_supplier_id, backorderPoId, businessId]);
 
           // Insert shortfall items into the backorder PO
           let bkSubtotal = 0;
@@ -703,6 +710,7 @@ export async function POST(req: Request) {
       if (!released) conn.release();
     }
   } catch (e: any) {
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     console.error('Batch receive error:', e);
     await reportRuntimeIssue({
       businessId,

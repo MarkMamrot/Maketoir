@@ -7,6 +7,7 @@ import type { ChannelProductPublicationAdapter } from '@/lib/channels/channelPro
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import type { SalesChannelProvider } from '@/lib/channels/types';
 import { ImsImagesRepo, ImsProductsRepo } from '@/lib/ims/ImsRepository';
+import { buildShopifyProductOptions } from '@/lib/ims/shopifyProductOptions';
 import { getOnlinePickLocationIds, pushInventoryForShopifyInstance, shopifyInventoryPolicyPayload, shopifyVariantPricePayload } from '@/lib/ims/shopifyInventorySync';
 import { normalizeOnlineShopPageSlug } from '@/lib/onlineShop/onlineShopPages';
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
@@ -64,28 +65,22 @@ async function createShopifyProduct(input: Parameters<ChannelProductPublicationA
     channelInstanceId: input.channelInstanceId,
   });
   const service = new ShopifyService(credentials.shopDomain, credentials.token);
-  const optionNames = [1, 2, 3].flatMap(position => {
-    const key = `option${position}_name` as const;
-    const name = variants.find(variant => String(variant[key] ?? '').trim())?.[key];
-    return name ? [{ name }] : [];
-  });
-  const shopifyVariants = variants.map(variant => {
+  const { options, variantOptions } = buildShopifyProductOptions(variants);
+  const shopifyVariants = variants.map((variant, index) => {
     const prices = shopifyVariantPricePayload(variant.price_rrp, variant.price_rrp_sale);
     const payload: Record<string, unknown> = {
       sku: variant.sku ?? '', barcode: variant.barcode ?? undefined,
       ...prices, ...shopifyInventoryPolicyPayload(product.is_stock_item),
       weight: variant.weight_kg ? variant.weight_kg * 1000 : undefined, weight_unit: 'g',
-      option1: optionNames.length > 0 ? (variant.option1_value?.trim() || 'Default') : 'Default Title',
+      ...variantOptions[index],
     };
-    if (optionNames.length > 1) payload.option2 = variant.option2_value?.trim() || 'Default';
-    if (optionNames.length > 2) payload.option3 = variant.option3_value?.trim() || 'Default';
     return payload;
   });
   const created = await service.createProduct({
     title: product.website_title?.trim() || product.name,
     body_html: product.description ?? '', vendor: product.brand ?? '', product_type: product.product_type ?? '',
     tags: product.tags ?? '', status: 'draft', variants: shopifyVariants,
-    options: optionNames.length > 0 ? optionNames : undefined,
+    options,
   });
   const externalProductId = String(created?.id ?? '').trim();
   if (!externalProductId || (created?.variants?.length ?? 0) < variants.length) {

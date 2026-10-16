@@ -4,6 +4,7 @@ import {
   buildHistoricalValuation,
   type HistoricalEpoch, type HistoricalLayer, type HistoricalMovement,
   type HistoricalStock, type HistoricalVariant, type ValuationMethod,
+  type ValuationOwnership,
 } from './inventoryValuation';
 
 type Numeric = number | string;
@@ -25,7 +26,7 @@ function numeric(value: Numeric): number {
 const optionalNumeric = (value: Numeric | null) => value == null ? null : numeric(value);
 
 export async function loadHistoricalValuation(businessId: string, cutoff: string, filters: {
-  brand: string; supplierId: string; productType: string; productId: string;
+  brand: string; supplierId: string; productType: string; productId: string; ownership?: ValuationOwnership;
 }) {
   const connection = await getIMSPool().getConnection();
   try {
@@ -47,6 +48,9 @@ export async function loadHistoricalValuation(businessId: string, cutoff: string
       throw new Error('The active FIFO valuation epoch is missing from recorded costing history.');
     }
     const conditions = ['p.business_id = ?', 'v.variant_id > ?'];
+    if (filters.ownership !== 'all') {
+      conditions.push(`COALESCE(ownership_history.is_consignment, 0) = ${filters.ownership === 'consignment' ? '1' : '0'}`);
+    }
     if (filters.productId) conditions.push('v.variant_id = ?');
     if (filters.brand) conditions.push('p.brand = ?');
     if (filters.supplierId) conditions.push('p.supplier_contact_id = ?');
@@ -62,13 +66,21 @@ export async function loadHistoricalValuation(businessId: string, cutoff: string
     for (;;) {
       const [catalogue] = await connection.query<(DbVariant & RowDataPacket)[]>(
         `SELECT v.variant_id, v.sku, p.name, p.brand, c.name AS supplier_name, v.created_at,
-                COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud) AS current_cost
+                COALESCE(NULLIF(v.avg_cost, 0), v.cost_aud) AS current_cost,
+                COALESCE(ownership_history.is_consignment, 0) AS is_consignment
            FROM ims_product_variants v
            JOIN ims_products p ON p.product_id = v.product_id
            LEFT JOIN ims_contacts c ON c.id = p.supplier_contact_id
+           LEFT JOIN ims_consignment_ownership_history ownership_history
+             ON ownership_history.id = (
+               SELECT history.id FROM ims_consignment_ownership_history history
+                WHERE history.business_id = p.business_id AND history.product_id = p.product_id
+                  AND history.effective_at < ?
+                ORDER BY history.effective_at DESC, history.id DESC LIMIT 1
+             )
           WHERE ${conditions.join(' AND ')}
           ORDER BY v.variant_id LIMIT 1000`,
-        [businessId, after, ...filterValues],
+        [cutoff, businessId, after, ...filterValues],
       );
       if (!catalogue.length) break;
       const ids = catalogue.map(v => v.variant_id);
@@ -96,7 +108,9 @@ export async function loadHistoricalValuation(businessId: string, cutoff: string
           WHERE (m.business_id = ? OR m.business_id = '') AND m.variant_id IN (${placeholders})
           ORDER BY m.created_at, m.id`, [businessId, ...scope],
       );
-      const variants = catalogue.map(v => ({ ...v, current_cost: optionalNumeric(v.current_cost) }));
+      const variants = catalogue.map(v => ({
+        ...v, current_cost: optionalNumeric(v.current_cost), is_consignment: Number(v.is_consignment ?? 0) === 1,
+      }));
       if (state?.active_method === 'fifo') {
         const [currentCosts] = await connection.query<({ variant_id: string; quantity: Numeric; value: Numeric } & RowDataPacket)[]>(
           `SELECT variant_id, SUM(remaining_quantity) AS quantity,

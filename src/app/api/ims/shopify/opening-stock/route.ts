@@ -2,15 +2,16 @@ import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { refreshVariantCache } from '@/lib/ims/cacheHelper';
-import { ImsShopifyRepo, ImsStocktakeRepo } from '@/lib/ims/ImsRepository';
-import { hashInventoryDocumentRequest } from '@/lib/ims/inventoryDocumentLifecycle';
+import { ImsShopifyRepo } from '@/lib/ims/ImsRepository';
 import { changedOpeningStockVariantIds, planOpeningStockLines, resolveOpeningStockLocations,
   SHOPIFY_INVENTORY_CONFIRMATION, ShopifyOpeningStockValidationError, type OpeningStockMapping } from '@/lib/ims/shopifyOpeningStock';
 import { signOpeningStockSnapshot, verifyOpeningStockSnapshot } from '@/lib/ims/shopifyOpeningStockSnapshot';
-import { applyStocktake, transitionStocktake } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { StocktakeOperationConflict } from '@/lib/ims/stocktakes/stocktakeOperations';
+import { InventoryDocumentOperationConflict } from '@/lib/ims/inventoryDocumentOperations';
+import { applyOpeningStockBatch, prepareOpeningStocktakes } from '@/lib/ims/shopifyOpeningStockApply';
 import { getShopifyOperationContext } from '@/lib/channels/shopifyOperationContext';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService } from '@/services/ShopifyService';
 
 const PREVIEW_BATCH_SIZE = 50;
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
     channelInstanceId = String(body?.channelInstanceId ?? '').trim();
     if (!channelInstanceId) return NextResponse.json({ error: 'Select a Shopify storefront.' }, { status: 400 });
     const mode = body?.mode;
-    if (!['locations', 'preview', 'apply'].includes(mode)) return NextResponse.json({ error: 'Select a valid inventory import action.' }, { status: 400 });
+    if (!['locations', 'preview', 'prepare', 'apply'].includes(mode)) return NextResponse.json({ error: 'Select a valid inventory import action.' }, { status: 400 });
     if (mode === 'locations') {
       const context = await loadLocationContext(businessId, channelInstanceId);
       return NextResponse.json({ success: true,
@@ -179,116 +180,33 @@ export async function POST(req: Request) {
     await getShopifyOperationContext({ businessId, channelInstanceId });
     const runId = validRunId(body?.run_id);
     if (!runId) return NextResponse.json({ error: 'A valid run_id is required.' }, { status: 400 });
+    const importContext = { businessId, channelInstanceId, runId, actorId: session.userId, actorName: session.name ?? session.email };
+    if (mode === 'prepare') {
+      if (!Array.isArray(body.snapshots) || !body.snapshots.length || body.snapshots.length > 2000) {
+        return NextResponse.json({ error: 'Prepare between 1 and 2,000 preview batches.' }, { status: 400 });
+      }
+      let snapshots;
+      try { snapshots = body.snapshots.map((token: unknown) => verifyOpeningStockSnapshot(token, businessId, channelInstanceId)); }
+      catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid preview.' }, { status: 400 }); }
+      const stocktakes = await prepareOpeningStocktakes(importContext, snapshots);
+      return NextResponse.json({ success: true, mode, stocktakes });
+    }
     let snapshot;
     try { snapshot = verifyOpeningStockSnapshot(body?.snapshot, businessId, channelInstanceId); }
     catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid preview.' }, { status: 400 }); }
-    const offset = snapshot.offset;
-    const lines = snapshot.lines;
-    const variantIds = [...new Set(lines.map(line => line.variantId))];
-    const variants = await imsQuery<{ variant_id: string; external_inventory_id: string }>(
-      `SELECT v.variant_id, mapping.external_inventory_id FROM ims_product_variants v
-        JOIN ims_products p ON BINARY p.product_id = BINARY v.product_id AND BINARY p.business_id = BINARY v.business_id
-        JOIN ims_sales_channel_product_mappings mapping ON BINARY mapping.variant_id = BINARY v.variant_id
-          AND BINARY mapping.business_id = BINARY v.business_id
-        WHERE v.business_id = ? AND mapping.channel_instance_id = ? AND mapping.mapping_status = 'linked'
-          AND v.is_active = 1 AND p.is_active = 1 AND COALESCE(p.is_stock_item, 1) = 1
-          AND v.variant_id IN (${variantIds.map(() => '?').join(',')})`,
-      [businessId, channelInstanceId, ...variantIds],
-    );
-    if (variants.length !== variantIds.length || lines.some(line =>
-      !variants.some(variant => variant.variant_id === line.variantId && String(variant.external_inventory_id) === line.inventoryItemId))) {
-      throw new Error('One or more variants are no longer linked to Shopify. Preview again before applying.');
-    }
-    const locationIds = [...new Set(lines.map(line => line.solvantisLocationId))];
-    const locations = await imsQuery<{ id: number; name: string; is_active: number }>(
-      `SELECT id, name, is_active FROM ims_locations
-        WHERE business_id = ? AND id IN (${locationIds.map(() => '?').join(',')})`,
-      [businessId, ...locationIds],
-    );
-    const validLocations = new Map(locations
-      .filter(location => Number(location.is_active) !== 0)
-      .map(location => [Number(location.id), location.name]));
-    for (const line of lines) {
-      if (validLocations.get(line.solvantisLocationId) !== line.locationName) {
-        throw new Error('An opening stock location changed after preview. Preview again before applying.');
-      }
-    }
-    const stocktakes: Array<{ id: number; location: string; applied: number; variances: number; replayed: boolean }> = [];
-
-    for (const location of [...new Map(lines.map(line => [line.solvantisLocationId, {
-      name: line.locationName,
-      solvantisLocationId: line.solvantisLocationId,
-    }])).values()]) {
-      const reference = `SHOPIFY-OPEN-${runId}-${offset}-${location.solvantisLocationId}`.slice(0, 100);
-      const existing = await imsQuery<{ id: number; status: string }>(
-        `SELECT id, status FROM ims_stocktakes
-          WHERE business_id = ? AND location_id = ? AND reference = ?
-          ORDER BY id DESC LIMIT 1`,
-        [businessId, location.solvantisLocationId, reference],
-      );
-      let stocktakeId = existing[0]?.id;
-      if (!stocktakeId) {
-        stocktakeId = await ImsStocktakeRepo.create({
-          reference,
-          location_id: location.solvantisLocationId,
-          notes: `Shopify opening stock import from ${location.name}. Negative Shopify quantities are recorded as zero.`,
-          blank: true,
-        }, businessId);
-      }
-
-      const locationLines = lines.filter(line => line.solvantisLocationId === location.solvantisLocationId);
-      if (existing[0]?.status !== 'completed') {
-        for (const line of locationLines) {
-          await imsExecute(
-            `INSERT INTO ims_stocktake_items (stocktake_id, variant_id, expected_qty, counted_qty, notes)
-             SELECT ?, v.variant_id, COALESCE(s.qty_on_hand, 0), ?, ?
-               FROM ims_product_variants v
-               LEFT JOIN ims_stock s ON s.variant_id = v.variant_id AND s.location_id = ? AND s.business_id = v.business_id
-              WHERE v.variant_id = ? AND v.business_id = ?
-             ON DUPLICATE KEY UPDATE counted_qty = VALUES(counted_qty), notes = VALUES(notes)`,
-            [stocktakeId, line.quantity, line.wasNegative ? 'Shopify quantity was negative and was clamped to zero.' : null,
-             location.solvantisLocationId, line.variantId, businessId],
-          );
-        }
-      }
-
-      if (!existing[0] || existing[0].status === 'draft') {
-        await transitionStocktake({
-          businessId,
-          stocktakeId,
-          action: 'start',
-          context: {
-            operationKey: `shopify-opening-start-${runId}-${offset}-${location.solvantisLocationId}`,
-            requestHash: await hashInventoryDocumentRequest({}),
-            actorId: session.userId,
-            actorName: session.name ?? session.email,
-          },
-        });
-      }
-
-      const result = await applyStocktake({
-        businessId,
-        stocktakeId,
-        context: {
-          operationKey: `shopify-opening-${runId}-${offset}-${location.solvantisLocationId}`,
-          requestHash: await hashInventoryDocumentRequest({
-            source: 'shopify', runId, offset, location: location.name,
-            quantities: locationLines.map(line => [line.variantId, line.quantity]),
-          }),
-          actorId: session.userId,
-          actorName: session.name ?? session.email,
-        },
-      });
-      stocktakes.push({ id: stocktakeId, location: location.name, applied: result.applied, variances: result.variances, replayed: result.replayed });
-    }
+    const variantIds = [...new Set(snapshot.lines.map(line => line.variantId))];
+    const stocktakes = await applyOpeningStockBatch(importContext, snapshot);
 
     await refreshVariantCache(variantIds);
-    await ImsShopifyRepo.logAction('reconcile', 'success', `Applied Shopify opening stock batch ${offset}`, businessId, {
-      runId, offset, variants: variantIds.length, stocktakes,
+    await ImsShopifyRepo.logAction('reconcile', 'success', `Applied Shopify opening stock batch ${snapshot.offset}`, businessId, {
+      runId, offset: snapshot.offset, variants: variantIds.length, stocktakes,
     }, channelInstanceId);
     return NextResponse.json({ success: true, mode, stocktakes, variants: variantIds.length });
   } catch (error) {
     if (error instanceof ShopifyOpeningStockValidationError) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error instanceof StocktakeOperationConflict || error instanceof InventoryDocumentOperationConflict) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     await reportRuntimeIssue({
       businessId,
       source: 'shopify',

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  session: vi.fn(), query: vi.fn(), listInstances: vi.fn(), evaluate: vi.fn(), links: vi.fn(), report: vi.fn(),
+  session: vi.fn(), query: vi.fn(), listInstances: vi.fn(), evaluate: vi.fn(), links: vi.fn(), report: vi.fn(), readiness: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mocks.session }));
@@ -12,6 +12,7 @@ vi.mock('@/lib/channels/channelInstanceRepository', () => ({
 vi.mock('@/lib/channels/channelProductAssignmentRepository', () => ({ evaluateChannelProducts: mocks.evaluate }));
 vi.mock('@/lib/channels/channelProductLinks', () => ({ getChannelProductLinks: mocks.links }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
+vi.mock('@/lib/channels/channelProductReadiness', () => ({ getChannelProductReadiness: mocks.readiness }));
 
 import { GET } from '../route';
 
@@ -33,6 +34,7 @@ describe('GET product channel destinations', () => {
     mocks.links.mockResolvedValue({ storefrontUrl: 'https://store.example/products/dress',
       adminUrl: 'https://admin.shopify.com/store/example/products/123' });
     mocks.report.mockResolvedValue(undefined);
+    mocks.readiness.mockResolvedValue([{ productId: 'product-1', issues: [] }]);
   });
 
   it('requires an IMS session', async () => {
@@ -55,6 +57,14 @@ describe('GET product channel destinations', () => {
       assignmentMode: 'add_matches', effectiveDecision: 'exclude', desiredState: 'published', providerState: 'published' });
     expect(body.destinations[0]).toMatchObject({ storefrontUrl: 'https://store.example/products/dress',
       adminUrl: 'https://admin.shopify.com/store/example/products/123' });
+    expect(body.publicationIssues).toEqual([]);
+    expect(mocks.readiness).toHaveBeenCalledWith('business-1', ['product-1']);
+  });
+
+  it('exposes actionable missing fields before the user applies', async () => {
+    mocks.readiness.mockResolvedValueOnce([{ productId: 'product-1', issues: ['Description is required.'] }]);
+    const response = await GET(request, context);
+    expect((await response.json()).publicationIssues).toEqual(['Description is required.']);
   });
 
   it('does not evaluate channels when the product is outside the tenant', async () => {

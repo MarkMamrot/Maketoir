@@ -13,6 +13,21 @@ const movement: Movement = { id: 100, documentId: 1, referenceType: 'sales_order
 const report = (lines = [line], movements = [movement], basis: 'sale' | 'movement' = 'movement') => projectReport({ lines, movements, basis, from: '2026-10-01', toExclusive: '2026-11-01' });
 
 describe('traceability projections', () => {
+  it.each(['sale', 'movement'] as const)('keeps internal consignment COGS and GP on the %s basis', basis => {
+    const rows = report([line], [{ ...movement, consignmentSupplierId: 9 }], basis);
+    expect(rows[0]).toMatchObject({ cogs: 50, gp: 40, netSales: 90, ownership: 'Consignment' });
+    expect(rows[0].quality).toContain('intentionally excluded from Xero COGS');
+  });
+  it('keeps legacy movement snapshots owned without consulting current supplier settings', () => {
+    expect(report()[0]).toMatchObject({ ownership: 'Owned', cogs: 50 });
+  });
+  it('reports mixed immutable ownership without losing either internal cost bucket', () => {
+    const rows = report([line], [
+      { ...movement, qtyChange: -3, consignmentSupplierId: 9 },
+      { ...movement, id: 101, qtyChange: -7 },
+    ], 'sale');
+    expect(rows[0]).toMatchObject({ ownership: 'Mixed', cogs: 50, netSales: 90 });
+  });
   it('allocates header discount once and uses captured costs', () => {
     expect(report()[0]).toMatchObject({ sales: 100, discount: 10, netSales: 90, cogs: 50, gp: 40, tax: 9 });
   });

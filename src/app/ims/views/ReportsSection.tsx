@@ -1,14 +1,7 @@
 import React from 'react';
 import { CogsTraceabilityView } from './reports/CogsTraceabilityView';
 
-type ImsView =
-  | 'dashboard' | 'products' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit'
-  | 'contacts' | 'locations'
-  | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
-  | 'receive-transfers'
-  | 'pos-sales' | 'cash-banking' | 'online-sales' | 'stocktakes'
-  | 'reports' | 'report-sales-detail' | 'report-sales-by-branch' | 'report-sales-summary' | 'report-sales-search' | 'report-inventory-valuation' | 'report-product-margin' | 'report-pos-price-changes' | 'report-pos-registers' | 'report-cash-banking' | 'report-stock-availability' | 'report-bookkeeper-audit' | 'report-cogs-traceability'
-  | 'xero' | 'shopify';
+import type { ImsView } from './MainSections';
 
 interface ReportsSectionProps {
   view: ImsView;

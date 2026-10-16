@@ -2,6 +2,7 @@
 
 import { ArrowLeft, CheckCircle2, ExternalLink, RefreshCw, Save, TestTube2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useFeatureEnabled } from '../../components/FeatureToggleProvider';
 
 import {
   ShopifyGiftCardsTab,
@@ -62,6 +63,7 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
   const [rulesOpen, setRulesOpen] = useState(false);
+  const channelRulesEnabled = useFeatureEnabled('feature_toggle_channel_rules');
   const [assignmentMode, setAssignmentMode] = useState<'manual' | 'add_matches'>(
     instance.settings?.productAssignmentMode === 'add_matches' ? 'add_matches' : 'manual',
   );
@@ -244,8 +246,8 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
 
       {tab === 'products' && <section>
         <div className={styles.productControls}>
-          <button type="button" disabled={!canManage} onClick={() => setRulesOpen(true)} style={{ minHeight: 34, padding: '6px 10px', border: '1px solid var(--sv-border)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>Product rules</button>
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}><input type="checkbox" checked={assignmentMode === 'add_matches'} disabled={!canManage || Boolean(busy)} onChange={event => void changeAssignmentMode(event.target.checked)} /> Automatic assignment</label>
+          {channelRulesEnabled && <button type="button" disabled={!canManage} onClick={() => setRulesOpen(true)} style={{ minHeight: 34, padding: '6px 10px', border: '1px solid var(--sv-border)', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>Product rules</button>}
+          {channelRulesEnabled && <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}><input type="checkbox" checked={assignmentMode === 'add_matches'} disabled={!canManage || Boolean(busy)} onChange={event => void changeAssignmentMode(event.target.checked)} /> Automatic assignment</label>}
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700 }}><input type="checkbox" checked={publicationEnabled} disabled={!canManage || Boolean(busy)} onChange={event => void changePublication(event.target.checked)} /> Automatic publication</label>
           <button type="button" disabled={!canManage || !publicationEnabled || Boolean(busy)} onClick={() => void reconcilePublication()} style={{ minHeight: 34, padding: '6px 10px', border: '1px solid #86efac', background: '#f0fdf4', color: '#166534', display: 'inline-flex', gap: 6, alignItems: 'center', fontWeight: 700, cursor: 'pointer' }}><RefreshCw size={14} /> Reconcile products</button>
           <a href="#products" style={{ marginLeft: 'auto', color: '#0369a1', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700 }}>Open All Products <ExternalLink size={13} /></a>
@@ -269,7 +271,7 @@ export default function ShopifyChannelDetailView({ instance, canManage, xeroAcco
       </section>}
       {tab === 'activity' && <ShopifyLogTab />}
 
-      {rulesOpen && <ChannelProductRulesDialog instance={instance} onClose={() => setRulesOpen(false)} />}
+      {channelRulesEnabled && rulesOpen && <ChannelProductRulesDialog instance={instance} onClose={() => setRulesOpen(false)} />}
     </div>
   </ShopifyInstanceScope>;
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useSettingsDirty } from './SettingsShell';
+import { SettingsActions, useSettingsDirty } from './SettingsShell';
 
 export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
   const [recipients, setRecipients] = React.useState('');
@@ -39,9 +39,11 @@ export function AccountsEmailSettings({ onHelp }: { onHelp?: () => void }) {
     <label htmlFor="accounts-email">Email addresses (comma separated)</label>
     <input id="accounts-email" value={recipients} disabled={!loaded || saving} onChange={event => { setRecipients(event.target.value); setSaved(false); }}
       style={{ width: '100%', boxSizing: 'border-box', margin: '8px 0', padding: 8, background: 'var(--sv-bg-1)', color: 'var(--sv-text-main)', border: '1px solid var(--sv-border)', borderRadius: 6 }} />
+    <SettingsActions>
     <button type="button" data-primary onClick={save} disabled={!loaded || saving || recipients === baseline}>{loading ? 'Loading...' : saving ? 'Saving...' : 'Save accounts email'}</button>
     <button type="button" disabled={saving} onClick={() => { setRecipients(baseline); setSaved(false); setError(''); }}>Cancel</button>
     {onHelp && <button type="button" onClick={onHelp} style={{ marginLeft: 8 }}>Help</button>}
+    </SettingsActions>
     {saved && <p role="status">Accounts recipients saved.</p>}
     {error && <p role="alert" style={{ color: 'var(--sv-red)' }}>{error}</p>}
   </section>;

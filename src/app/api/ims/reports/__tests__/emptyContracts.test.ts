@@ -119,6 +119,8 @@ describe('empty tenant report contracts', () => {
       time_zone: 'Australia/Sydney',
       historical: false,
       data: [],
+      ownership: 'owned',
+      ownership_totals: { owned_value: 0, consignment_value: 0 },
       costing_method: 'average_cost',
       cost_epoch_id: null,
       reconciliation: {
@@ -146,6 +148,32 @@ describe('empty tenant report contracts', () => {
     }));
     expect(mocks.imsQuery).toHaveBeenCalledTimes(3);
     expect(mocks.mainQuery).toHaveBeenCalledWith(expect.stringContaining('bookkeeper_audit_reviews'), ['business-1']);
+  });
+
+  it('excludes consignment from default owned valuation using tenant-scoped supplier classification', async () => {
+    await getInventoryValuation(request('/api/ims/reports/inventory-valuation'));
+    const query = mocks.imsQuery.mock.calls.find(([sql]) => String(sql).includes('c.name as supplier_name'));
+    expect(query?.[0]).toContain('NOT EXISTS');
+    expect(query?.[0]).toContain('owner.business_id = p.business_id');
+    expect(query?.[0]).toContain('owner.is_consignment = 1');
+  });
+
+  it('separates consignment indicative value from owned asset value in all-ownership reports', async () => {
+    mocks.imsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { variant_id: 'own', sku: 'OWN', soh: '2', cost: '20', total_value: '40', is_consignment: 0, layer_quantity: null },
+      { variant_id: 'con', sku: 'CON', soh: '10', cost: '50', total_value: '500', is_consignment: 1, layer_quantity: null },
+    ]);
+    const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation?ownership=all'));
+    const body = await response.json();
+    expect(body.ownership_totals).toEqual({ owned_value: 40, consignment_value: 500 });
+    expect(body.data[1]).toMatchObject({ is_consignment: true, cost: 50, soh: 10, total_value: 500 });
+  });
+
+  it('rejects unknown ownership filters before any valuation query', async () => {
+    const response = await getInventoryValuation(request('/api/ims/reports/inventory-valuation?ownership=unknown'));
+    expect(response.status).toBe(400);
+    expect(mocks.imsQuery).not.toHaveBeenCalled();
+    expect(mocks.reportIssue).not.toHaveBeenCalled();
   });
 
   it('values FIFO inventory from remaining layers and reports quantity mismatches', async () => {
@@ -264,6 +292,41 @@ describe('empty tenant report contracts', () => {
       variance_status: 'completed',
       xero_variance_id: 'variance-1',
     }));
+  });
+
+  it('returns corrected counts, float-adjusted totals and latest closing evidence without replacing posted accounting values', async () => {
+    const snapshot = [{ id: 8, payment_method: 'Cash', previous_counted: 818, counted_amount: 815.99 }];
+    mocks.imsQuery
+      .mockResolvedValueOnce([{
+        id: 4, register_name: 'Till 1', location_name: 'Sydney', location_id: 2,
+        status: 'closed', opening_float: '200.00',
+      }])
+      .mockResolvedValueOnce([
+        { id: 8, register_session_id: 4, payment_method: 'Cash', expected_amount: '618', counted_amount: '815.99', xero_invoice_id: 'invoice-1' },
+        { id: 9, register_session_id: 4, payment_method: 'Card', expected_amount: '100', counted_amount: '100', xero_invoice_id: 'invoice-2' },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 11, register_session_id: 4, actor_name: 'Alex', reason: 'Closing sheet checked',
+        created_at: '2026-10-16 10:00:00', counts_snapshot: JSON.stringify(snapshot),
+      }]);
+    mocks.mainQuery.mockResolvedValueOnce([{
+      eod_reconciliation_id: 8, till_variance: '0', variance_status: 'completed', xero_variance_id: 'original-posting',
+    }]);
+    const response = await getPosRegisters(request('/api/ims/reports/pos-registers?date=2026-10-16'));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.sessions[0]).toMatchObject({
+      latest_closing_correction: { id: 11, actor_name: 'Alex', reason: 'Closing sheet checked', counts_snapshot: snapshot },
+      total_expected: 718, total_counted: 915.99,
+    });
+    expect(body.sessions[0].total_variance).toBeCloseTo(-2.01, 2);
+    expect(body.sessions[0].reconciliations[0]).toMatchObject({
+      id: 8, counted_amount: 815.99, till_variance: 0, variance_status: 'completed',
+      xero_invoice_id: 'invoice-1', xero_variance_id: 'original-posting',
+    });
+    expect(body.sessions[0].reconciliations[0].variance).toBeCloseTo(-2.01, 2);
+    expect(mocks.imsQuery.mock.calls[3][1]).toEqual(['business-1', 4, 'business-1']);
   });
 
   it('returns an empty Cash Banking report', async () => {

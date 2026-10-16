@@ -1,4 +1,6 @@
 import { imsQuery, imsExecute, getIMSPool } from '@/services/IMSMySQLService';
+import { ConsignmentConflict, resolveCurrentOwnership, snapshotMovementOwnership } from '@/lib/ims/consignment/ownership';
+import { assertConsignmentPosMutationAllowed, captureConsignmentRefund, captureConsignmentSale } from '@/lib/ims/consignment/sourceCapture';
 import { getPosStockQtyChange } from '@/lib/ims/posReturnCreditNote';
 import { unwindGiftCardTransactionsForSale, type GiftCardVoidReversal } from '@/lib/pos/giftCardSaleVoid';
 import {
@@ -58,6 +60,8 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
   movementNote?: string | null;
 }) {
   const plan = planPosStockChange(input.currentOnHand, input.requestedChange, input.minimumOnHand);
+  const owner = await resolveCurrentOwnership(connection, input.businessId, input.variantId);
+  if (owner.ownership === 'consignment' && plan.automaticAdjustmentQuantity > 0) throw new ConsignmentConflict('Consignment sales require recorded stock on hand; automatic stock corrections are not supported.');
   if (plan.automaticAdjustmentQuantity > 0) {
     if (input.hasStockRow) {
       await connection.execute(
@@ -103,6 +107,7 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
       input.movementNote ?? null],
   );
   const movementResult = Array.isArray(movementExecution) ? movementExecution[0] : movementExecution;
+  await snapshotMovementOwnership(connection, input.businessId, Number(movementResult?.insertId), input.variantId, owner.supplierId);
   if (input.costingState.method === 'fifo') {
     if (plan.requestedChange >= 0) {
       throw new FifoCostingConflict('FIFO POS returns must be linked to the original completed sale so the original item cost can be restored.');
@@ -116,7 +121,7 @@ async function applyPosStockMovementWithFloor(connection: any, input: {
       quantity: Math.abs(plan.requestedChange),
     });
   }
-  return plan;
+  return { ...plan, stockMovementId: Number(movementResult?.insertId) };
 }
 
 export async function applyCompletedPosSaleStock(
@@ -185,7 +190,7 @@ export async function applyCompletedPosSaleStock(
         );
       }
     }
-    await applyPosStockMovementWithFloor(connection, {
+    const stockMovement = await applyPosStockMovementWithFloor(connection, {
       businessId: data.business_id,
       variantId: item.variant_id,
       locationId: data.location_id,
@@ -197,6 +202,14 @@ export async function applyCompletedPosSaleStock(
       minimumOnHand: -incomingTransferQuantity,
       costingState,
     });
+    if (Number(item.qty) > 0) {
+      await captureConsignmentSale(connection, {
+        businessId: data.business_id, sourceId: saleId, sourceLineId: Number(item.id),
+        eventKey: `pos-sale:${saleId}:${item.id}`, variantId: item.variant_id, locationId: Number(data.location_id),
+        channel: 'pos', eventDate: (data.recorded_at && data.sale_type !== 'layby' ? toBusinessDateTime(data.recorded_at) : String(data.completed_at ?? localNow())).slice(0, 10), quantity: Number(item.qty),
+        unitCost: avgCostAtTime, stockMovementId: stockMovement.stockMovementId,
+      });
+    }
   }
   const incomingStockWarnings = stockWarnings.filter(warning => warning.reason === 'incoming_transfer_stock');
   if (incomingStockWarnings.length > 0) {
@@ -532,6 +545,7 @@ export const PosSalesRepo = {
       builds: Array<{ output_variant_id: string; quantity: number; recipe_revision: number }>;
     } | null;
     items: Array<{
+      id?: number;
       return_of_sale_item_id?: number | null;
       variant_id:      string | null;
       code:            string | null;
@@ -700,7 +714,7 @@ export const PosSalesRepo = {
 
       // 2. Insert items
       for (const item of data.items) {
-        await conn.execute(
+        const [itemResult]: any = await conn.execute(
           `INSERT INTO pos_sale_items
              (business_id, sale_id, return_of_sale_item_id, is_gift_card, variant_id, code, name, qty, unit_price, original_price,
               discount_type, discount_value, discount_amount, tax_rate, line_total)
@@ -723,6 +737,7 @@ export const PosSalesRepo = {
             item.line_total,
           ],
         );
+        item.id = Number(itemResult.insertId);
       }
 
       // 3. Insert payments
@@ -915,8 +930,27 @@ export const PosSalesRepo = {
         atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState!);
       }
 
-      if (atomicStockWarnings === null && costingState?.method === 'fifo' && ['completed', 'layby_complete'].includes(data.status)) {
-        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, costingState);
+      let hasConsignment = false;
+      if (['completed', 'layby_complete'].includes(data.status)) {
+        for (const item of data.items) {
+          if (!item.variant_id) continue;
+          const owner = await resolveCurrentOwnership(conn, data.business_id, item.variant_id);
+          if (owner.ownership === 'consignment') hasConsignment = true;
+          if (Number(item.qty) < 0 && data.sale_type === 'return' && data.return_of_sale_id && item.return_of_sale_item_id) {
+            await captureConsignmentRefund(conn, {
+              businessId: data.business_id, sourceId: saleId, sourceLineId: Number(item.id), sourceChannel: 'pos',
+              originalSourceId: Number(data.return_of_sale_id), originalSourceLineId: Number(item.return_of_sale_item_id),
+              variantId: item.variant_id, locationId: Number(data.location_id), eventDate: now.slice(0, 10),
+              quantity: Math.abs(Number(item.qty)), eventKey: `pos-refund:${saleId}:${item.id}`,
+            });
+          } else if (owner.ownership === 'consignment' && (Number(item.qty) <= 0 || !['sale', 'layby'].includes(data.sale_type))) {
+            throw new ConsignmentConflict('Consignment returns must link explicit item quantities to the original completed sale; exchanges and money-only adjustments require review.');
+          }
+        }
+      }
+      if (atomicStockWarnings === null && (costingState?.method === 'fifo' || hasConsignment) && ['completed', 'layby_complete'].includes(data.status)) {
+        const atomicCosting = costingState ?? await lockInventoryCostState(conn, data.business_id);
+        atomicStockWarnings = await applyCompletedPosSaleStock(conn, data, saleId, atomicCosting);
       }
 
       await conn.commit();
@@ -1096,6 +1130,7 @@ export const PosSalesRepo = {
       if (!['completed', 'layby_complete'].includes(saleRows[0].status)) {
         throw new Error(`Sale can no longer be voided from status ${saleRows[0].status}.`);
       }
+      await assertConsignmentPosMutationAllowed(stockConn, sale.business_id, id, sale.sale_type === 'return' ? 'void_refund' : 'void_sale');
       if (costingState.method === 'fifo') {
         if (!['sale', 'layby'].includes(sale.sale_type)) {
           throw new FifoCostingConflict('FIFO POS returns and exchanges must be reversed through their linked customer credit note.');
@@ -1277,6 +1312,10 @@ export const PosSalesRepo = {
       );
       const lockedSale = lockedSaleRows[0];
       if (!lockedSale) throw new Error('Sale not found.');
+      await assertConsignmentPosMutationAllowed(conn, oldSale.business_id, id, 'edit');
+      for (const item of data.items) {
+        if (item.variant_id && (await resolveCurrentOwnership(conn, oldSale.business_id, item.variant_id)).ownership === 'consignment') throw new ConsignmentConflict('Consignment items cannot be added by editing a historical completed sale. Record a new sale instead.');
+      }
       const [linkedReturns] = await conn.execute<any[]>(
         `SELECT id
            FROM pos_sales

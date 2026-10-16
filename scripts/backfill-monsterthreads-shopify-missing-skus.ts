@@ -5,16 +5,15 @@
  * with one exact, current storefront mapping and a nonblank IMS SKU are filled.
  * No local catalogue, barcode, price, publication or quantity writes.
  */
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import mysql, { type RowDataPacket } from 'mysql2/promise';
 import { appendFile, writeFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { getPool, query } from '../src/services/MySQLService';
 import { getShopifyOperationContext } from '../src/lib/channels/shopifyOperationContext';
-import { ShopifyService, type ShopifySkuVariant } from '../src/services/ShopifyService';
+import { ShopifyService } from '../src/services/ShopifyService';
 import { reportRuntimeIssue } from '../src/lib/runtimeIssues';
-
-dotenv.config({ quiet: true });
+import { planMissingShopifyVariantSku } from '../src/lib/ims/shopifyProductSku';
 
 interface Business { business_id: string; name: string; ims_db_name: string }
 interface Mapping extends RowDataPacket {
@@ -72,35 +71,64 @@ async function main() {
       byVariant.set(id, [...(byVariant.get(id) ?? []), mapping]);
     }
     const plan: Array<{ variantId: string; productId: string; localVariantId: string; sku: string }> = [];
-    const skipped: Array<{ variantId: string; reason: string }> = [];
+    const skipped: Array<{ variantId: string; reason: string; title?: string; createdAt?: string }> = [];
+    const comparison = { mapped: 0, matchingNonblank: 0, missingInShopify: 0, blankInSolvantis: 0,
+      differentNonblank: 0, recentMapped: 0, recentMissingInShopify: 0 };
+    const differentExamples: Array<{ title?: string; variantId: string; solvantisSku: string; shopifySku: string | null }> = [];
+    const seen = new Set<string>();
+    const recentSince = new Date(Date.now() - 21 * 86_400_000).toISOString();
     let scanned = 0, missing = 0, cursor: string | null = null;
     do {
       const page = await service.getSkuVariantsPage(cursor);
       scanned += page.nodes.length;
       for (const remote of page.nodes) {
-        if (!blank(remote.sku) || !blank(remote.inventoryItem.sku)) continue;
-        missing++;
         const variantId = numericId(remote.id);
         const matches = byVariant.get(variantId) ?? [];
         const mapping = matches[0];
-        if (matches.length !== 1 || String(mapping.external_product_id) !== numericId(remote.product.id) || blank(mapping.sku)) {
-          skipped.push({ variantId, reason: matches.length !== 1 ? 'No unique exact mapping'
-            : blank(mapping.sku) ? 'IMS SKU is blank' : 'Product ownership mismatch' });
-          continue;
+        if (matches.length === 1 && String(mapping.external_product_id) === numericId(remote.product.id)) {
+          seen.add(variantId);
+          comparison.mapped++;
+          const recent = Boolean(remote.createdAt && remote.createdAt >= recentSince);
+          if (recent) comparison.recentMapped++;
+          if (blank(mapping.sku)) comparison.blankInSolvantis++;
+          else if (blank(remote.sku) && blank(remote.inventoryItem.sku)) {
+            comparison.missingInShopify++;
+            if (recent) comparison.recentMissingInShopify++;
+          } else if (remote.sku === mapping.sku && remote.inventoryItem.sku === mapping.sku) comparison.matchingNonblank++;
+          else {
+            comparison.differentNonblank++;
+            if (differentExamples.length < 10) differentExamples.push({
+              title: remote.displayName, variantId, solvantisSku: mapping.sku!, shopifySku: remote.sku,
+            });
+          }
         }
-        plan.push({ variantId, productId: numericId(remote.product.id), localVariantId: mapping.variant_id, sku: mapping.sku! });
+        if (!blank(remote.sku) || !blank(remote.inventoryItem.sku)) continue;
+        missing++;
+        const candidate = planMissingShopifyVariantSku(remote, matches);
+        if (candidate && 'reason' in candidate) {
+          skipped.push({ variantId, title: remote.displayName, createdAt: remote.createdAt, reason: candidate.reason });
+        } else if (candidate) {
+          plan.push(candidate);
+        }
       }
       if (!page.pageInfo.hasNextPage) break;
       if (!page.pageInfo.endCursor || page.pageInfo.endCursor === cursor) throw new Error('Shopify pagination did not advance.');
       cursor = page.pageInfo.endCursor;
       await sleep();
     } while (true);
+    const notFoundMappings = mappings.filter(mapping => !seen.has(String(mapping.external_variant_id)));
     console.log(JSON.stringify({ mode: apply ? 'apply' : 'preview', shop: context.credentials.shopDomain,
       scanned, missing, eligible: plan.length, skipped: skipped.length, examples: plan.slice(0, 10),
-      skippedExamples: skipped.slice(0, 10) }, null, 2));
+      skippedExamples: skipped.slice(0, 10), comparison, recentSince,
+      mappedIdsNotFoundInShopify: notFoundMappings.length, notFoundMappings,
+      differentExamples }, null, 2));
+    if (auditPath) {
+      if (!isAbsolute(auditPath)) throw new Error('--audit must be an absolute path.');
+      await writeFile(auditPath, JSON.stringify({ type: 'plan', at: new Date().toISOString(),
+        shop: context.credentials.shopDomain, scanned, missing, plan, skipped, comparison, recentSince,
+        differentExamples, notFoundMappings }) + '\n', { flag: 'wx' });
+    }
     if (!apply) return;
-    await writeFile(auditPath!, JSON.stringify({ type: 'plan', at: new Date().toISOString(),
-      shop: context.credentials.shopDomain, scanned, missing, plan, skipped }) + '\n', { flag: 'wx' });
     let updated = 0, changedSincePreview = 0;
     for (const row of plan) {
       const [currentMappings] = await tenant.execute<Mapping[]>(
@@ -113,11 +141,13 @@ async function main() {
       }
       const [remote] = await service.getSkuVariants([row.variantId]);
       if (!remote || numericId(remote.product.id) !== row.productId) throw new Error(`Variant ${row.variantId} ownership changed.`);
-      if (!blank(remote.sku) || !blank(remote.inventoryItem.sku)) {
+      const candidate = planMissingShopifyVariantSku(remote, currentMappings);
+      if (!candidate) {
         changedSincePreview++;
         await appendFile(auditPath!, JSON.stringify({ type: 'skipped_nonblank', variantId: row.variantId }) + '\n');
         continue;
       }
+      if ('reason' in candidate) throw new Error(`Variant ${row.variantId}: ${candidate.reason}`);
       await appendFile(auditPath!, JSON.stringify({ type: 'attempt', ...row }) + '\n');
       await service.syncVariantSkus(row.productId, [{ id: row.variantId, sku: row.sku }]);
       const [verified] = await service.getSkuVariants([row.variantId]);
@@ -146,6 +176,6 @@ async function main() {
 }
 
 main().catch(error => {
-  console.error(error instanceof Error ? error.message : 'Shopify SKU repair failed.');
+  console.error(error instanceof Error ? error.message || error.name : 'Shopify SKU repair failed.');
   process.exitCode = 1;
 });

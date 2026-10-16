@@ -7,6 +7,19 @@ vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
 import { calculateCogsForPeriod, summariseCogsRows, validateCogsDateRange } from '../cogsCalculator';
 
 describe('summariseCogsRows', () => {
+  it.each([50, -50])('retains signed internal consignment COGS %s as an intentional exclusion, never a posting gap', excluded => {
+    const result = summariseCogsRows([
+      { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'ok', movement_count: 1, quantity: 2, cogs: 20 },
+      { location_id: 1, channel: 'pos', source_status: 'consignment', cost_status: 'ok', movement_count: 2, quantity: 4, cogs: excluded },
+      { location_id: 2, channel: 'returns', source_status: 'consignment', cost_status: 'missing', movement_count: 1, quantity: 1, cogs: 0 },
+    ], '2026-07-01', '2026-08-01');
+    expect(result).toMatchObject({
+      totalCOGS: 20, includedMovementCount: 1, blocked: false,
+      missingCostMovementCount: 0, excludedConsignmentMovementCount: 3,
+      excludedConsignmentQuantity: 5, excludedConsignmentCOGS: excluded,
+      breakdown: [{ locationId: 1, channel: 'pos', totalCOGS: 20, movementCount: 1, quantity: 2 }],
+    });
+  });
   it('separates eligible, imported, orphaned, and uncosted movements', () => {
     const result = summariseCogsRows([
       { location_id: 1, channel: 'pos', source_status: 'eligible', cost_status: 'ok', movement_count: 3, quantity: 4, cogs: 40.125 },
@@ -97,6 +110,8 @@ describe('calculateCogsForPeriod', () => {
     });
 
     const sql = String(mockImsQuery.mock.calls[1][0]);
+    expect(sql).toContain("WHEN sm.consignment_supplier_id IS NOT NULL THEN 'consignment'");
+    expect(sql).not.toContain('is_consignment_supplier');
     expect(sql).toContain("'cn_returned', 'cn_return_reversed'");
     expect(sql).toContain("cn.source = 'pos'");
     expect(sql).toContain("cn.so_id IS NULL THEN 'returns'");

@@ -136,10 +136,15 @@ function YesNo({ value, onChange }: { value: string; onChange: (value: string) =
 export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccountingEnabled, onClose, onFieldChange, onSaveStep, onCompleteStep, onAction }: Props) {
   const firstIncomplete = Math.max(0, onboarding.steps.findIndex(step => !step.completed));
   const [activeIndex, setActiveIndex] = useState(firstIncomplete);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) setActiveIndex(firstIncomplete);
   }, [open, firstIncomplete]);
+
+  useEffect(() => {
+    setSaveError(null);
+  }, [open, activeIndex]);
 
   if (!open) return null;
   const step = onboarding.steps[activeIndex] ?? onboarding.steps[0];
@@ -148,14 +153,24 @@ export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccounti
   const completedCount = onboarding.steps.filter(item => item.completed).length;
 
   const saveAndContinue = async () => {
-    const fields = CONFIG_STEP_FIELDS[step.id] ?? [];
-    await onSaveStep(step.id, Object.fromEntries(fields.map(key => [key, draft[key] ?? ''])));
-    setActiveIndex(index => Math.min(onboarding.steps.length - 1, index + 1));
+    setSaveError(null);
+    try {
+      const fields = CONFIG_STEP_FIELDS[step.id] ?? [];
+      await onSaveStep(step.id, Object.fromEntries(fields.map(key => [key, draft[key] ?? ''])));
+      setActiveIndex(index => Math.min(onboarding.steps.length - 1, index + 1));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Business setup could not be saved. Please retry this step.');
+    }
   };
 
   const markDone = async () => {
-    await onCompleteStep(step.id);
-    if (activeIndex < onboarding.steps.length - 1) setActiveIndex(activeIndex + 1);
+    setSaveError(null);
+    try {
+      await onCompleteStep(step.id);
+      if (activeIndex < onboarding.steps.length - 1) setActiveIndex(activeIndex + 1);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Business setup could not be saved. Please retry this step.');
+    }
   };
 
   const renderConfigStep = () => {
@@ -322,6 +337,7 @@ export function OnboardingWizard({ open, onboarding, draft, saving, xeroAccounti
             <button type="button" onClick={onClose} title="Close onboarding" aria-label="Close onboarding" style={{ width: 34, height: 34, display: 'grid', placeItems: 'center', border: 0, borderRadius: 6, background: 'transparent', color: 'var(--sv-text-dim)', cursor: 'pointer' }}><X size={19} /></button>
           </div>
           <div className="ob-content" id="onboarding-title">
+            {saveError && <p role="alert" style={{ color: 'var(--sv-danger)', marginTop: 0 }}>{saveError}</p>}
             {isConfigStep ? renderConfigStep() : action && (
               <div className="ob-action">
                 <div className="ob-action-inner">

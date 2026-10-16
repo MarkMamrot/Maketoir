@@ -30,6 +30,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     const existing = await ImsContactsRepo.get(Number(params.id), businessId);
     if (!existing) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
     const body = await req.json();
+    if (Object.prototype.hasOwnProperty.call(body, 'is_consignment')) {
+      if (!['Admin', 'SuperAdmin'].includes(session.tier ?? '') && Number(body.is_consignment) !== Number(existing.is_consignment ?? 0)) return NextResponse.json({ success: false, error: 'Only administrators can change consignment ownership.' }, { status: 403 });
+      if (![0, 1, false, true].includes(body.is_consignment)) return NextResponse.json({ success: false, error: 'Invalid consignment setting.' }, { status: 400 });
+      body.is_consignment = Number(body.is_consignment);
+    }
     if (Object.prototype.hasOwnProperty.call(body, 'store_credit')) {
       return NextResponse.json(
         { success: false, error: 'Store credit is read-only and is changed through completed customer credit notes.' },
@@ -54,7 +59,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
       const brands = normalizeWholesaleBrands(body.wholesale_allowed_brands_json);
       body.wholesale_allowed_brands_json = brands === null ? null : JSON.stringify(brands);
     }
-    await ImsContactsRepo.update(Number(params.id), body, businessId);
+    await ImsContactsRepo.update(Number(params.id), body, businessId, { isAdmin: ['Admin', 'SuperAdmin'].includes(session.tier ?? ''), actorId: session.userId });
     const updated = await ImsContactsRepo.get(Number(params.id), businessId);
     const shopifySync = updated ? await syncRetailCustomerToMappedShopifyInstances(updated, businessId) : null;
     if (updated) {
@@ -62,6 +67,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
     }
     return NextResponse.json({ success: true, shopifySync });
   } catch (e: any) {
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     if (isAmazonPiiWriteConflict(e)) return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
@@ -78,6 +84,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     await ImsContactsRepo.delete(Number(params.id));
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    if (e.name === 'ConsignmentConflict') return NextResponse.json({ success: false, error: e.message }, { status: 409 });
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }

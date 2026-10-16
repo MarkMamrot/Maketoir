@@ -15,6 +15,7 @@ describe('assertCin7StockOverwriteAllowed', () => {
 
   it('allows Average Cost replacement when no completed build movements exist', async () => {
     imsQuery
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ active_method: 'average_cost' }])
       .mockResolvedValueOnce([{ has_build_movements: 0 }]);
 
@@ -22,20 +23,27 @@ describe('assertCin7StockOverwriteAllowed', () => {
   });
 
   it('blocks stock replacement while FIFO is active before checking build history', async () => {
-    imsQuery.mockResolvedValueOnce([{ active_method: 'fifo' }]);
+    imsQuery.mockResolvedValueOnce([]).mockResolvedValueOnce([{ active_method: 'fifo' }]);
 
     await expect(assertCin7StockOverwriteAllowed('biz-1')).rejects.toMatchObject({
       code: 'FIFO_COSTING_CONFLICT',
       message: CIN7_FIFO_STOCK_GUARD_MESSAGE,
     });
-    expect(imsQuery).toHaveBeenCalledTimes(1);
+    expect(imsQuery).toHaveBeenCalledTimes(2);
   });
 
   it('retains the completed-build guard under Average Cost', async () => {
     imsQuery
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([{ active_method: 'average_cost' }])
       .mockResolvedValueOnce([{ has_build_movements: 1 }]);
 
     await expect(assertCin7StockOverwriteAllowed('biz-1')).rejects.toThrow(CIN7_BUILD_STOCK_GUARD_MESSAGE);
+  });
+
+  it('blocks unaudited stock imports when consignment suppliers exist', async () => {
+    imsQuery.mockResolvedValueOnce([{ id: 2 }]);
+    await expect(assertCin7StockOverwriteAllowed('biz-1')).rejects.toThrow(/immutable supplier receipt evidence/);
+    expect(imsQuery).toHaveBeenCalledTimes(1);
   });
 });

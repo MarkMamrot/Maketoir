@@ -376,7 +376,7 @@ export async function POST(req: Request) {
     console.error('POS sale create error:', err);
     const status = err instanceof LaybyValidationError ? err.status : err instanceof LoyaltyReturnBlockedError ? err.status
       : err instanceof LoyaltyValidationError || err instanceof ProductBuildValidationError ? 400
-        : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict ? 409 : 500;
+        : err instanceof ProductBuildConflictError || err instanceof FifoCostingConflict || err?.name === 'ConsignmentConflict' ? 409 : 500;
     if (status >= 500) {
       await reportRuntimeIssue({
         businessId: String(session.businessId), source: 'pos_sale', operation: 'save_sale',

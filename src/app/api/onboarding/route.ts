@@ -171,6 +171,23 @@ export async function PUT(req: Request) {
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const businessId = session.businessId;
+  try {
+    return await saveOnboarding(req, businessId);
+  } catch (error) {
+    await reportRuntimeIssue({
+      businessId,
+      source: 'onboarding',
+      operation: 'save_progress',
+      title: 'Business onboarding progress failed to save',
+      error,
+      context: { method: 'PUT', endpoint: '/api/onboarding' },
+      reference: { type: 'business_setup', id: businessId },
+    });
+    return NextResponse.json({ success: false, error: 'Business setup could not be saved. Please retry this step.' }, { status: 500 });
+  }
+}
+
+async function saveOnboarding(req: Request, businessId: string) {
   const body = await req.json().catch(() => ({}));
   const completeStep = body.completeStep == null ? null : String(body.completeStep);
   const reopenStep = body.reopenStep == null ? null : String(body.reopenStep);

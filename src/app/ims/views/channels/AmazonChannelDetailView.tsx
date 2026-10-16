@@ -2,6 +2,7 @@
 
 import { AlertCircle, ArrowLeft, CheckCircle2, Download, ListChecks, MapPin, PauseCircle, Power, RefreshCw, RotateCcw, ShieldCheck, ShoppingBag, SlidersHorizontal, TestTube2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useFeatureEnabled } from '../../components/FeatureToggleProvider';
 
 interface ReadinessCheck {
   key: string;
@@ -104,6 +105,7 @@ export default function AmazonChannelDetailView({
   onResolveRefunds: () => void;
   onCheckReadiness: () => void;
 }) {
+  const channelRulesEnabled = useFeatureEnabled('feature_toggle_channel_rules');
   const ambiguousRefunds = Number(instance.settings?.refundsAmbiguousCount ?? 0);
   const [displayName, setDisplayName] = useState(instance.displayName);
   const [renaming, setRenaming] = useState(false);
@@ -152,8 +154,8 @@ export default function AmazonChannelDetailView({
     </section>}
 
     <Section title="Products" description="Control product selection and reconcile confirmed assignment differences for this seller account.">
-      <button type="button" disabled={!canManage} onClick={onProductRules} style={buttonStyle}><SlidersHorizontal size={15} /> Product rules</button>
-      <label style={buttonStyle}><input type="checkbox" checked={assignmentAutomatic} disabled={!canManage || assignmentWorking} onChange={event => onChangeAssignment(event.target.checked)} /> Automatic assignment</label>
+      {channelRulesEnabled && <button type="button" disabled={!canManage} onClick={onProductRules} style={buttonStyle}><SlidersHorizontal size={15} /> Product rules</button>}
+      {channelRulesEnabled && <label style={buttonStyle}><input type="checkbox" checked={assignmentAutomatic} disabled={!canManage || assignmentWorking} onChange={event => onChangeAssignment(event.target.checked)} /> Automatic assignment</label>}
       <label style={buttonStyle}><input type="checkbox" checked={publicationEnabled} disabled={!canManage || publicationWorking} onChange={event => onChangePublication(event.target.checked)} /> Automatic publication</label>
       <button type="button" disabled={!canManage || !publicationEnabled || publicationWorking || !instance.enabled || instance.readinessStatus !== 'ready'} onClick={onReconcileProducts} style={actionStyle(publicationWorking)}><RefreshCw size={15} /> {publicationWorking ? 'Working...' : 'Reconcile products'}</button>
     </Section>

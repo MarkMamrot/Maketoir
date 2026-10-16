@@ -140,6 +140,7 @@ export async function mergeCustomerContacts(input: {
     const source = input.sourceContactId === orderedIds[0] ? first : second;
     const target = input.targetContactId === orderedIds[0] ? first : second;
     if (!source || !target) throw new ContactMergeNotFoundError('One or both contacts were not found.');
+    if (Number(source.is_consignment) === 1 || Number(target.is_consignment) === 1) throw new ContactMergeValidationError('Consignment supplier contacts cannot be merged; retain their original ownership and source evidence.');
     if (!CRM_CONTACT_TYPES.includes(source.type as typeof CRM_CONTACT_TYPES[number]) || !CRM_CONTACT_TYPES.includes(target.type as typeof CRM_CONTACT_TYPES[number])) {
       throw new ContactMergeValidationError('Only leads and customer contacts can be merged.');
     }

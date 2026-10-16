@@ -136,6 +136,7 @@ export async function GET(req: Request) {
          FROM ims_purchase_orders po
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
         WHERE po.status NOT IN ('cancelled','draft')
+          AND po.consignment_supplier_id IS NULL
           AND (po.is_historical = 0 OR po.is_historical IS NULL)
         ORDER BY po.order_date DESC, po.id DESC
         LIMIT ${limit}`,
@@ -179,7 +180,7 @@ export async function GET(req: Request) {
               COALESCE(c.name, '') AS contact_name
          FROM ims_supplier_credit_notes scn
          LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
-        WHERE scn.status = 'complete'
+        WHERE scn.status = 'complete' AND scn.consignment_supplier_id IS NULL
         ORDER BY scn.scn_date DESC, scn.id DESC
         LIMIT ${limit}`,
       [],
@@ -217,7 +218,7 @@ export async function GET(req: Request) {
          LEFT JOIN ims_supplier_credit_notes scn ON scn.id = r.supplier_credit_note_id AND scn.business_id = r.business_id
          LEFT JOIN ims_supplier_credit_settlements s ON s.resolution_id = r.id AND s.business_id = r.business_id
           AND s.id = (SELECT MAX(current_s.id) FROM ims_supplier_credit_settlements current_s WHERE current_s.business_id = r.business_id AND current_s.resolution_id = r.id)
-        WHERE r.business_id = ? AND r.state IN ('xero_pending','failed','unknown')
+        WHERE r.business_id = ? AND r.state IN ('xero_pending','failed','unknown') AND po.consignment_supplier_id IS NULL
         ORDER BY r.created_at DESC
         LIMIT ${limit}`,
       [databaseId],
@@ -1007,4 +1008,3 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

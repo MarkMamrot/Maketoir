@@ -1,4 +1,6 @@
 import { createHash } from 'crypto';
+import { captureConsignmentSale } from '../consignment/sourceCapture';
+import { snapshotMovementOwnership } from '../consignment/ownership';
 import type { PoolConnection } from 'mysql2/promise';
 import { getIMSPool } from '@/services/IMSMySQLService';
 import { StockShortfallError, type StockShortfall } from './stockShortfall';
@@ -287,6 +289,14 @@ export async function fulfilSalesOrderPartialInTransaction(
       const weightedCost = newFulfilled > 0
         ? ((oldFulfilled * oldCost) + (quantity * shipmentCost)) / newFulfilled
         : shipmentCost;
+      await snapshotMovementOwnership(conn, input.businessId, Number(movementResult.insertId), String(item.variant_id));
+      await captureConsignmentSale(conn, {
+        businessId: input.businessId, sourceId: input.soId, sourceLineId: itemId,
+        eventKey: `so-shipment:${operationKey}:${itemId}`, variantId: String(item.variant_id),
+        locationId: Number(so.location_id), channel: so.so_type === 'online' ? 'online' : 'wholesale',
+        eventDate: new Date().toLocaleDateString('sv-SE', { timeZone: process.env.BUSINESS_TIMEZONE ?? 'Australia/Sydney' }),
+        quantity, unitCost: shipmentCost,
+      });
       await conn.execute(
         `UPDATE ims_sales_order_items
             SET qty_fulfilled = ?, unit_cost = ?

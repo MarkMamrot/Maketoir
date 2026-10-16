@@ -23,6 +23,11 @@ export interface CogsJournalBucket {
   amount: number;
 }
 
+export interface CogsPostingBucket extends CogsJournalBucket {
+  ownership: 'owned' | 'consignment';
+  ownershipEvidence: 'movement_snapshot' | 'posted_journal_snapshot';
+}
+
 export function cogsChannelLabel(channel: string): string {
   if (channel === 'pos') return 'POS';
   if (channel === 'online') return 'Shopify / Online';

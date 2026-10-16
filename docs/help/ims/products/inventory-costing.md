@@ -11,6 +11,12 @@ Check the active method under **Settings > Inventory & Locations > Inventory cos
 
 Average Cost (weighted average cost, or WAC) and FIFO determine stock valuation. Completed sales retain their captured cost of goods sold (COGS); **Reports > Sales & COGS Traceability** compares those historical costs with recorded sales, not today's catalogue cost.
 
+### Owned and consignment stock
+
+Use **Ownership: Owned / Consignment / All** in Stock Levels and Inventory Valuation. Owned is the default. Owned inventory value excludes supplier-owned consignment. Consignment quantities and indicative supplier-cost value are shown separately as **not owned inventory**, including when All is selected; do not add them into owned asset totals. Historical ownership uses captured evidence, with unknown evidence labelled rather than replaced by today's supplier setting.
+
+Consignment still has internal operational costs and cost history, but its receipt, return and sales costs are excluded from owned-inventory and COGS accounting postings. Record supplier settlement costs once externally using your bookkeeper's agreed treatment. Basic Consignment Activity remains available with optional tracking off.
+
 | To answer... | Use |
 |---|---|
 | Which method is active? | **Settings > Inventory & Locations > Inventory costing** |

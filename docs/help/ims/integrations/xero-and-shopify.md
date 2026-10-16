@@ -11,6 +11,7 @@ Open storefronts through **Sales > Sales Channels**, the native shop through **S
 
 - Confirm connection health before changing mappings or retrying records.
 - Use Xero for accounting setup, Sync History, cost reconciliation, and Shopify payout posting.
+- Save Xero posting, Stocktake adjustments, and separate Sales COGS preferences in **Settings > Integrations > Xero**, even when disconnected.
 - Use Shopify for commerce sync, product linkage, webhooks, and sync history.
 - Retry only the failed integration action after fixing its cause.
 

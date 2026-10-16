@@ -20,7 +20,7 @@ export async function GET() {
               COALESCE(c.name, po.supplier_name_raw) AS contact_name
          FROM ims_purchase_orders po
          LEFT JOIN ims_contacts c ON c.id = po.supplier_id
-        WHERE po.xero_sync_status = 'queued' AND po.business_id = ?
+        WHERE po.xero_sync_status = 'queued' AND po.business_id = ? AND po.consignment_supplier_id IS NULL
         ORDER BY po.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);
@@ -50,7 +50,7 @@ export async function GET() {
               COALESCE(c.name) AS contact_name
          FROM ims_supplier_credit_notes scn
          LEFT JOIN ims_contacts c ON c.id = scn.supplier_id
-        WHERE scn.xero_sync_status = 'queued' AND scn.business_id = ?
+        WHERE scn.xero_sync_status = 'queued' AND scn.business_id = ? AND scn.consignment_supplier_id IS NULL
         ORDER BY scn.xero_synced_at DESC`,
       [businessId]
     ).catch(() => [] as any[]);

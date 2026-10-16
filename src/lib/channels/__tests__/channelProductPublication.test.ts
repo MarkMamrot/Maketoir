@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  execute: vi.fn(), query: vi.fn(), report: vi.fn(),
+  execute: vi.fn(), query: vi.fn(), report: vi.fn(), readiness: vi.fn(),
   run: vi.fn(async (_businessId: string, callback: () => Promise<unknown>) => callback()),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: mocks.execute, imsQuery: mocks.query }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.run }));
+vi.mock('../channelProductReadiness', () => ({ getChannelProductReadiness: mocks.readiness }));
 
 import {
   CHANNEL_PRODUCT_PUBLICATION_OPERATION,
@@ -19,6 +20,7 @@ describe('channel product publication jobs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.execute.mockResolvedValue({ affectedRows: 1 });
+    mocks.readiness.mockResolvedValue([{ productId: 'product-2', issues: [] }]);
   });
 
   it('queues only current assignment/provider mismatches in the exact channel instance', async () => {
@@ -93,4 +95,25 @@ describe('channel product publication jobs', () => {
     });
     expect(mocks.run).toHaveBeenCalledWith('business-1', expect.any(Function));
   });
+
+    it.each(['shopify', 'native_shop', 'amazon'] as const)('blocks incomplete products before calling the %s adapter', async provider => {
+      mocks.query.mockResolvedValueOnce([{ id: 8, payload_json: { productId: 'product-2', desiredState: 'published' }, attempts: 0 }])
+        .mockResolvedValueOnce([{ desired_state: 'published' }]);
+      mocks.readiness.mockResolvedValueOnce([{ productId: 'product-2', issues: ['Variant 1: SKU is required.'] }]);
+      const adapter = vi.fn();
+      expect(await processChannelProductPublicationJobs({ businessId: 'business-1', channelInstanceId: 'instance-1', provider, adapter }))
+        .toMatchObject({ blocked: 1, applied: 0, failed: 0 });
+      expect(adapter).not.toHaveBeenCalled();
+      expect(mocks.readiness).toHaveBeenCalledWith('business-1', ['product-2']);
+      expect(mocks.report).not.toHaveBeenCalled();
+    });
+
+    it('permits unpublishing without requiring missing product content', async () => {
+      mocks.query.mockResolvedValueOnce([{ id: 8, payload_json: { productId: 'product-2', desiredState: 'unpublished' }, attempts: 0 }])
+        .mockResolvedValueOnce([{ desired_state: 'unpublished' }]);
+      const adapter = vi.fn().mockResolvedValue({ outcome: 'applied', providerState: 'unpublished' });
+      await processChannelProductPublicationJobs({ businessId: 'business-1', channelInstanceId: 'instance-1', provider: 'shopify', adapter });
+      expect(mocks.readiness).not.toHaveBeenCalled();
+      expect(adapter).toHaveBeenCalledOnce();
+    });
 });

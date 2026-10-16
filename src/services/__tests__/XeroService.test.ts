@@ -14,7 +14,7 @@ vi.mock('@/lib/db/ConnectionsRepository', () => ({
 }));
 vi.mock('@/lib/encryption', () => ({ encrypt: vi.fn((value: string) => value), decrypt: mockDecrypt }));
 vi.mock('@/lib/xero/documentPolicyRepository', () => ({
-  ensurePausedXeroDocumentPolicy: mockEnsurePausedPolicy,
+  ensureInitialXeroDocumentPolicy: mockEnsurePausedPolicy,
   getXeroDocumentPolicy: mockGetPolicy,
 }));
 vi.mock('@/lib/ims/businessOperations', () => ({

@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { mockGetIMSPool } = vi.hoisted(() => ({ mockGetIMSPool: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ getIMSPool: mockGetIMSPool }));
 
-import { applyStocktake, revertStocktake, transitionStocktake } from '../stocktakes/stocktakeOperations';
+import { applyStocktake, applyStocktakeInTransaction, assertManualStocktakeItemEditAllowed, revertStocktake, transitionStocktake } from '../stocktakes/stocktakeOperations';
+import { getIMSPool } from '@/services/IMSMySQLService';
 
 const context = {
   operationKey: 'stable-key', requestHash: 'request-hash', expectedUpdatedAt: '2026-08-12T09:00:00.000Z', actorId: 7, actorName: 'Alex',
@@ -21,8 +22,9 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
   originalCostingMethod?: 'average_cost' | 'fifo';
   originalEpochId?: number | null;
   fifoLayerRemaining?: number;
+  items?: Array<{ id: number; variant_id: string; expected_qty: number; counted_qty: number; soh_at_apply: number | null; applied_delta: number | null; unit_cost_at_apply: number | null }>;
 } = {}) {
-  const execute = vi.fn(async (sql: string) => {
+  const execute = vi.fn<(sql: string, params?: unknown[]) => Promise<unknown[]>>(async sql => {
     const normalized = sql.replace(/\s+/g, ' ').trim().toLowerCase();
     if (normalized.includes('from ims_stocktakes') && normalized.includes('for update')) {
       return [[{
@@ -57,7 +59,7 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
       }]];
     }
     if (normalized.includes('from ims_stocktake_items') && normalized.includes('for update')) {
-      return [[{
+      return [options.items ?? [{
         id: 41,
         variant_id: 'v-1',
         expected_qty: 10,
@@ -104,6 +106,58 @@ function connectionFor(mode: 'apply' | 'revert' | 'start', options: {
 
 describe('stocktake operations', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  const batchItems = (firstApplied = false) => [
+    { id: 41, variant_id: 'v-1', expected_qty: 10, counted_qty: 6, soh_at_apply: firstApplied ? 8 : null, applied_delta: firstApplied ? -2 : null, unit_cost_at_apply: firstApplied ? 5.5 : null },
+    { id: 42, variant_id: 'v-2', expected_qty: 10, counted_qty: 4, soh_at_apply: null, applied_delta: null, unit_cost_at_apply: null },
+  ];
+
+  it('keeps one stocktake in progress until its remaining batch is applied', async () => {
+    const connection = connectionFor('apply', { items: batchItems() });
+    const result = await applyStocktakeInTransaction(await getIMSPool().getConnection(),
+      { businessId: 'biz-1', stocktakeId: 31, context }, ['v-1']);
+    expect(result).toMatchObject({ id: 31, status: 'in_progress', applied: 1 });
+    expect(connection.execute.mock.calls.filter(([sql]) => sql.includes('INSERT INTO ims_stock_movements'))).toHaveLength(1);
+    expect(connection.execute.mock.calls.some(([sql]) => sql.includes("SET status = 'completed'"))).toBe(false);
+  });
+
+  it.each([true, false])('preserves earlier applied snapshots when finishing the remainder (batched=%s)', async batched => {
+    const connection = connectionFor('apply', { items: batchItems(true) });
+    const input = { businessId: 'biz-1', stocktakeId: 31, context };
+    const result = batched
+      ? await applyStocktakeInTransaction(await getIMSPool().getConnection(), input, ['v-2'])
+      : await applyStocktake(input);
+    expect(result).toMatchObject({ id: 31, status: 'completed', applied: 1 });
+    const snapshots = connection.execute.mock.calls.filter(([sql]) => sql.includes('SET soh_at_apply'));
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0][1]).toEqual([8, -4, 5.5, 42, 31]);
+  });
+
+  it('replays a batch without duplicating its stock movements', async () => {
+    const connection = connectionFor('apply', { operationState: 'complete' });
+    expect(await applyStocktakeInTransaction(await getIMSPool().getConnection(),
+      { businessId: 'biz-1', stocktakeId: 31, context }, ['v-1'])).toMatchObject({ replayed: true, id: 31 });
+    expect(connection.execute.mock.calls.some(([sql]) => sql.includes('INSERT INTO ims_stock_movements'))).toBe(false);
+  });
+
+  it('rejects batch lines not belonging to the document', async () => {
+    connectionFor('apply');
+    await expect(applyStocktakeInTransaction(await getIMSPool().getConnection(),
+      { businessId: 'biz-1', stocktakeId: 31, context }, ['foreign-variant'])).rejects.toThrow('does not match');
+  });
+
+  it('does not cancel a partially applied stocktake', async () => {
+    const connection = connectionFor('apply', { items: batchItems(true) });
+    await expect(transitionStocktake({ businessId: 'biz-1', stocktakeId: 31, context, action: 'cancel' }))
+      .rejects.toThrow('applied adjustments');
+    expect(connection.rollback).toHaveBeenCalledOnce();
+  });
+
+  it('protects Shopify counted lines but leaves ordinary stocktake editing available', () => {
+    expect(() => assertManualStocktakeItemEditAllowed('SHOPIFY-OPEN-import-1')).toThrow('cannot be manually changed');
+    expect(() => assertManualStocktakeItemEditAllowed('ST-0001')).not.toThrow();
+    expect(() => assertManualStocktakeItemEditAllowed(null)).not.toThrow();
+  });
 
   it('applies counted quantity against locked current SOH and persists the exact snapshot', async () => {
     const connection = connectionFor('apply');

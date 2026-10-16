@@ -12,4 +12,8 @@ describe('traceability request validation', () => {
     const params = new URLSearchParams({ groups: 'channel,warehouse', filters: JSON.stringify([{ field: 'cogs', operator: 'gte', value: '20' }, { field: 'invoiceDate', operator: 'missing', value: '' }]) });
     expect(parseRequest(params).filters).toHaveLength(2);
   });
+  it('accepts an immutable stock ownership filter and grouping', () => {
+    const params = new URLSearchParams({ groups: 'ownership', filters: JSON.stringify([{ field: 'ownership', operator: 'equals', value: 'Consignment' }]) });
+    expect(parseRequest(params)).toMatchObject({ groups: ['ownership'], filters: [{ field: 'ownership', operator: 'equals', value: 'Consignment' }] });
+  });
 });

@@ -1,5 +1,27 @@
 import { generateProductSku } from './productSku';
 
+export interface ShopifySkuMapping {
+  variant_id: string;
+  external_product_id: string;
+  external_variant_id: string;
+  sku: string | null;
+}
+
+export function planMissingShopifyVariantSku(
+  remote: { id: string; sku: string | null; product: { id: string }; inventoryItem: { sku: string | null } },
+  mappings: ShopifySkuMapping[],
+): { variantId: string; productId: string; localVariantId: string; sku: string } | { reason: string } | null {
+  if (remote.sku?.trim() || remote.inventoryItem.sku?.trim()) return null;
+  const variantId = remote.id.split('/').pop()!;
+  const productId = remote.product.id.split('/').pop()!;
+  const matches = mappings.filter(mapping => String(mapping.external_variant_id) === variantId);
+  if (matches.length !== 1) return { reason: 'No unique exact mapping' };
+  const mapping = matches[0];
+  if (String(mapping.external_product_id) !== productId) return { reason: 'Product ownership mismatch' };
+  if (!mapping.sku?.trim()) return { reason: 'IMS SKU is blank' };
+  return { variantId, productId, localVariantId: mapping.variant_id, sku: mapping.sku };
+}
+
 export interface ProductSkuVariant {
   sku?: string | null;
   option1_value?: string | null;

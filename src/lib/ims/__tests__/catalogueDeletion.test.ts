@@ -26,6 +26,10 @@ vi.mock('../costing/fifoCostingService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../costing/fifoCostingService')>();
   return { ...actual, assertFifoCatalogueDeletionAllowed: mocks.guard };
 });
+vi.mock('../consignment/ownership', async importOriginal => ({
+  ...await importOriginal<typeof import('../consignment/ownership')>(),
+  assertProductOwnershipChangeSafe: vi.fn(),
+}));
 
 import { FifoCostingConflict } from '../costing/fifoCostingService';
 import { ImsProductsRepo, ImsVariantsRepo } from '../ImsRepository';
@@ -34,11 +38,12 @@ describe('FIFO-safe catalogue deletion', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.guard.mockResolvedValue(undefined);
-    mocks.execute.mockResolvedValue([{ affectedRows: 1 }]);
+    mocks.execute.mockImplementation(async (sql: string) => sql.includes('ims_consignment_ownership_history') ? [[]] : [{ affectedRows: 1 }]);
   });
 
   it('guards every tenant-owned child variant before deleting a product', async () => {
     mocks.execute.mockImplementation(async (sql: string) => {
+      if (sql.includes('ims_consignment_ownership_history')) return [[]];
       if (sql.includes('SELECT variant_id')) return [[{ variant_id: 'v-1' }, { variant_id: 'v-2' }]];
       return [{ affectedRows: 1 }];
     });
@@ -77,6 +82,14 @@ describe('FIFO-safe catalogue deletion', () => {
     });
 
     expect(mocks.execute).not.toHaveBeenCalledWith(expect.stringContaining('DELETE FROM ims_product_variants'), expect.anything());
+    expect(mocks.rollback).toHaveBeenCalledOnce();
+    expect(mocks.commit).not.toHaveBeenCalled();
+  });
+  it.each(['product', 'variant'])('retains %s ownership evidence instead of deleting it', async kind => {
+    mocks.execute.mockResolvedValue([[{ id: 4 }]]);
+    const deletion = kind === 'product' ? ImsProductsRepo.delete('p-1', 'biz-1') : ImsVariantsRepo.delete('v-1', 'biz-1');
+    await expect(deletion).rejects.toThrow(/historical evidence/);
+    expect(mocks.execute.mock.calls.some(([sql]) => sql.includes('DELETE FROM'))).toBe(false);
     expect(mocks.rollback).toHaveBeenCalledOnce();
     expect(mocks.commit).not.toHaveBeenCalled();
   });

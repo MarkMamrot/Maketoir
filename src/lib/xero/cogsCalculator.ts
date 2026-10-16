@@ -1,7 +1,7 @@
 import { imsQuery } from '@/services/IMSMySQLService';
 import { roundCurrency } from './cogsPeriods';
 
-export type CogsSourceStatus = 'eligible' | 'historical_import' | 'orphaned' | 'non_stock';
+export type CogsSourceStatus = 'eligible' | 'historical_import' | 'orphaned' | 'non_stock' | 'consignment';
 export type CogsCostStatus = 'ok' | 'missing' | 'zero' | 'intentional_zero';
 
 export interface CogsCalculationRow {
@@ -40,6 +40,9 @@ export interface CogsCalculation {
   orphanedQuantity: number;
   excludedNonStockMovementCount: number;
   excludedNonStockQuantity: number;
+  excludedConsignmentMovementCount: number;
+  excludedConsignmentQuantity: number;
+  excludedConsignmentCOGS: number;
   blocked: boolean;
   breakdown: CogsBreakdown[];
 }
@@ -81,6 +84,9 @@ export function summariseCogsRows(
     orphanedQuantity: 0,
     excludedNonStockMovementCount: 0,
     excludedNonStockQuantity: 0,
+    excludedConsignmentMovementCount: 0,
+    excludedConsignmentQuantity: 0,
+    excludedConsignmentCOGS: 0,
     blocked: false,
     breakdown: [],
   };
@@ -90,6 +96,12 @@ export function summariseCogsRows(
     const quantity = Number(row.quantity) || 0;
     const cogs = Number(row.cogs) || 0;
 
+    if (row.source_status === 'consignment') {
+      result.excludedConsignmentMovementCount += movementCount;
+      result.excludedConsignmentQuantity += quantity;
+      result.excludedConsignmentCOGS += cogs;
+      continue;
+    }
     if (row.source_status === 'historical_import') {
       result.excludedHistoricalMovementCount += movementCount;
       result.excludedHistoricalQuantity += quantity;
@@ -136,6 +148,7 @@ export function summariseCogsRows(
   }
 
   result.totalCOGS = roundCurrency(result.totalCOGS);
+  result.excludedConsignmentCOGS = roundCurrency(result.excludedConsignmentCOGS);
   result.breakdown = Array.from(breakdownByLocationChannel.values());
   result.blocked = result.missingCostMovementCount > 0 || result.zeroCostMovementCount > 0;
   return result;
@@ -178,6 +191,7 @@ export async function calculateCogsForPeriod(input: {
               ELSE 'wholesale'
             END AS channel,
             CASE
+              WHEN sm.consignment_supplier_id IS NOT NULL THEN 'consignment'
               WHEN sm.movement_type = 'pos_sale' AND ps.id IS NULL THEN 'orphaned'
               WHEN sm.movement_type = 'so_fulfilled' AND so.id IS NULL THEN 'orphaned'
               WHEN sm.movement_type IN ('cn_returned', 'cn_return_reversed') AND cn.id IS NULL THEN 'orphaned'

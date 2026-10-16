@@ -8,7 +8,7 @@
  */
 import { NextResponse } from 'next/server';
 import { getImsSession } from '@/lib/auth/imsSession';
-import { getIMSPool } from '@/services/IMSMySQLService';
+import { getIMSPool, imsQuery } from '@/services/IMSMySQLService';
 import fs from 'fs';
 import path from 'path';
 import { ShopifyService } from '@/services/ShopifyService';
@@ -18,6 +18,7 @@ import { ImsProductsRepo, ImsImagesRepo, ImsShopifyRepo } from '@/lib/ims/ImsRep
 import { shopifyInventoryPolicyPayload, shopifyVariantPricePayload, pushInventoryForShopifyInstance } from '@/lib/ims/shopifyInventorySync';
 import { matchShopifyVariants, parseShopifyProductId } from '@/lib/ims/shopifyManualLink';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { buildShopifyProductOptions } from '@/lib/ims/shopifyProductOptions';
 
 
 async function getShopify(businessId: string, productId: string, channelInstanceId?: string | null) {
@@ -298,18 +299,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // ── If not yet linked → create the product on Shopify ────────────────────
     if (!shop.externalProductId) {
-      // Build options: only include an option axis when at least one variant has
-      // a real non-empty value for it. This prevents single-variant products from
-      // getting spurious "Size: Default" / "Colour: Default" options in Shopify.
-      const hasOpt1 = variants.some(v => v.option1_name?.trim() && v.option1_value?.trim());
-      const hasOpt2 = variants.some(v => v.option2_name?.trim() && v.option2_value?.trim());
-      const hasOpt3 = variants.some(v => v.option3_name?.trim() && v.option3_value?.trim());
-      const options: any[] = [];
-      if (hasOpt1) options.push({ name: variants.find(v => v.option1_name?.trim())?.option1_name });
-      if (hasOpt2) options.push({ name: variants.find(v => v.option2_name?.trim())?.option2_name });
-      if (hasOpt3) options.push({ name: variants.find(v => v.option3_name?.trim())?.option3_name });
-
-      const shopifyVariants = variants.map(v => {
+      const { options, variantOptions } = buildShopifyProductOptions(variants);
+      const shopifyVariants = variants.map((v, index) => {
         const { price, compare_at_price } = shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale);
         const vp: Record<string, any> = {
           sku: v.sku ?? '',
@@ -318,11 +309,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           compare_at_price: compare_at_price ?? undefined,
           weight: v.weight_kg ? v.weight_kg * 1000 : undefined,
           weight_unit: 'g',
-          option1: hasOpt1 ? (v.option1_value?.trim() || 'Default') : 'Default Title',
+          ...variantOptions[index],
           ...shopifyInventoryPolicyPayload(product.is_stock_item),
         };
-        if (hasOpt2) vp.option2 = v.option2_value?.trim() || 'Default';
-        if (hasOpt3) vp.option3 = v.option3_value?.trim() || 'Default';
         return vp;
       });
 
@@ -334,7 +323,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         tags: product.tags ?? '',
         status: 'active',
         variants: shopifyVariants.length > 0 ? shopifyVariants : [{ price: String(firstPriced?.price_rrp ?? '0.00') }],
-        options: options.length > 0 ? options : undefined,
+        options,
       };
       const created = await shop.service.createProduct(payload);
       await ImsShopifyRepo.linkProduct(params.id, String(created.id), session.businessId);
@@ -385,7 +374,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       tags: product.tags ?? '',
     });
 
-    const skuMappings = await getIMSPool().execute<import('mysql2/promise').RowDataPacket[]>(
+    const skuMappings = await imsQuery<{ external_variant_id: string | null; sku: string | null }>(
       `SELECT mapping.external_variant_id, variant.sku
          FROM ims_sales_channel_product_mappings mapping
          JOIN ims_product_variants variant
@@ -396,8 +385,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           AND mapping.mapping_status = 'linked'`,
       [session.businessId, shop.channelInstanceId, shopifyProductId, params.id],
     );
-    await shop.service.syncVariantSkus(shopifyProductId, skuMappings[0].flatMap(row =>
-      row.sku?.trim() && row.external_variant_id ? [{ id: String(row.external_variant_id), sku: String(row.sku) }] : []));
+    await shop.service.syncVariantSkus(shopifyProductId, skuMappings.flatMap(row =>
+      row.sku?.trim() && row.external_variant_id ? [{ id: row.external_variant_id, sku: row.sku }] : []));
 
     // Prices and barcode per linked variant; SKU is verified separately above.
     let pricesUpdated = 0;

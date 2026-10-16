@@ -1,5 +1,5 @@
 ---
-{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Step-by-step"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-08-30","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Send and receive stock at POS","subgroup":"Store operations"}}
+{"id":"pos-branch-transfers","title":"POS Branch Transfers","audiences":["pos","ims"],"capability":"pos","screen":"POS > Create Transfer and Receive Transfers","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","ims-location-stock-operations","ims-shopify-sync"],"contexts":["receive-transfers","branch-transfer"],"contextSections":{"receive-transfers":"Step-by-step","branch-transfer":"Main operations"},"order":30,"summary":"Send stock from the active POS branch and receive it at the destination without duplicating movements.","lastReviewed":"2026-10-16","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Send and receive stock at POS","subgroup":"Store operations"}}
 ---
 # POS Branch Transfers
 
@@ -13,6 +13,7 @@ Use POS Branch Transfers to record stock leaving one branch and arriving at anot
 - Use a manager PIN when the business has set transfer access to Manager.
 - Receive and confirm the physical quantities at the destination.
 - Review outgoing sent, partial, and received transfer history from the source screen.
+- With Shopify inventory sync enabled, sending reserves source stock and queues an online availability update for the next scheduled run.
 
 ## At a glance
 
@@ -43,6 +44,8 @@ Use POS Branch Transfers to record stock leaving one branch and arriving at anot
 4. Enter the quantity physically packed for each variant and add an optional note.
 5. Select **Send Transfer**. If prompted, ask the location manager to enter their PIN.
 6. Keep the success message and transfer number with the goods.
+
+For a linked Shopify item, the next inventory run uses the configured stock-counting locations, subtracts committed quantities and the stock buffer, and never sends a negative availability. Sending a transfer does not update Shopify instantly. If the transfer cannot queue its update, sending fails without saving the reservation; review the error before retrying.
 
 ### Receive at the destination
 

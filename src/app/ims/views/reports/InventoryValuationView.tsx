@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import type { ValuationResult } from '@/lib/ims/inventoryValuation';
-import { inventoryValuationCsv, valuationCostLabel } from '@/lib/ims/inventoryValuation';
+import type { ValuationOwnership, ValuationResult } from '@/lib/ims/inventoryValuation';
+import { inventoryValuationCsv, valuationCostLabel, valuationOwnershipTotals } from '@/lib/ims/inventoryValuation';
 import { EMPTY_MULTI, hasMultiFilter, multiFilterParams, ReportMultiFilter, SBDatePicker, type MultiFilter } from './reportFilterHelpers';
 import { ReportScrollTable } from './ReportScrollTable';
 
@@ -13,6 +13,7 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
   const [result, setResult] = useState<ValuationResult | null>(null);
   const [businessToday, setBusinessToday] = useState('');
   const [asAt, setAsAt] = useState('');
+  const [ownership, setOwnership] = useState<ValuationOwnership>('owned');
   const [filters, setFilters] = useState<MultiFilter>(EMPTY_MULTI);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -27,6 +28,7 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
       try {
         const params = new URLSearchParams(multiFilterParams(filters));
         if (asAt) params.set('asAt', asAt);
+        if (ownership !== 'owned') params.set('ownership', ownership);
         const response = await fetch(`/api/ims/reports/inventory-valuation?${params}`, { signal: controller.signal });
         const data: ValuationResult | { success?: false; error?: string } = await response.json();
         if (current !== generation.current || controller.signal.aborted) return;
@@ -45,7 +47,7 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
     };
     void load();
     return () => controller.abort();
-  }, [asAt, filters]);
+  }, [asAt, filters, ownership]);
 
   const invalidate = () => {
     ++generation.current;
@@ -57,6 +59,7 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
   const rows = result?.data ?? [];
   const warnings = result?.warnings;
   const grandTotal = rows.reduce((sum, row) => sum + row.total_value, 0);
+  const ownershipTotals = valuationOwnershipTotals(rows);
   const downloadCsv = () => {
     if (!result || loading || error) return;
     const blob = new Blob([inventoryValuationCsv(result)], { type: 'text/csv;charset=utf-8' });
@@ -98,6 +101,16 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
           }}
         />
         <ReportMultiFilter filters={filters} onChange={changeFilters} />
+        <label style={{ fontSize: 13 }}>Ownership{' '}
+          <select aria-label="Ownership" value={ownership} onChange={event => {
+            invalidate();
+            setOwnership(event.target.value as ValuationOwnership);
+          }} style={button}>
+            <option value="owned">Owned</option>
+            <option value="consignment">Consignment</option>
+            <option value="all">All</option>
+          </select>
+        </label>
         {hasMultiFilter(filters) && <button onClick={() => changeFilters(EMPTY_MULTI)} style={button}>Clear filters</button>}
         {loading && <span style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Loading…</span>}
       </div>
@@ -114,8 +127,11 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
       </div>}
       <div style={{ background: 'var(--sv-bg-1)', borderRadius: 8, border: '1px solid var(--sv-etch)', padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Total Inventory Value{result ? ` — ${result.as_at}` : ''}</div>
+          <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>{ownership === 'owned' ? 'Total Inventory Value' : ownership === 'consignment' ? 'Consignment Supplier-Cost Value (not owned inventory)' : 'Combined Operational Value (includes stock not owned)'}{result ? ` — ${result.as_at}` : ''}</div>
           <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--sv-text-strong)' }}>{result ? fmtCurrency(grandTotal) : '—'}</div>
+          {result && ownership === 'all' && <div style={{ fontSize: 13 }}>
+            Owned inventory: {fmtCurrency(ownershipTotals.owned_value)}; consignment (not owned): {fmtCurrency(ownershipTotals.consignment_value)}
+          </div>}
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 12, color: 'var(--sv-text-dim)' }}>Unique SKUs Counted</div>
@@ -138,7 +154,7 @@ export function InventoryValuationView({ onBack, fmtCurrency }: {
           {loading && <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>Loading...</td></tr>}
           {!loading && rows.map((row, index) => <tr key={row.variant_id} style={{ background: index % 2 === 0 ? 'transparent' : 'color-mix(in srgb, var(--sv-etch) 35%, transparent)' }}>
             <td style={{ ...cell, fontFamily: 'monospace' }}>{row.sku}</td>
-            <td style={{ ...cell, fontWeight: 500 }}>{row.name}</td>
+            <td style={{ ...cell, fontWeight: 500 }}>{row.name}{row.is_consignment && <div style={{ fontSize: 11, color: 'var(--sv-text-dim)' }}>Consignment - not owned inventory</div>}</td>
             <td style={cell}>{row.brand || '—'}</td>
             <td style={numericCell}>
               {row.cost_source === 'uncosted' ? '—' : fmtCurrency(row.cost)}

@@ -1,4 +1,5 @@
 import { getIMSPool, imsExecute } from '@/services/IMSMySQLService';
+import { ConsignmentConflict } from './consignment/ownership';
 import { previewPersistedEarlyPaymentDiscountOrder, type PersistedEarlyPaymentDiscountPreview } from './earlyPaymentDiscount';
 import { ImsCNRepo, ImsPORepo, ImsSORepo, ImsSupplierCNRepo } from './ImsRepository';
 import { allocateXeroCreditNote, approveCreditNote, syncCNAsCreditNote, syncSupplierCNAsCreditNote } from '@/services/XeroSyncService';
@@ -99,6 +100,7 @@ export async function applyEarlyPaymentDiscountWithPayment(input: {
       `SELECT * FROM ${table.orderTable} WHERE id = ? AND business_id = ? FOR UPDATE`,
       [input.documentId, input.businessId],
     );
+    if (input.documentType === 'purchase_order' && order?.consignment_supplier_id) throw new ConsignmentConflict('Consignment supply orders do not support payments or financial early-payment credits.');
     if (!order) throw new Error('Order not found.');
     const [items] = await conn.execute<any[]>(`SELECT line_total, tax_rate FROM ${table.itemTable} WHERE ${table.orderId} = ?`, [input.documentId]);
     const [payments] = await conn.execute<any[]>(`SELECT payment_date, amount FROM ${table.paymentTable} WHERE business_id = ? AND ${table.orderId} = ? FOR UPDATE`, [input.businessId, input.documentId]);

@@ -6,8 +6,11 @@ import { ContactCrmProfile } from './contacts/ContactCrmProfile';
 import { WholesaleApplicationQueue } from './wholesale/WholesaleApplicationQueue';
 import OnlineShopView from './onlineShop/OnlineShopView';
 import SalesChannelsView from './channels/SalesChannelsView';
+import { ConsignmentActivityView } from './reports/ConsignmentActivityView';
+import { ConsignmentStatementsView } from './purchasing/ConsignmentStatementsView';
 
-type ImsView =
+export type ImsView =
+  | 'report-consignment-activity' | 'consignment-statements'
   | 'dashboard' | 'products' | 'builds' | 'stock' | 'brands' | 'gift-cards' | 'bulk-edit' | 'bulk-add-edit'
   | 'contacts' | 'crm' | 'contact-profile' | 'wholesale-applications' | 'locations' | 'location-daybooks'
   | 'purchase-orders' | 'sales-orders' | 'stock-availability' | 'backorders' | 'customer-backorders' | 'supplier-backorders' | 'credit-notes' | 'supplier-credit-notes' | 'branch-transfers' | 'smart-device-receive' | 'order-planner'
@@ -191,6 +194,7 @@ export function MainSections(props: MainSectionsProps) {
         <ContactsView
           mode="admin"
           isAdvisor={isAdvisor}
+          canManageConsignment={userTier === 'Admin' || userTier === 'SuperAdmin'}
           onOpenProfile={(id: number) => {
             setPendingOpenContact(id);
             window.history.pushState(window.history.state, '', `#contact-profile/${id}`);
@@ -283,6 +287,8 @@ export function MainSections(props: MainSectionsProps) {
       />
 
       {/* Reports section */}
+      {view === 'report-consignment-activity' && <ConsignmentActivityView onBack={() => setView('reports')} />}
+      {view === 'consignment-statements' && <ConsignmentStatementsView canManage={userTier === 'Admin' || userTier === 'SuperAdmin'} />}
       <ReportsSection
         view={view}
         xeroAccountingEnabled={xeroAccountingEnabled}
@@ -313,6 +319,7 @@ export function MainSections(props: MainSectionsProps) {
       {view === 'xero' && xeroAccountingEnabled && (
         <XeroView
           businessId={businessId}
+          canManage={userTier === 'Admin' || userTier === 'SuperAdmin'}
           isAdvisor={isAdvisor}
           advisorMappingEnabled={advisorMappingEnabled}
           advisorPayoutsEnabled={advisorPayoutsEnabled}

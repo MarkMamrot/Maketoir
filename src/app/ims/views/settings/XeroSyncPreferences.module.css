@@ -1,0 +1,18 @@
+.panel { margin-top: 20px; color: var(--sv-text-main); min-width: 0; }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.heading h2 { margin: 0 0 8px; font-size: 18px; color: var(--sv-text-strong); }
+.heading p, .notice { margin: 0; color: var(--sv-text-dim); font-size: 13px; line-height: 1.6; }
+.notice { margin: 12px 0; }
+.badge { padding: 5px 10px; border: 1px solid var(--sv-etch); border-radius: 20px; font-size: 12px; white-space: nowrap; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; }
+.card { min-width: 0; padding: 20px; border: 1px solid var(--sv-etch); border-radius: 12px; background: var(--sv-bg-2); }
+.card h3 { margin: 0 0 18px; color: var(--sv-text-strong); font-size: 15px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 14px 0; border-bottom: 1px solid var(--sv-etch); }
+.toggle span { min-width: 0; }
+.toggle strong { display: block; font-size: 13px; color: var(--sv-text-strong); }
+.toggle small { display: block; font-size: 12px; line-height: 1.6; margin-top: 5px; color: var(--sv-text-dim); }
+.toggle input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--sv-action); }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px; margin-top: 18px; }
+.fields label { display: grid; gap: 8px; font-size: 12px; }
+.fields input, .fields select { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--sv-etch); border-radius: 6px; padding: 9px; background: var(--sv-bg-1); color: var(--sv-text-main); }
+@media (max-width: 480px) { .card { padding: 14px; } .toggle { gap: 12px; } }

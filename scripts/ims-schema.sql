@@ -7,8 +7,121 @@
 SET NAMES utf8mb4;
 
 -- ── Contacts (Suppliers + Customers + Leads) ────────────────
+CREATE TABLE IF NOT EXISTS ims_consignment_tracking_state (
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin PRIMARY KEY,
+  enabled TINYINT NOT NULL DEFAULT 0,
+  evidence_from DATE NULL,
+  active_interval_id BIGINT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_tracking_intervals (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  cutover_date DATE NOT NULL,
+  enabled_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  disabled_at DATETIME(6) NULL,
+  enabled_by INT NULL,
+  disabled_by INT NULL,
+  disable_reason TEXT NULL,
+  handover_json JSON NULL,
+  INDEX idx_consignment_interval (business_id, disabled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_ownership_history (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  product_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  supplier_id INT NULL,
+  is_consignment TINYINT NOT NULL,
+  effective_at DATETIME(6) NOT NULL,
+  actor_id INT NULL,
+  reason TEXT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX idx_consignment_ownership (business_id, product_id, effective_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  supplier_id INT NOT NULL,
+  source_type VARCHAR(32) NOT NULL,
+  source_id VARCHAR(100) NOT NULL,
+  source_line_id VARCHAR(100) NOT NULL,
+  event_key VARCHAR(191) NOT NULL,
+  original_event_id BIGINT NULL,
+  variant_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  sku VARCHAR(255) NULL,
+  product_name VARCHAR(255) NULL,
+  location_id INT NULL,
+  channel VARCHAR(100) NULL,
+  event_date DATE NOT NULL,
+  quantity DECIMAL(20,6) NOT NULL,
+  unit_cost DECIMAL(20,8) NULL,
+  tax_rate DECIMAL(10,6) NULL,
+  tracking_interval_id BIGINT NULL,
+  statement_id BIGINT NULL,
+  exception VARCHAR(1000) NULL,
+  evidence_reference VARCHAR(255) NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uq_consignment_event (business_id, event_key),
+  INDEX idx_consignment_activity (business_id, event_date, supplier_id),
+  INDEX idx_consignment_claim (business_id, tracking_interval_id, statement_id),
+  INDEX idx_consignment_original (business_id, original_event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_statements (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  supplier_id INT NOT NULL,
+  tracking_interval_id BIGINT NOT NULL,
+  number VARCHAR(100) NULL,
+  period_from DATE NOT NULL,
+  period_to DATE NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'Draft',
+  version INT NOT NULL DEFAULT 1,
+  currency CHAR(3) NOT NULL DEFAULT 'AUD',
+  include_carry_forward TINYINT NOT NULL DEFAULT 0,
+  snapshot_json JSON NOT NULL,
+  subtotal DECIMAL(20,2) NOT NULL DEFAULT 0,
+  tax DECIMAL(20,2) NOT NULL DEFAULT 0,
+  total DECIMAL(20,2) NOT NULL DEFAULT 0,
+  accounting_reference VARCHAR(255) NULL,
+  accounting_date DATE NULL,
+  created_by INT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  INDEX idx_consignment_statement (business_id, status, supplier_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_statement_audit (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  statement_id BIGINT NOT NULL,
+  actor_id INT NULL,
+  action VARCHAR(50) NOT NULL,
+  details_json JSON NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  INDEX idx_consignment_audit (business_id, statement_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_consignment_deliveries (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  statement_id BIGINT NOT NULL,
+  operation_key VARCHAR(191) NOT NULL,
+  recipient VARCHAR(254) NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  provider_reference VARCHAR(255) NULL,
+  actor_id INT NULL,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  UNIQUE KEY uq_consignment_delivery_operation (business_id, operation_key),
+  INDEX idx_consignment_delivery (business_id, statement_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS ims_contacts (
   id          INT AUTO_INCREMENT PRIMARY KEY,
+  is_consignment TINYINT NOT NULL DEFAULT 0,
   business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   type        ENUM('supplier','b2b_customer','retail_customer','lead','both') NOT NULL DEFAULT 'supplier',
   -- Name fields
@@ -1200,6 +1313,7 @@ CREATE TABLE IF NOT EXISTS ims_fifo_cost_allocations (
 -- approved  → draft    (reverses qty_incoming)
 -- any       → cancelled
 CREATE TABLE IF NOT EXISTS ims_purchase_orders (
+  consignment_supplier_id INT NULL,
   id            INT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   po_number     VARCHAR(50) NOT NULL UNIQUE,
@@ -2147,6 +2261,7 @@ CREATE TABLE IF NOT EXISTS ims_credit_note_items (
 
 -- ── Supplier Credit Notes ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_supplier_credit_notes (
+  consignment_supplier_id INT NULL,
   id                  INT AUTO_INCREMENT PRIMARY KEY,
   business_id         VARCHAR(150) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   scn_number          VARCHAR(30)  NOT NULL,
@@ -2214,6 +2329,7 @@ CREATE TABLE IF NOT EXISTS ims_supplier_credit_note_files (
 
 -- ── Stock Movements (audit trail) ────────────────────────────
 CREATE TABLE IF NOT EXISTS ims_stock_movements (
+  consignment_supplier_id INT NULL,
   id             INT AUTO_INCREMENT PRIMARY KEY,
   business_id    VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',
   variant_id     VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -2573,6 +2689,22 @@ CREATE TABLE IF NOT EXISTS pos_register_float_corrections (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX idx_float_session (register_session_id, id),
   INDEX idx_float_business (business_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_register_closing_corrections (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  register_session_id INT NOT NULL,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  reason VARCHAR(1000) NOT NULL,
+  actor_id INT NOT NULL,
+  actor_name VARCHAR(255) NOT NULL,
+  register_name VARCHAR(255) NOT NULL,
+  location_name VARCHAR(255) NOT NULL,
+  session_date DATE NOT NULL,
+  counts_snapshot JSON NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_closing_session (register_session_id, id),
+  INDEX idx_closing_business (business_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── POS Sales ─────────────────────────────────────────────────

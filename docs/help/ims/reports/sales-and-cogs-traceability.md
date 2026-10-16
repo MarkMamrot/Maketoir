@@ -9,6 +9,10 @@ Open **Reports > Sales & COGS Traceability** and work from the big picture down.
 
 If you are checking month-end, jump to **Xero Postings**. It lines up each accounting period with its recorded journals, checks current journal status with Xero and links straight to the journal. Simply opening the report is read-only; it will not post or change stock.
 
+Internal captured consignment COGS remains available for operational cost and margin evidence. **Stock Ownership** distinguishes Owned, Consignment and Mixed costs; missing immutable evidence is not silently treated as Owned. Consignment is excluded from accounting COGS postings, with excluded cost, quantity and movement counts reported separately. Revenue, customer refunds and GST accounting continue normally.
+
+Use the Stock Ownership filter or grouping to review source ownership. Reconciliation separates recorded internal movement COGS, recorded owned movement COGS, intentional consignment exclusions and eligible owned accounting COGS. Other historical, orphaned and non-stock exclusions can still explain differences between owned movement costs and accounting totals. Do not treat internal consignment costs as a failed or missing Xero posting.
+
 - Choose the date preset or custom range at the right, and select the date basis.
 - Use the labelled Order ref, Product / SKU, Channel and Location controls. Brand, Customer Name and Sales Order Status are under **More filters**. Empty controls do not narrow the results; **Clear filters** resets them.
 - In Summary, group by channel, channel instance, location, brand, SKU, customer or receipt layer, using up to four levels.

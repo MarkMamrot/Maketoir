@@ -16,8 +16,23 @@ CREATE TABLE IF NOT EXISTS businesses (
   marketing_sheet_id  VARCHAR(100),
   is_sandbox          TINYINT(1) NOT NULL DEFAULT 0,
   automation_paused   TINYINT(1) NOT NULL DEFAULT 0,
+  plan_start_date     DATE NULL,
   created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS business_billing_months (
+  business_id        VARCHAR(100) NOT NULL,
+  billing_month      CHAR(7) NOT NULL,
+  payment_plan       VARCHAR(120) NOT NULL,
+  amount_cents       BIGINT UNSIGNED NOT NULL,
+  is_paid            TINYINT(1) NOT NULL DEFAULT 0,
+  revision           INT UNSIGNED NOT NULL DEFAULT 1,
+  created_by_user_id INT NOT NULL,
+  updated_by_user_id INT NOT NULL,
+  created_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at         DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, billing_month)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS business_feature_flags (
