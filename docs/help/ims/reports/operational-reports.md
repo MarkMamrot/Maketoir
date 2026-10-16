@@ -1,5 +1,5 @@
 ---
-{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-bookkeeper-audit","ims-inventory-costing"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question.","lastReviewed":"2026-10-14","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"],"navigation":{"category":"reports","label":"Find the right report"}}
+{"id":"ims-operational-reports","title":"IMS Reports","audiences":["ims"],"capability":"navigation","screen":"Reports","product":"ims","format":"overview","parentId":"ims-reports","contexts":["reports"],"contextSections":{"reports":"Report directory"},"relatedTopics":["ims-report-guide","ims-bookkeeper-audit","ims-inventory-costing","ims-consignment"],"order":60,"summary":"Choose the IMS report that matches your sales, stock, margin, register, or banking question; Consignment Activity appears after enabling Consignments.","lastReviewed":"2026-10-17","owner":"reporting","quickSections":["Main operations","Report directory","Reading results"],"navigation":{"category":"reports","label":"Find the right report"}}
 ---
 # IMS Reports
 
@@ -18,9 +18,12 @@ Sales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify
 
 ## Report directory
 
+**Consignment Activity** appears in the Reports overview only after an Admin or SuperAdmin enables **Consignments** in **Settings > Business & Team > Feature Toggle** and saves. It does not require optional Consignment Tracking. Supplier settlement records are separately available under **Purchasing > Consignment Statements** while Consignments is enabled.
+
 | Question | Report |
 |---|---|
 | What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |
+| What consignment goods sold or were refunded, and at what supplier cost? | **Consignment Activity** (requires Consignments enabled) |
 | Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |
 | What sold, by product and branch? | **Sales Detail** |
 | How do branches compare? | **Sales Summary** grouped by **Location**, or branch columns in **Sales Detail** |

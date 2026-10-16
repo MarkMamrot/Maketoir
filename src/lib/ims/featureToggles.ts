@@ -1,5 +1,6 @@
 export const FEATURE_TOGGLES = [
-  { key: 'feature_toggle_consignment_tracking', label: 'Consignment Tracking', group: 'Purchasing', defaultEnabled: false, description: 'Optional managed settlement statements. Requires an acknowledged cutover or disable handover; ownership, accounting exclusions and basic activity reporting remain active.' },
+  { key: 'feature_toggle_consignments', label: 'Consignments', group: 'Purchasing', defaultEnabled: false, description: 'Show Consignment Activity in Reports and Consignment Statements in Purchasing. Settlement tracking is optional and controlled separately; hiding these screens does not change stock ownership or accounting treatment.' },
+  { key: 'feature_toggle_consignment_tracking', label: 'Consignment Tracking', group: 'Purchasing', defaultEnabled: false, description: 'Optional managed settlement statements. Requires an acknowledged cutover or disable handover. With Consignments enabled, activity reporting and read-only statements remain available when tracking is off; ownership and accounting treatment are unchanged.' },
   { key: 'feature_toggle_shipping', label: 'Shipping Workspace', group: 'Workspaces', description: 'Prepare and ship sales orders in the Shipping Workspace.' },
   { key: 'feature_toggle_crm', label: 'CRM', group: 'Workspaces', description: 'Customer profiles, follow-ups, pipeline and CRM analytics. The normal Contacts list remains available.' },
   { key: 'feature_toggle_customs', label: 'Customs & compliance', group: 'Products & Channels', description: 'Customs descriptions, tariff codes, country of origin and restricted-goods controls in the product editor.' },
@@ -22,6 +23,8 @@ export function isFeatureEnabled(settings: Readonly<Record<string, string>>, key
 
 export function featureForView(view: string): FeatureToggleKey | undefined {
   const views: Record<string, FeatureToggleKey> = {
+    'report-consignment-activity': 'feature_toggle_consignments',
+    'consignment-statements': 'feature_toggle_consignments',
     crm: 'feature_toggle_crm',
     'contact-profile': 'feature_toggle_crm',
     'bulk-edit': 'feature_toggle_bulk_edit',

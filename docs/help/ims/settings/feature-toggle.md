@@ -1,5 +1,5 @@
 ---
-{"id":"ims-feature-toggle","title":"Feature Toggle","audiences":["ims"],"capability":"navigation","screen":"IMS Settings - Feature Toggle","product":"ims","format":"task","parentId":"ims-business-operations-pos-settings","relatedTopics":["ims-business-operations-pos-settings","ims-report-guide","ims-sales-channels","ims-consignment"],"contexts":["settings-feature-toggle"],"contextSections":{"settings-feature-toggle":"Main operations"},"order":91,"summary":"Admins and SuperAdmins can choose optional workspace features and review the separate default-off Consignment Tracking cutover or handover.","lastReviewed":"2026-10-16","owner":"setup","quickSections":["Main operations","Features"],"navigation":{"category":"settings","label":"Choose optional business features","sections":[{"heading":"Main operations","label":"Manage Feature Toggle settings"}]}}
+{"id":"ims-feature-toggle","title":"Feature Toggle","audiences":["ims"],"capability":"navigation","screen":"IMS Settings - Feature Toggle","product":"ims","format":"task","parentId":"ims-business-operations-pos-settings","relatedTopics":["ims-business-operations-pos-settings","ims-report-guide","ims-sales-channels","ims-consignment"],"contexts":["settings-feature-toggle"],"contextSections":{"settings-feature-toggle":"Main operations"},"order":91,"summary":"Admins and SuperAdmins can choose optional workspace features, enable default-off Consignments screens, and review the separate Consignment Tracking cutover or handover.","lastReviewed":"2026-10-17","owner":"setup","quickSections":["Main operations","Features"],"navigation":{"category":"settings","label":"Choose optional business features","sections":[{"heading":"Main operations","label":"Manage Feature Toggle settings"}]}}
 ---
 # Feature Toggle
 
@@ -30,7 +30,9 @@ Select the intended business. You must be an Admin or SuperAdmin to save changes
 
 Only **Admins and SuperAdmins** can change these settings. Other IMS users can review the switches but cannot edit them.
 
-Existing workspace switches are **on by default**, preserving existing behaviour. **Consignment Tracking is off by default** and uses a separate reviewed cutover or handover rather than the ordinary save button. Its basic activity report remains available and historical statements remain read-only when off.
+Existing workspace switches are **on by default**, preserving existing behaviour. **Consignments is off by default**: enable it and save to show **Consignment Activity** in the Reports overview and **Consignment Statements** in Purchasing. Supplier shortcuts are shown only when this switch is enabled; saved links to hidden screens return to the Dashboard.
+
+**Consignment Tracking is separately off by default** and uses a reviewed cutover or handover rather than the ordinary save button. With Consignments enabled, basic activity reporting and read-only historical statements remain available when tracking is off. Hiding Consignments does not stop tracking, change stock ownership or accounting treatment, or delete records.
 
 For the existing workspace switches, turning a feature off hides its screens, navigation entries and relevant controls; saved links to a disabled workspace return to the Dashboard. Turning it back on makes it available again, subject to the user's usual permissions and connected-channel availability.
 
@@ -52,6 +54,7 @@ Existing records and saved configuration are retained. Background integrations, 
 | Reports | Possible Losses | The Possible Losses report |
 | Automations | Customer Service | The Customer Service group, including Inbox, Compose Email and Email Templates |
 | Purchasing | Consignment Tracking | Managed statement creation and mutation controls; basic activity reporting and read-only historical statements remain available |
+| Purchasing | Consignments | Consignment Activity in Reports, Consignment Statements in Purchasing, and supplier shortcuts to both screens; independent of settlement tracking |
 
 The three report switches are independent. They do not hide the Reports section or other reports.
 

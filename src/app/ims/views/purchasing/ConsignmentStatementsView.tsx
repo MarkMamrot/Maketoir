@@ -83,7 +83,7 @@ export function ConsignmentStatementsView({ canManage }: { canManage: boolean })
     setDetail(result); setMessage('Statement updated.');
   });
   return <section style={{ minWidth: 0, width: '100%', maxWidth: '100%' }}>
-    <h1>Consignment Settlement Statements</h1>
+    <h1>Consignment Statements</h1>
     <p>Statements are supplier settlement records, not purchase orders or payments. Accounted means recorded externally; it does not mean paid and does not create a Xero bill.</p>
     <p>Record supplier cost once externally: normally a supplier bill to your bookkeeper&apos;s agreed cost-of-sales account, then pay the bill. If using a direct bank expense instead, do not also enter a bill. The bill normally records expense; payment clears the payable. A statement is not a tax invoice. Follow your bookkeeper&apos;s GST, invoice-evidence and timing requirements.</p>
     {!tracking && <p role="status">Tracking is off. Historical statements are read-only. Use Consignment Activity for period reporting.</p>}

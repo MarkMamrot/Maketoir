@@ -37,7 +37,7 @@ import {
 import { INVENTORY_COST_METHOD_SETTING_KEY } from '@/lib/ims/costing/inventoryCostSwitch';
 import { ADVISOR_XERO_SYNC_SETTING } from '@/lib/xero/advisorSyncAccess';
 import { DELIVERY_TRACKING_CHANNELS_KEY } from '@/lib/ims/shipping/deliveryTrackingSettingsRepository';
-import { FEATURE_TOGGLE_KEYS } from '@/lib/ims/featureToggles';
+import { FEATURE_TOGGLES, FEATURE_TOGGLE_KEYS, isFeatureEnabled } from '@/lib/ims/featureToggles';
 import { CONSIGNMENT_TRACKING_KEY } from '@/lib/ims/consignment/domain';
 
 const DEPRECATED_SHOPIFY_SETTING_KEYS = new Set([
@@ -96,10 +96,9 @@ export async function GET() {
     settings[ADVISOR_XERO_SYNC_SETTING] ??= 'false';
     applyProductSettingDefaults(settings);
     applyTaxSettingDefaults(settings);
-    for (const key of FEATURE_TOGGLE_KEYS) {
-      if (key !== CONSIGNMENT_TRACKING_KEY) settings[key] ??= 'yes';
+    for (const { key } of FEATURE_TOGGLES) {
+      settings[key] ??= isFeatureEnabled({}, key) ? 'yes' : 'no';
     }
-    settings[CONSIGNMENT_TRACKING_KEY] ??= 'no';
     applyWholesalePortalSettingDefaults(settings);
     // Include the domain only when the Shopify operation is available.
     const conn = onlineChannels.shopifyEnabled ? await ConnectionsRepository.get(businessId) : null;

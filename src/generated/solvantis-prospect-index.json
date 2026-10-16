@@ -260,7 +260,7 @@
     {
       "id": "public-capability:ims-consignment",
       "title": "Consignment stock and supplier statements",
-      "summary": "Identify supplier-owned consignment stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.",
+      "summary": "Enable consignment screens, identify supplier-owned stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.",
       "capabilities": [
         "ims",
         "orders"
@@ -349,7 +349,7 @@
     {
       "id": "public-capability:ims-operational-reports",
       "title": "IMS Reports",
-      "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question.",
+      "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question; Consignment Activity appears after enabling Consignments.",
       "capabilities": [
         "ims",
         "navigation"
@@ -459,7 +459,7 @@
     {
       "id": "public-capability:ims-feature-toggle",
       "title": "Feature Toggle",
-      "summary": "Admins and SuperAdmins can choose optional workspace features and review the separate default-off Consignment Tracking cutover or handover.",
+      "summary": "Admins and SuperAdmins can choose optional workspace features, enable default-off Consignments screens, and review the separate Consignment Tracking cutover or handover.",
       "capabilities": [
         "ims",
         "navigation"

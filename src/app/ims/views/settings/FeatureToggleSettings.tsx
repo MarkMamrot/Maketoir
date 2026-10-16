@@ -41,7 +41,7 @@ export function FeatureToggleSettings({ settings, loaded, loadError, canManage, 
       <div><h2>Shape your workspace</h2><p>Keep the tools your team uses, and hide the rest. These choices apply to everyone in this business.</p></div>
       <span className={styles.count}>{loaded ? `${enabledCount} of ${FEATURE_TOGGLES.length} enabled` : 'Loading...'}</span>
     </div>
-    <p className={styles.notice}>Existing workspace switches are on by default. Consignment Tracking is off by default and uses a separate reviewed operational transition, not Save feature toggles. Its basic activity report remains available when off.</p>
+    <p className={styles.notice}>Existing workspace switches are on by default. Consignments is off by default; enable it and save to show Consignment Activity in Reports and Consignment Statements in Purchasing. Consignment Tracking is separate, off by default and uses a reviewed operational transition, not Save feature toggles. Reporting does not require tracking.</p>
     {!canManage && <p className={styles.notice}>Only Admins and SuperAdmins can change Feature Toggle settings.</p>}
     {loadError && <p role="alert">{loadError}</p>}
     <div className={styles.groups}>

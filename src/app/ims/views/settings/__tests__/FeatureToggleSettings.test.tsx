@@ -14,12 +14,22 @@ function setup(overrides: Partial<React.ComponentProps<typeof FeatureToggleSetti
 }
 
 describe('Feature Toggle settings', () => {
-  it('preserves nine default-on switches and presents default-off reviewed tracking', () => {
+  it('preserves nine default-on switches and presents independent default-off consignment switches', () => {
     setup();
-    expect(screen.getAllByRole('switch')).toHaveLength(10);
-    for (const element of screen.getAllByRole('switch')) expect(element.getAttribute('aria-checked')).toBe(element.getAttribute('aria-label') === 'Consignment Tracking' ? 'false' : 'true');
+    expect(screen.getAllByRole('switch')).toHaveLength(11);
+    expect(screen.getByRole('switch', { name: 'Consignments' }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('switch', { name: 'Consignment Tracking' }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('switch', { name: 'CRM' }).getAttribute('aria-checked')).toBe('true');
     for (const name of ['Workspaces', 'Products & Channels', 'Reports', 'Automations']) expect(screen.getByRole('region', { name })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save feature toggles' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('saves Consignments visibility without enabling operational tracking', async () => {
+    const props = setup();
+    await userEvent.click(screen.getByRole('switch', { name: 'Consignments' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save feature toggles' }));
+    expect(props.saveSettings).toHaveBeenCalledWith({ feature_toggle_consignments: 'yes' });
+    expect(screen.getByRole('switch', { name: 'Consignment Tracking' }).getAttribute('aria-checked')).toBe('false');
   });
 
   it('saves only changed feature fields and confirms success', async () => {

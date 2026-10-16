@@ -6,7 +6,7 @@ import { searchHelpTopics } from '../searchHelpTopics';
 describe('resolveHelpContext', () => {
   it.each([
     ['report-consignment-activity', 'Consignment Activity'],
-    ['consignment-statements', 'Managed settlement statements'],
+    ['consignment-statements', 'Consignment Statements'],
   ])('opens independent consignment guidance for %s without accounting', (context, heading) => {
     const result = resolveHelpContext({ audience: 'ims', product: 'ims', context, availableCapabilities: { xero: false } });
     expect(result).toMatchObject({ exact: true, topic: { id: 'ims-consignment' } });

@@ -2,21 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { FEATURE_TOGGLE_KEYS, FEATURE_TOGGLES, featureForView, isFeatureEnabled, isFeatureViewEnabled } from '../featureToggles';
 
 describe('tenant feature toggles', () => {
-  it('preserves nine default-on switches and adds default-off consignment tracking', () => {
-    expect(FEATURE_TOGGLES).toHaveLength(10);
-    expect(new Set(FEATURE_TOGGLE_KEYS).size).toBe(10);
+  it('preserves nine default-on switches and defaults consignment visibility and tracking off', () => {
+    expect(FEATURE_TOGGLES).toHaveLength(11);
+    expect(new Set(FEATURE_TOGGLE_KEYS).size).toBe(11);
     for (const key of FEATURE_TOGGLE_KEYS) {
-      expect(isFeatureEnabled({}, key)).toBe(key !== 'feature_toggle_consignment_tracking');
+      expect(isFeatureEnabled({}, key)).toBe(!['feature_toggle_consignments', 'feature_toggle_consignment_tracking'].includes(key));
       expect(isFeatureEnabled({ [key]: 'yes' }, key)).toBe(true);
       expect(isFeatureEnabled({ [key]: 'no' }, key)).toBe(false);
     }
   });
 
-  it('requires explicit yes for tracking and leaves reporting/history accessible when off', () => {
+  it('requires explicit yes for tracking and keeps it independent of screen visibility', () => {
     expect(isFeatureEnabled({ feature_toggle_consignment_tracking: '' }, 'feature_toggle_consignment_tracking')).toBe(false);
     expect(isFeatureEnabled({ feature_toggle_consignment_tracking: 'true' }, 'feature_toggle_consignment_tracking')).toBe(false);
-    expect(isFeatureViewEnabled({}, 'report-consignment-activity')).toBe(true);
-    expect(isFeatureViewEnabled({}, 'consignment-statements')).toBe(true);
+    expect(isFeatureEnabled({ feature_toggle_consignments: 'yes' }, 'feature_toggle_consignment_tracking')).toBe(false);
+  });
+
+  it.each(['report-consignment-activity', 'consignment-statements'])('requires explicit business opt-in for %s, independently of tracking', view => {
+    expect(featureForView(view)).toBe('feature_toggle_consignments');
+    for (const value of [undefined, '', 'true', 'no']) {
+      const settings: Record<string, string> = value === undefined ? {} : { feature_toggle_consignments: value };
+      expect(isFeatureViewEnabled(settings, view)).toBe(false);
+    }
+    expect(isFeatureViewEnabled({ feature_toggle_consignment_tracking: 'yes' }, view)).toBe(false);
+    expect(isFeatureViewEnabled({ feature_toggle_consignments: 'yes', feature_toggle_consignment_tracking: 'no' }, view)).toBe(true);
+    expect(isFeatureViewEnabled({ feature_toggle_consignments: 'no', feature_toggle_consignment_tracking: 'yes' }, view)).toBe(false);
   });
 
   it.each([

@@ -13,7 +13,7 @@ import { OnboardingWizard, type OnboardingStep } from './components/OnboardingWi
 import { FeatureToggleProvider, useFeatureEnabled, useFeatureToggles } from './components/FeatureToggleProvider';
 import { FeatureToggleSettings } from './views/settings/FeatureToggleSettings';
 import { XeroSyncPreferences, XERO_PREFERENCES_UPDATED_EVENT } from './views/settings/XeroSyncPreferences';
-import { featureForView, isFeatureEnabled, isFeatureViewEnabled } from '@/lib/ims/featureToggles';
+import { featureForView, isFeatureViewEnabled } from '@/lib/ims/featureToggles';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
@@ -908,7 +908,7 @@ function Sidebar({ active, onSelect, userTier, features }: { active: ImsView; on
                       borderLeft: '3px solid transparent',
                       borderRadius: 0,
                     }}
-                  >{child.id === 'consignment-statements' && !isFeatureEnabled(featureToggles.settings, 'feature_toggle_consignment_tracking') ? 'Consignment Statement History' : child.label}</button>
+                  >{child.label}</button>
                 ))}
                 {item.id === '__sales' && showWholesalePreview && (
                   <a href="/wholesale/preview" target="_blank" rel="noopener noreferrer" data-testid="ims-nav-wholesale-portal"
@@ -2071,7 +2071,7 @@ const CONTACT_TYPE_LABEL: Record<string, string> = {
 };
 
 function ContactsView({ mode = 'admin', isAdvisor = false, canManageConsignment = false, onOpenProfile }: { mode?: 'admin' | 'crm'; isAdvisor?: boolean; canManageConsignment?: boolean; onOpenProfile: (id: number) => void }) {
-  const consignmentTracking = useFeatureEnabled('feature_toggle_consignment_tracking');
+  const consignmentsEnabled = useFeatureEnabled('feature_toggle_consignments');
   const isCrmMode = mode === 'crm';
   const { settings: contactSettings } = useImsSettings();
   const DEFAULT_STATUS_FILTER = '1';
@@ -2864,7 +2864,7 @@ function ContactsView({ mode = 'admin', isAdvisor = false, canManageConsignment 
                   onChange={e => setForm(p => ({ ...p, is_consignment: e.target.checked ? 1 : 0 } as typeof p))} /> Consignment supplier</label>
                 <p style={{ fontSize: 12 }}>Admin-only ownership setting. Applies supplier-wide to associated products from now onward; it does not rewrite historical ownership or settle earlier activity.</p>
                 {Number(f.is_consignment) === 1 && <ConsignmentNotice />}
-                {Number(f.is_consignment) === 1 && <p><a href="#report-consignment-activity" onClick={closeModal}>Consignment Activity</a>{consignmentTracking && <> · <a href="#consignment-statements" onClick={closeModal}>Consignment Statements</a></>}</p>}
+                {consignmentsEnabled && Number(f.is_consignment) === 1 && <p><a href="#report-consignment-activity" onClick={closeModal}>Consignment Activity</a> · <a href="#consignment-statements" onClick={closeModal}>Consignment Statements</a></p>}
                 <Field label="Supplier early-payment default">
                   <select value={f.supplier_early_payment_discount_rule_id ?? ''} onChange={sf('supplier_early_payment_discount_rule_id')} style={inputStyle}>
                     <option value="">No default</option>
@@ -18911,6 +18911,7 @@ const REPORT_CATALOG = [
 ];
 
 function ReportsView({ onNav, xeroAccountingEnabled }: { onNav: (v: ImsView) => void; xeroAccountingEnabled: boolean }) {
+  const { settings, loaded } = useFeatureToggles();
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -18918,7 +18919,10 @@ function ReportsView({ onNav, xeroAccountingEnabled }: { onNav: (v: ImsView) => 
         <p style={{ fontSize: 14, color: 'var(--sv-text-dim)', marginTop: 4 }}>Analytics and insights from your Solvantis IMS data.</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-        {REPORT_CATALOG.filter(report => xeroAccountingEnabled || report.id !== 'report-cash-banking').map(r => (
+        {REPORT_CATALOG.filter(report =>
+          (xeroAccountingEnabled || report.id !== 'report-cash-banking')
+          && (!featureForView(report.id) || (loaded && isFeatureViewEnabled(settings, report.id))),
+        ).map(r => (
           <button
             key={r.id}
             onClick={() => onNav(r.id)}

@@ -1,15 +1,18 @@
 ---
-{"id":"ims-consignment","title":"Consignment stock and supplier statements","audiences":["ims"],"capability":"orders","screen":"IMS Consignment","product":"ims","format":"task","parentId":"ims-supplier-work","relatedTopics":["ims-feature-toggle"],"contexts":["report-consignment-activity","consignment-statements"],"contextSections":{"report-consignment-activity":"Consignment Activity","consignment-statements":"Managed settlement statements"},"order":47,"summary":"Identify supplier-owned consignment stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.","lastReviewed":"2026-10-16","owner":"purchasing","quickSections":["Main operations","Consignment Activity","Managed settlement statements"],"navigation":{"category":"purchasing","label":"Consignment stock and settlement","sections":[{"heading":"Main operations","label":"Set up consignment suppliers"},{"heading":"Consignment Activity","label":"Report consignment activity"},{"heading":"Managed settlement statements","label":"Manage supplier statements"}]}}
+{"id":"ims-consignment","title":"Consignment stock and supplier statements","audiences":["ims"],"capability":"orders","screen":"IMS Consignment","product":"ims","format":"task","parentId":"ims-supplier-work","relatedTopics":["ims-feature-toggle"],"contexts":["report-consignment-activity","consignment-statements"],"contextSections":{"report-consignment-activity":"Consignment Activity","consignment-statements":"Consignment Statements"},"order":47,"summary":"Enable consignment screens, identify supplier-owned stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.","lastReviewed":"2026-10-17","owner":"purchasing","quickSections":["Main operations","Consignment Activity","Consignment Statements"],"navigation":{"category":"purchasing","label":"Consignment stock and settlement","sections":[{"heading":"Main operations","label":"Set up consignment suppliers"},{"heading":"Consignment Activity","label":"Report consignment activity"},{"heading":"Consignment Statements","label":"Manage supplier statements"}]}}
 ---
 # Consignment stock and supplier statements
 
 ## Main operations
 
-1. An Admin or SuperAdmin opens the supplier in **Contacts** and selects **Consignment supplier**.
-2. Assign the supplier as the product's default supplier. The ownership setting applies supplier-wide from that point onward; changing it does not rewrite earlier ownership.
-3. Receive and return goods through the usual purchase-order and supplier-return workflows. Consignment documents display a **stock-only** notice.
-4. Open **Reports > Consignment Activity** for period reporting, regardless of whether optional tracking is enabled.
-5. To manage settlement statements, first review **Settings > Business & Team > Feature Toggle > Consignment Tracking**.
+1. An Admin or SuperAdmin enables **Consignments** in **Settings > Business & Team > Feature Toggle** and selects **Save feature toggles**. This default-off switch shows both consignment screens for the business.
+2. Open the supplier in **Contacts** and select **Consignment supplier**.
+3. Assign the supplier as the product's default supplier. The ownership setting applies supplier-wide from that point onward; changing it does not rewrite earlier ownership.
+4. Receive and return goods through the usual purchase-order and supplier-return workflows. Consignment documents display a **stock-only** notice.
+5. Open **Reports > Consignment Activity** from the Reports overview for period reporting, regardless of whether optional tracking is enabled.
+6. Open **Purchasing > Consignment Statements** to review statements. To manage them, first review **Settings > Business & Team > Feature Toggle > Consignment Tracking**.
+
+Turning **Consignments** off hides both screens, their navigation and supplier shortcuts. Saved links return to the Dashboard. It does not stop settlement tracking, change stock ownership or accounting treatment, or remove existing records. Enable the switch again to restore access.
 
 Consignment goods belong to the supplier until sold. Internal stock costs remain available for operational costing, but consignment is excluded from owned inventory valuation. Receiving consignment goods does not create an amount payable, supplier payment or accounting bill. Consignment supplier returns move goods without creating an accounting credit.
 
@@ -30,7 +33,7 @@ Keep supplier settlement, external accounting and payment reconciliation separat
 
 ## Before you begin
 
-Select the intended business and confirm the supplier, product assignments and captured costs. Only Admins and SuperAdmins can change supplier ownership, transition tracking or mutate managed statements. Reporting and historical statement review remain available to authorised IMS users.
+Select the intended business, enable **Consignments**, and confirm the supplier, product assignments and captured costs. Only Admins and SuperAdmins can change supplier ownership, transition tracking or mutate managed statements. Reporting and historical statement review are available to authorised IMS users while Consignments is enabled.
 
 Before enabling tracking, reconcile earlier activity externally and choose an eligible business-local cutover date. Do not assume earlier sales are unpaid.
 
@@ -59,7 +62,7 @@ Review sold quantities, refunds, net quantities and supplier cost totals, includ
 
 Use **Source activity** to inspect source references, locations, channels and original-event links. Signed evidence-backed corrections appear as Adjusted quantities rather than being presented as new sales or refunds.
 
-This is an **activity report**, not a settlement or outstanding balance. It does not claim that reported activity is unpaid or Accounted. Activity reporting remains available when Consignment Tracking is off.
+This is an **activity report**, not a settlement or outstanding balance. It does not claim that reported activity is unpaid or Accounted. With Consignments enabled, activity reporting remains available when Consignment Tracking is off.
 
 Source activity requires an actual captured supplier cost and unambiguous received supplier tax evidence. Missing costs or mixed historical receipt-tax evidence require review rather than a fallback to today's cost or tax setting. Quantity refunds retain original source costs, including refunds without restocking; restocking can be blocked if the original ownership changed or the source quantity is ambiguous.
 
@@ -81,9 +84,9 @@ Only Admins and SuperAdmins can change tracking. Review the transition from Feat
 
 To enable tracking, choose an eligible cutover date and explicitly acknowledge that earlier activity has been reconciled externally. Earlier activity is not automatically treated as unpaid.
 
-To disable tracking, review the handover totals, resolve any blockers, enter a reason and acknowledge responsibility for external reconciliation. Historical statements remain visible under **Consignment Statement History** and exportable but read-only while tracking is off. Managed creation and mutation controls are hidden.
+To disable tracking, review the handover totals, resolve any blockers, enter a reason and acknowledge responsibility for external reconciliation. With Consignments enabled, historical statements remain visible under **Consignment Statements** and exportable but read-only while tracking is off. Managed creation and mutation controls are hidden.
 
-## Managed settlement statements
+## Consignment Statements
 
 Open **Purchasing > Consignment Statements**. When tracking is enabled, an Admin or SuperAdmin can choose a supplier and calendar or custom period to create a **Draft**. The carryforward option includes eligible earlier activity not already assigned to a statement; review it before finalising.
 

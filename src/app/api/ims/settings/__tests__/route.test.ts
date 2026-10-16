@@ -60,7 +60,7 @@ describe('/api/ims/settings loyalty settings', () => {
 
     expect(body.success).toBe(true);
     for (const key of FEATURE_TOGGLE_KEYS) {
-      expect(body.data[key]).toBe(key === CONSIGNMENT_TRACKING_KEY ? 'no' : 'yes');
+      expect(body.data[key]).toBe([CONSIGNMENT_TRACKING_KEY, 'feature_toggle_consignments'].includes(key) ? 'no' : 'yes');
     }
     expect(body.data[CONSIGNMENT_TRACKING_KEY]).toBe('no');
     expect(body.data.advisor_xero_sync_enabled).toBe('false');
@@ -90,6 +90,13 @@ describe('/api/ims/settings loyalty settings', () => {
     mockGetImsSession.mockResolvedValue({ businessId: 'business-1', tier });
     expect((await PUT(putRequest({ feature_toggle_crm: 'no', business_name: 'Unchanged' }))).status).toBe(403);
     expect(mockImsExecute).not.toHaveBeenCalled();
+  });
+
+  it('returns saved consignment visibility without implicitly enabling tracking', async () => {
+    mockImsQuery.mockResolvedValueOnce([{ key: 'feature_toggle_consignments', value: 'yes' }]);
+    const body = await (await GET()).json();
+    expect(body.data.feature_toggle_consignments).toBe('yes');
+    expect(body.data[CONSIGNMENT_TRACKING_KEY]).toBe('no');
   });
 
   it.each(['Admin', 'SuperAdmin'])('allows %s to save presentation feature switches, excluding operational tracking', async tier => {

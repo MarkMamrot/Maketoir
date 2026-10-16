@@ -1031,16 +1031,16 @@
       ],
       "contextSections": {
         "report-consignment-activity": "Consignment Activity",
-        "consignment-statements": "Managed settlement statements"
+        "consignment-statements": "Consignment Statements"
       },
       "order": 47,
-      "summary": "Identify supplier-owned consignment stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.",
-      "lastReviewed": "2026-10-16",
+      "summary": "Enable consignment screens, identify supplier-owned stock, report period activity and optionally manage supplier settlement statements without creating purchasing invoices or recording payments.",
+      "lastReviewed": "2026-10-17",
       "owner": "purchasing",
       "quickSections": [
         "Main operations",
         "Consignment Activity",
-        "Managed settlement statements"
+        "Consignment Statements"
       ],
       "navigation": {
         "category": "purchasing",
@@ -1055,7 +1055,7 @@
             "label": "Report consignment activity"
           },
           {
-            "heading": "Managed settlement statements",
+            "heading": "Consignment Statements",
             "label": "Manage supplier statements"
           }
         ]
@@ -1436,11 +1436,12 @@
       "relatedTopics": [
         "ims-report-guide",
         "ims-bookkeeper-audit",
-        "ims-inventory-costing"
+        "ims-inventory-costing",
+        "ims-consignment"
       ],
       "order": 60,
-      "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question.",
-      "lastReviewed": "2026-10-14",
+      "summary": "Choose the IMS report that matches your sales, stock, margin, register, or banking question; Consignment Activity appears after enabling Consignments.",
+      "lastReviewed": "2026-10-17",
       "owner": "reporting",
       "quickSections": [
         "Main operations",
@@ -1850,8 +1851,8 @@
         "settings-feature-toggle": "Main operations"
       },
       "order": 91,
-      "summary": "Admins and SuperAdmins can choose optional workspace features and review the separate default-off Consignment Tracking cutover or handover.",
-      "lastReviewed": "2026-10-16",
+      "summary": "Admins and SuperAdmins can choose optional workspace features, enable default-off Consignments screens, and review the separate Consignment Tracking cutover or handover.",
+      "lastReviewed": "2026-10-17",
       "owner": "setup",
       "quickSections": [
         "Main operations",
@@ -9855,8 +9856,8 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "1. An Admin or SuperAdmin opens the supplier in **Contacts** and selects **Consignment supplier**.\n2. Assign the supplier as the product's default supplier. The ownership setting applies supplier-wide from that point onward; changing it does not rewrite earlier ownership.\n3. Receive and return goods through the usual purchase-order and supplier-return workflows. Consignment documents display a **stock-only** notice.\n4. Open **Reports > Consignment Activity** for period reporting, regardless of whether optional tracking is enabled.\n5. To manage settlement statements, first review **Settings > Business & Team > Feature Toggle > Consignment Tracking**.\n\nConsignment goods belong to the supplier until sold. Internal stock costs remain available for operational costing, but consignment is excluded from owned inventory valuation. Receiving consignment goods does not create an amount payable, supplier payment or accounting bill. Consignment supplier returns move goods without creating an accounting credit.\n\nConsignment purchase orders use **AUD with exchange rate 1**, matched stock lines for one supplier, and no freight, landed costs or header discount. Per-line supplier-cost discounts remain available. Supplier returns use linked received PO lines, move stock only and have zero supplier-money totals while retaining source costs. Supplier payments and early-payment discount credits do not apply.\n\nKeep supplier settlement, external accounting and payment reconciliation separate from receiving and returns. A statement is not a purchase order, supplier invoice or payment.",
+      "lastReviewed": "2026-10-17",
+      "content": "1. An Admin or SuperAdmin enables **Consignments** in **Settings > Business & Team > Feature Toggle** and selects **Save feature toggles**. This default-off switch shows both consignment screens for the business.\n2. Open the supplier in **Contacts** and select **Consignment supplier**.\n3. Assign the supplier as the product's default supplier. The ownership setting applies supplier-wide from that point onward; changing it does not rewrite earlier ownership.\n4. Receive and return goods through the usual purchase-order and supplier-return workflows. Consignment documents display a **stock-only** notice.\n5. Open **Reports > Consignment Activity** from the Reports overview for period reporting, regardless of whether optional tracking is enabled.\n6. Open **Purchasing > Consignment Statements** to review statements. To manage them, first review **Settings > Business & Team > Feature Toggle > Consignment Tracking**.\n\nTurning **Consignments** off hides both screens, their navigation and supplier shortcuts. Saved links return to the Dashboard. It does not stop settlement tracking, change stock ownership or accounting treatment, or remove existing records. Enable the switch again to restore access.\n\nConsignment goods belong to the supplier until sold. Internal stock costs remain available for operational costing, but consignment is excluded from owned inventory valuation. Receiving consignment goods does not create an amount payable, supplier payment or accounting bill. Consignment supplier returns move goods without creating an accounting credit.\n\nConsignment purchase orders use **AUD with exchange rate 1**, matched stock lines for one supplier, and no freight, landed costs or header discount. Per-line supplier-cost discounts remain available. Supplier returns use linked received PO lines, move stock only and have zero supplier-money totals while retaining source costs. Supplier payments and early-payment discount credits do not apply.\n\nKeep supplier settlement, external accounting and payment reconciliation separate from receiving and returns. A statement is not a purchase order, supplier invoice or payment.",
       "sectionId": "ims-consignment:1"
     },
     {
@@ -9875,7 +9876,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Need | Open or choose | Result |\n|---|---|---|\n| Identify supplier-owned goods | Contacts > Consignment supplier | Associated products inherit consignment ownership |\n| Review a month without tracking | Reports > Consignment Activity | Read-only activity, with CSV and PDF exports |\n| Manage settlement records | Purchasing > Consignment Statements | Reviewed Draft, Finalised and Accounted stages |\n| Stop managed settlement work | Feature Toggle > Consignment Tracking | Reviewed external handover; history remains read-only |\n\n> **Important:** Accounted means recorded externally, not paid. Neither a stock receipt nor a settlement statement creates a supplier bill or payment.",
       "sectionId": "ims-consignment:2"
     },
@@ -9895,8 +9896,8 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "Select the intended business and confirm the supplier, product assignments and captured costs. Only Admins and SuperAdmins can change supplier ownership, transition tracking or mutate managed statements. Reporting and historical statement review remain available to authorised IMS users.\n\nBefore enabling tracking, reconcile earlier activity externally and choose an eligible business-local cutover date. Do not assume earlier sales are unpaid.",
+      "lastReviewed": "2026-10-17",
+      "content": "Select the intended business, enable **Consignments**, and confirm the supplier, product assignments and captured costs. Only Admins and SuperAdmins can change supplier ownership, transition tracking or mutate managed statements. Reporting and historical statement review are available to authorised IMS users while Consignments is enabled.\n\nBefore enabling tracking, reconcile earlier activity externally and choose an eligible business-local cutover date. Do not assume earlier sales are unpaid.",
       "sectionId": "ims-consignment:3"
     },
     {
@@ -9915,7 +9916,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Set the supplier's consignment ownership and assign the supplier to its products.\n2. Receive goods using a stock-only purchase order; review its supplier costs and quantities.\n3. Select a period in Consignment Activity and investigate cost, tax or ownership exceptions.\n4. Export activity for external reconciliation, or review the tracking cutover if managed statements are required.\n5. With tracking enabled, create a Draft for one supplier and explicitly choose whether to include earlier eligible unallocated activity.\n6. Review the Draft, refresh stale evidence and Finalise only after resolving exceptions.\n7. Export or explicitly email the statement. Record supplier costs externally once, then mark Accounted with the external reference and date.\n8. Reconcile actual supplier payments separately.",
       "sectionId": "ims-consignment:4"
     },
@@ -9935,7 +9936,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Use **Ownership: Owned / Consignment / All** in Stock Levels and Inventory Valuation. Owned is the default. Owned totals represent your inventory; consignment quantity and indicative supplier-cost value are shown separately as **not owned inventory**. Selecting All does not combine supplier-owned value into owned stock value. Historical evidence that cannot establish ownership is labelled unknown rather than assigned today's supplier setting.\n\nInternal captured costs and margin evidence remain available in Sales & COGS Traceability. **Stock Ownership** can distinguish Owned, Consignment or Mixed source costs; missing immutable evidence is not silently called Owned. Accounting posting excludes consignment COGS and reports excluded cost, quantity and movement counts separately. Normal sales, customer refunds, revenue and GST accounting continue unchanged.",
       "sectionId": "ims-consignment:5"
     },
@@ -9955,8 +9956,8 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "The report starts with the previous calendar month. Use the shared date picker for calendar presets, rolling windows or a custom range, then optionally filter by supplier, location or channel.\n\nReview sold quantities, refunds, net quantities and supplier cost totals, including the tax breakdown. Investigate listed exceptions before relying on the results. Export the current selection as **CSV** or **PDF**.\n\nUse **Source activity** to inspect source references, locations, channels and original-event links. Signed evidence-backed corrections appear as Adjusted quantities rather than being presented as new sales or refunds.\n\nThis is an **activity report**, not a settlement or outstanding balance. It does not claim that reported activity is unpaid or Accounted. Activity reporting remains available when Consignment Tracking is off.\n\nSource activity requires an actual captured supplier cost and unambiguous received supplier tax evidence. Missing costs or mixed historical receipt-tax evidence require review rather than a fallback to today's cost or tax setting. Quantity refunds retain original source costs, including refunds without restocking; restocking can be blocked if the original ownership changed or the source quantity is ambiguous.\n\nCompleted consignment POS sales cannot be manager-edited or voided. Use a linked quantity return and a new sale when a correction is needed.\n\nConsignment POS refunds cannot be automatically voided. Review the linked return and financial records through a controlled correction rather than expecting a void to reverse them automatically.\n\nProducts and variants with consignment ownership history cannot be deleted; deactivate them instead to retain historical evidence. Supplier ownership changes remain subject to safety checks.\n\nConsignment fulfilment cannot take supplier stock below zero. Imported or backdated sales before reliable ownership setup require a reviewed correction rather than an automatic historical backfill. A transfer reversal is blocked if stock ownership has changed since the transfer.\n\nCin7 stock replacement is blocked while consignment is configured, to protect source ownership and costs. Cin7 catalogue updates cannot change consignment-controlled products.",
+      "lastReviewed": "2026-10-17",
+      "content": "The report starts with the previous calendar month. Use the shared date picker for calendar presets, rolling windows or a custom range, then optionally filter by supplier, location or channel.\n\nReview sold quantities, refunds, net quantities and supplier cost totals, including the tax breakdown. Investigate listed exceptions before relying on the results. Export the current selection as **CSV** or **PDF**.\n\nUse **Source activity** to inspect source references, locations, channels and original-event links. Signed evidence-backed corrections appear as Adjusted quantities rather than being presented as new sales or refunds.\n\nThis is an **activity report**, not a settlement or outstanding balance. It does not claim that reported activity is unpaid or Accounted. With Consignments enabled, activity reporting remains available when Consignment Tracking is off.\n\nSource activity requires an actual captured supplier cost and unambiguous received supplier tax evidence. Missing costs or mixed historical receipt-tax evidence require review rather than a fallback to today's cost or tax setting. Quantity refunds retain original source costs, including refunds without restocking; restocking can be blocked if the original ownership changed or the source quantity is ambiguous.\n\nCompleted consignment POS sales cannot be manager-edited or voided. Use a linked quantity return and a new sale when a correction is needed.\n\nConsignment POS refunds cannot be automatically voided. Review the linked return and financial records through a controlled correction rather than expecting a void to reverse them automatically.\n\nProducts and variants with consignment ownership history cannot be deleted; deactivate them instead to retain historical evidence. Supplier ownership changes remain subject to safety checks.\n\nConsignment fulfilment cannot take supplier stock below zero. Imported or backdated sales before reliable ownership setup require a reviewed correction rather than an automatic historical backfill. A transfer reversal is blocked if stock ownership has changed since the transfer.\n\nCin7 stock replacement is blocked while consignment is configured, to protect source ownership and costs. Cin7 catalogue updates cannot change consignment-controlled products.",
       "sectionId": "ims-consignment:6"
     },
     {
@@ -9975,15 +9976,15 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "Consignment Tracking is **off by default**. The supplier ownership setting and basic activity report do not depend on it.\n\nOnly Admins and SuperAdmins can change tracking. Review the transition from Feature Toggle; the ordinary **Save feature toggles** button does not perform this operational change.\n\nTo enable tracking, choose an eligible cutover date and explicitly acknowledge that earlier activity has been reconciled externally. Earlier activity is not automatically treated as unpaid.\n\nTo disable tracking, review the handover totals, resolve any blockers, enter a reason and acknowledge responsibility for external reconciliation. Historical statements remain visible under **Consignment Statement History** and exportable but read-only while tracking is off. Managed creation and mutation controls are hidden.",
+      "lastReviewed": "2026-10-17",
+      "content": "Consignment Tracking is **off by default**. The supplier ownership setting and basic activity report do not depend on it.\n\nOnly Admins and SuperAdmins can change tracking. Review the transition from Feature Toggle; the ordinary **Save feature toggles** button does not perform this operational change.\n\nTo enable tracking, choose an eligible cutover date and explicitly acknowledge that earlier activity has been reconciled externally. Earlier activity is not automatically treated as unpaid.\n\nTo disable tracking, review the handover totals, resolve any blockers, enter a reason and acknowledge responsibility for external reconciliation. With Consignments enabled, historical statements remain visible under **Consignment Statements** and exportable but read-only while tracking is off. Managed creation and mutation controls are hidden.",
       "sectionId": "ims-consignment:7"
     },
     {
       "id": "ims-consignment:8",
       "documentId": "ims-consignment",
       "title": "Consignment stock and supplier statements",
-      "heading": "Managed settlement statements",
+      "heading": "Consignment Statements",
       "audiences": [
         "ims"
       ],
@@ -9995,7 +9996,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Open **Purchasing > Consignment Statements**. When tracking is enabled, an Admin or SuperAdmin can choose a supplier and calendar or custom period to create a **Draft**. The carryforward option includes eligible earlier activity not already assigned to a statement; review it before finalising.\n\nEarlier eligible unallocated activity is shown separately in statement detail, including whether your explicit carryforward choice included it. In the source view, use **Source period** to inspect earlier carryforward separately from the selected period.\n\n- **Draft:** review included events and refresh before finalising.\n- **Finalised:** the statement is fixed for settlement review. Export it, or mark it Accounted after recording it externally.\n- **Accounted:** records an external accounting reference and date. This does **not** mean paid and does not create an accounting bill or payment.\n- **Cancelled:** retained for history; cancellation requires a reason.\n\nAccounted statements cannot be reopened or cancelled casually. To correct one, create a linked correcting Draft with the original event, signed quantity, reason and evidence reference. The original statement remains unchanged; duplicate or excessive corrections are rejected. Negative statements require the bookkeeper's supplier-credit or carryforward treatment, not a negative supplier bill.\n\nRecord the supplier cost once externally, normally as a supplier bill to the bookkeeper's agreed cost-of-sales account, then pay that bill. If a direct bank expense is used instead, do not also enter a bill. The bill normally records expense; payment clears the payable. Follow the bookkeeper's requirements for GST, invoice evidence and timing. The settlement statement is not a tax invoice or self-billed supplier invoice.\n\nActions use the version you reviewed. If another person has changed the statement, reload it and review the latest version before retrying. Errors are displayed; actions are not automatically retried.\n\nCSV and PDF exports are available from statement detail. Email is a separate explicit action requiring a recipient and confirmation; finalising does not automatically send email. Review delivery history and any error. A missing email delivery service blocks sending rather than implying delivery succeeded.\n\n**Provider accepted** is not proof of delivery. Resending after provider acceptance requires an explicit resend confirmation and reason. Sending or Unconfirmed attempts block further sends until reviewed. Investigate the provider's outcome, then record the reviewed result with a reason and evidence; acceptance requires the provider reference. Resolving an outcome does not send another email. A definite failure can be explicitly retried, but uncertain requests are never automatically resent.",
       "sectionId": "ims-consignment:8"
     },
@@ -10015,7 +10016,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | What to check |\n|---|---|\n| A stock-only PO cannot complete | Use AUD at exchange rate 1, matched stock lines for one supplier and no freight, landed costs or header discount; review source cost and tax evidence |\n| Tracking cannot be enabled | Check the cutover date against reliable captured evidence and any earlier handover, then acknowledge external reconciliation |\n| Tracking cannot be disabled | Resolve Draft or Finalised statements and uncertain email outcomes, then review the external handover |\n| A statement action reports a conflict | Reload and review its latest version before retrying |\n| Finalisation is blocked | Review missing cost, tax, ownership or cross-cutover exceptions; do not substitute current catalogue values |\n| Email remains Sending or Unconfirmed | Investigate provider evidence and record the reviewed outcome; do not request an automatic resend |\n| A historical statement has no mutation controls | Tracking may be off or your role may be read-only; exports and history remain available |\n| A product cannot be deleted | Deactivate products or variants with consignment ownership history instead |",
       "sectionId": "ims-consignment:9"
     },
@@ -10035,7 +10036,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Monthly review without tracking\n\nLeave tracking off. Select **Previous Month** in Consignment Activity, choose a supplier and export the report. Reconcile the supplier's invoice and payments externally; do not treat the activity total as an unpaid balance.\n\n### Separate stock receipt from supplier settlement\n\nReceive a consignment purchase order to record the goods arriving. Later, review sold and refunded activity for the supplier. If tracking is enabled, create and review a settlement Draft for the period. Mark it Accounted only after recording the obligation externally, and reconcile the actual payment separately.",
       "sectionId": "ims-consignment:10"
     },
@@ -10055,7 +10056,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Leave tracking off. Select **Previous Month** in Consignment Activity, choose a supplier and export the report. Reconcile the supplier's invoice and payments externally; do not treat the activity total as an unpaid balance.",
       "sectionId": "ims-consignment:10"
     },
@@ -10075,7 +10076,7 @@
         "consignment-statements"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Receive a consignment purchase order to record the goods arriving. Later, review sold and refunded activity for the supplier. If tracking is enabled, create and review a settlement Draft for the period. Mark it Accounted only after recording the obligation externally, and reconcile the actual payment separately.",
       "sectionId": "ims-consignment:10"
     },
@@ -12553,7 +12554,7 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Reports mainly review operational information. Choose a report by the question it answers, then align its date, location, and status filters before comparing totals.\n\nWhen Xero is enabled, Cash Banking Report also lets authorised Admins record a note about a correction already made externally; that note does not post accounting.\n\nSales Detail, Sales Search and Sales Summary can be filtered to an exact Shopify storefront. Sales Summary also offers **Store / Channel** as a grouping, allowing stores to be compared in one result. Leaving the filter at **All channels** retains POS, wholesale, imported history and every online channel covered by that report.",
       "sectionId": "ims-operational-reports:1"
     },
@@ -12572,7 +12573,7 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "- Start with a summary report for the pattern and a detail report for the source records.\n- Apply the shared date preset or custom range where offered.\n- Check whether money is shown including or excluding GST.\n- Export only after the on-screen filters and totals are correct.",
       "sectionId": "ims-operational-reports:2"
     },
@@ -12591,8 +12592,8 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
-      "content": "| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales Summary** grouped by **Location**, or branch columns in **Sales Detail** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Which variants sold and which source quantities contributed? | **Sales Search** |\n| Where is an individual sale or receipt? | **POS Sales**, POS Reports or the relevant Sales Order |\n| What is stock worth now or at a past date? | **Inventory Valuation** |\n| What margin did recorded sales produce? | **Sales Summary** or **Sales & COGS Traceability**, checking cost coverage |\n| What was each product's recorded profit in a period? | **Product Profitability Margin**; recorded net revenue and captured costs with explicit incomplete-evidence warnings |\n| Which completed POS items have a recorded unit-price change? | **POS Price Changed Transactions** |\n| What happened in daily register sessions? | **Daily POS Registers Report** |\n| How do cash deposits and Xero outcomes compare? | **Cash Banking Report** |\n| Which open customer orders need sourcing or promise review? | **Stock Availability** |\n| What is on hand, committed, incoming, or available at a branch? | **Products > Stock Levels** |",
+      "lastReviewed": "2026-10-17",
+      "content": "**Consignment Activity** appears in the Reports overview only after an Admin or SuperAdmin enables **Consignments** in **Settings > Business & Team > Feature Toggle** and saves. It does not require optional Consignment Tracking. Supplier settlement records are separately available under **Purchasing > Consignment Statements** while Consignments is enabled.\n\n| Question | Report |\n|---|---|\n| What stock or incomplete documents need a bookkeeper's attention? | **Bookkeeper Audit** |\n| What consignment goods sold or were refunded, and at what supplier cost? | **Consignment Activity** (requires Consignments enabled) |\n| Which recorded costs belong to each sale, product, warehouse and channel? | **Sales & COGS Traceability** |\n| What sold, by product and branch? | **Sales Detail** |\n| How do branches compare? | **Sales Summary** grouped by **Location**, or branch columns in **Sales Detail** |\n| How do sales group by location, supplier, brand, product type, day, or hour? | **Sales Summary** |\n| Which variants sold and which source quantities contributed? | **Sales Search** |\n| Where is an individual sale or receipt? | **POS Sales**, POS Reports or the relevant Sales Order |\n| What is stock worth now or at a past date? | **Inventory Valuation** |\n| What margin did recorded sales produce? | **Sales Summary** or **Sales & COGS Traceability**, checking cost coverage |\n| What was each product's recorded profit in a period? | **Product Profitability Margin**; recorded net revenue and captured costs with explicit incomplete-evidence warnings |\n| Which completed POS items have a recorded unit-price change? | **POS Price Changed Transactions** |\n| What happened in daily register sessions? | **Daily POS Registers Report** |\n| How do cash deposits and Xero outcomes compare? | **Cash Banking Report** |\n| Which open customer orders need sourcing or promise review? | **Stock Availability** |\n| What is on hand, committed, incoming, or available at a branch? | **Products > Stock Levels** |",
       "sectionId": "ims-operational-reports:3"
     },
     {
@@ -12610,7 +12611,7 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Sales reports commonly show selling amounts including GST. Margin and cost of goods sold use tax-exclusive values where labelled. Dashboard gross profit uses the cost captured on completed stock movements, including customer returns and later manager corrections, rather than today's product cost. Inventory Valuation defaults to today's unchanged live valuation; selecting a past **As at date** reconstructs end-of-day stock using recorded history. Historical margin answers what was recorded when the sale or stock movement happened.\n\n> **Tip:** When two totals differ, compare the same date meaning, date range, locations, statuses, transaction types, and GST treatment before looking for a data problem.\n\n**Choosing and Reading IMS Reports** Help has specific sales, valuation, profitability, stock-demand, POS price-change and daily register procedures, with an export-scope table.\n\n**Cash Banking Report** Help covers deposit outcomes and correction notes for Xero-enabled businesses.\n\nSales Search aggregates by variant rather than showing individual transactions; changing stores preserves dates, search and page size and returns to page one. Product Profitability uses recorded AUD tax-exclusive revenue after discounts and captured historical costs, including supported returns. Missing cost, tax or currency evidence withholds affected product and full-result totals rather than estimating. Stock Availability is a current open-order demand and protected-supply report, not a general stock balance.\n\nExport scope differs: Sales Detail exports the current page plus full-result totals, while Sales Summary exports all matching grouped pages. Sales Search and Product Profitability export current-page rows only. Inventory Valuation exports all loaded filtered rows with the selected date, timezone and cost basis, across all locations; it has no branch selector. Stock Availability has no CSV export control.\n\nDaily POS Registers selects the register's session date and requires **Run** after a date change. Its Counted totals include float; use the already adjusted Variance rather than subtracting the raw totals. Price-change results count changed items, not distinct sales.\n\nAdministrators can correct a session's opening float beside **Float**. Cash variance recalculates without changing counted cash or sales. Closed-session corrections require acknowledgement that affected accounting syncs must be corrected manually by the bookkeeper; a separate email button sends the saved correction to the accounts recipients configured in General Settings.",
       "sectionId": "ims-operational-reports:4"
     },
@@ -12629,7 +12630,7 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | First check | Next step |\n|---|---|---|\n| No rows appear | Date range, search text, location, and status | Clear filters one at a time |\n| A summary differs from a detail report | Grouping and transaction coverage | Trace several source rows with matching filters |\n| Margin is blank or partial | Cost coverage | Review the recorded sale or movement cost |\n| Branch valuation differs | Stock quantity and active costing method | Average Cost is shared; FIFO values the layers remaining at each location |",
       "sectionId": "ims-operational-reports:5"
     },
@@ -12648,7 +12649,7 @@
         "reports"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "### Check a branch sales total\n\nOpen **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** for variant/source quantity totals, or inspect POS Sales and the relevant Sales Order when an individual transaction needs to be identified.\n\n### Explain current stock value\n\nOpen **Inventory Valuation**, filter the required product, supplier, brand or type, and compare each quantity with its current value across locations. Under Average Cost, review the current shared cost; under FIFO, review remaining layers and any quantity mismatch warning. Use **Stock Levels** separately for a quantity check at one branch.\n\nLeave **As at date** on **Today** for that live result. Choose a past date for end-of-day stock, including products since deactivated. Historical costs are used where reliable; otherwise **Today's cost (estimate)** identifies the fallback. Check inferred-opening and incomplete-history warnings before relying on a backdated total.",
       "sectionId": "ims-operational-reports:6"
     },
@@ -12667,7 +12668,7 @@
         "reports"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Open **Sales Detail**, choose the required branch and date range, and note the tax-inclusive total. Use **Sales Search** for variant/source quantity totals, or inspect POS Sales and the relevant Sales Order when an individual transaction needs to be identified.",
       "sectionId": "ims-operational-reports:6"
     },
@@ -12686,7 +12687,7 @@
         "reports"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Open **Inventory Valuation**, filter the required product, supplier, brand or type, and compare each quantity with its current value across locations. Under Average Cost, review the current shared cost; under FIFO, review remaining layers and any quantity mismatch warning. Use **Stock Levels** separately for a quantity check at one branch.\n\nLeave **As at date** on **Today** for that live result. Choose a past date for end-of-day stock, including products since deactivated. Historical costs are used where reliable; otherwise **Today's cost (estimate)** identifies the fallback. Check inferred-opening and incomplete-history warnings before relying on a backdated total.",
       "sectionId": "ims-operational-reports:6"
     },
@@ -14876,7 +14877,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Choose which optional tools your team sees in Solvantis. These switches apply to the selected business, not just your own login.",
       "sectionId": "ims-feature-toggle:1"
     },
@@ -14895,7 +14896,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Show or hide optional tools from **Settings > Business & Team > Feature Toggle**, then save your choices.",
       "sectionId": "ims-feature-toggle:2"
     },
@@ -14914,7 +14915,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Need | Setting | Effect |\n|---|---|---|\n| Simplify the workspace | Turn an optional feature off | Its entry points and screens are hidden |\n| Restore a feature | Turn the same switch on | Existing data and configuration become accessible again |\n| Keep normal catalogue maintenance | Leave Bulk Add/Edit unchanged | Its availability is independent of Bulk Edit |",
       "sectionId": "ims-feature-toggle:3"
     },
@@ -14933,7 +14934,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Select the intended business. You must be an Admin or SuperAdmin to save changes.",
       "sectionId": "ims-feature-toggle:4"
     },
@@ -14952,8 +14953,8 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "1. Open **Settings > Business & Team > Feature Toggle**.\n2. Turn individual features on or off.\n3. Select **Save feature toggles**. Wait for the saved confirmation.\n4. Use **Cancel** to discard unsaved changes.\n\nOnly **Admins and SuperAdmins** can change these settings. Other IMS users can review the switches but cannot edit them.\n\nExisting workspace switches are **on by default**, preserving existing behaviour. **Consignment Tracking is off by default** and uses a separate reviewed cutover or handover rather than the ordinary save button. Its basic activity report remains available and historical statements remain read-only when off.\n\nFor the existing workspace switches, turning a feature off hides its screens, navigation entries and relevant controls; saved links to a disabled workspace return to the Dashboard. Turning it back on makes it available again, subject to the user's usual permissions and connected-channel availability.\n\nExisting records and saved configuration are retained. Background integrations, automated jobs and existing channel-rule processing are not stopped. These switches simplify the workspace; they are not a substitute for user permissions or integration activation controls.\n\n> **Note:** To pause an integration or change a person's permissions, use the owning integration or user-management controls instead.",
+      "lastReviewed": "2026-10-17",
+      "content": "1. Open **Settings > Business & Team > Feature Toggle**.\n2. Turn individual features on or off.\n3. Select **Save feature toggles**. Wait for the saved confirmation.\n4. Use **Cancel** to discard unsaved changes.\n\nOnly **Admins and SuperAdmins** can change these settings. Other IMS users can review the switches but cannot edit them.\n\nExisting workspace switches are **on by default**, preserving existing behaviour. **Consignments is off by default**: enable it and save to show **Consignment Activity** in the Reports overview and **Consignment Statements** in Purchasing. Supplier shortcuts are shown only when this switch is enabled; saved links to hidden screens return to the Dashboard.\n\n**Consignment Tracking is separately off by default** and uses a reviewed cutover or handover rather than the ordinary save button. With Consignments enabled, basic activity reporting and read-only historical statements remain available when tracking is off. Hiding Consignments does not stop tracking, change stock ownership or accounting treatment, or delete records.\n\nFor the existing workspace switches, turning a feature off hides its screens, navigation entries and relevant controls; saved links to a disabled workspace return to the Dashboard. Turning it back on makes it available again, subject to the user's usual permissions and connected-channel availability.\n\nExisting records and saved configuration are retained. Background integrations, automated jobs and existing channel-rule processing are not stopped. These switches simplify the workspace; they are not a substitute for user permissions or integration activation controls.\n\n> **Note:** To pause an integration or change a person's permissions, use the owning integration or user-management controls instead.",
       "sectionId": "ims-feature-toggle:5"
     },
     {
@@ -14971,8 +14972,8 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "| Group | Switch | What is hidden when off |\n|---|---|---|\n| Workspaces | Shipping Workspace | The Shipping Workspace entry button and the selected-order Ship Orders action |\n| Workspaces | CRM | CRM navigation, its workspace and customer CRM profiles; ordinary Contacts remain available |\n| Products & Channels | Customs & compliance | The customs and compliance fields in the product editor; saved customs details remain intact |\n| Products & Channels | Channel Listing Rules | Channel rule editors, automatic-assignment controls, rule filters, recommendations and Apply Rules actions; manual publishing remains available |\n| Products & Channels | Bulk Edit | The Bulk Edit workspace only; **Bulk Add/Edit remains available** |\n| Reports | Inactive Candidates | The Inactive Candidates report |\n| Reports | Space Efficiency | The Space Efficiency report |\n| Reports | Possible Losses | The Possible Losses report |\n| Automations | Customer Service | The Customer Service group, including Inbox, Compose Email and Email Templates |\n| Purchasing | Consignment Tracking | Managed statement creation and mutation controls; basic activity reporting and read-only historical statements remain available |\n\nThe three report switches are independent. They do not hide the Reports section or other reports.",
+      "lastReviewed": "2026-10-17",
+      "content": "| Group | Switch | What is hidden when off |\n|---|---|---|\n| Workspaces | Shipping Workspace | The Shipping Workspace entry button and the selected-order Ship Orders action |\n| Workspaces | CRM | CRM navigation, its workspace and customer CRM profiles; ordinary Contacts remain available |\n| Products & Channels | Customs & compliance | The customs and compliance fields in the product editor; saved customs details remain intact |\n| Products & Channels | Channel Listing Rules | Channel rule editors, automatic-assignment controls, rule filters, recommendations and Apply Rules actions; manual publishing remains available |\n| Products & Channels | Bulk Edit | The Bulk Edit workspace only; **Bulk Add/Edit remains available** |\n| Reports | Inactive Candidates | The Inactive Candidates report |\n| Reports | Space Efficiency | The Space Efficiency report |\n| Reports | Possible Losses | The Possible Losses report |\n| Automations | Customer Service | The Customer Service group, including Inbox, Compose Email and Email Templates |\n| Purchasing | Consignment Tracking | Managed statement creation and mutation controls; basic activity reporting and read-only historical statements remain available |\n| Purchasing | Consignments | Consignment Activity in Reports, Consignment Statements in Purchasing, and supplier shortcuts to both screens; independent of settlement tracking |\n\nThe three report switches are independent. They do not hide the Reports section or other reports.",
       "sectionId": "ims-feature-toggle:6"
     },
     {
@@ -14990,7 +14991,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | What to check |\n|---|---|\n| A switch cannot be changed | Confirm you are an Admin or SuperAdmin and settings have finished loading |\n| A feature is still hidden after enabling it | Save the switches, then check the user's usual permissions and required integrations |\n| A save fails | Read the displayed error and retry; unsaved choices remain available |\n| An integration continues running after a feature is hidden | This is expected; Feature Toggle controls the workspace, not background processing |",
       "sectionId": "ims-feature-toggle:7"
     },
@@ -15009,7 +15010,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Keep catalogue maintenance simple\n\nTurn **Bulk Edit** off and save. Its navigation entry and workspace are hidden, while **Bulk Add/Edit** remains available. Existing product data is unchanged.\n\n### Hide one specialist report\n\nTurn **Possible Losses** off and leave **Inactive Candidates** and **Space Efficiency** on. Save the changes. Only Possible Losses is hidden; the Reports section and the other two reports remain available.",
       "sectionId": "ims-feature-toggle:8"
     },
@@ -15028,7 +15029,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Turn **Bulk Edit** off and save. Its navigation entry and workspace are hidden, while **Bulk Add/Edit** remains available. Existing product data is unchanged.",
       "sectionId": "ims-feature-toggle:8"
     },
@@ -15047,7 +15048,7 @@
         "settings-feature-toggle"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Turn **Possible Losses** off and leave **Inactive Candidates** and **Space Efficiency** on. Save the changes. Only Possible Losses is hidden; the Reports section and the other two reports remain available.",
       "sectionId": "ims-feature-toggle:8"
     },

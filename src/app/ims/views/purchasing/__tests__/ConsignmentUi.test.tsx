@@ -49,6 +49,7 @@ describe('Consignment operational UI', () => {
   it('keeps historical statements and exports readable while tracking is off, without mutation controls', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => response(url.includes('contacts') ? [{ id: 2, name: 'Supplier' }] : url.endsWith('/1') ? detail : [statement])));
     renderStatements(false);
+    expect(screen.getByRole('heading', { name: 'Consignment Statements' })).toBeTruthy();
     await userEvent.click(await screen.findByRole('button', { name: 'CS-1' }));
     await screen.findByRole('heading', { name: 'CS-1 — Draft' });
     expect(screen.getByRole('link', { name: 'Export PDF' }).getAttribute('href')).toContain('/1/export?format=pdf');
