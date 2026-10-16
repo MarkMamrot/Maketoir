@@ -1,5 +1,5 @@
 ---
-{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Settings > Users","product":"setup","format":"task","parentId":"setup-connections","contexts":["team"],"contextSections":{"team":"Step-by-step"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses, send password reset links, and review recent sign-in security activity.","lastReviewed":"2026-10-13","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Manage team access and security"}}
+{"id":"setup-team-access-security","title":"Team Access and Security","audiences":["ims"],"capability":"navigation","screen":"Settings > Users","product":"setup","format":"task","parentId":"setup-connections","contexts":["team","privacy"],"contextSections":{"team":"Step-by-step","privacy":"Privacy information and requests"},"relatedTopics":["setup-connections","setup-business-brand-appearance","ims-workspaces"],"order":3,"summary":"Enroll people in one or more businesses, send password reset links, review sign-in security activity, and find privacy request guidance.","lastReviewed":"2026-10-16","owner":"security","quickSections":["Main operations","At a glance"],"navigation":{"category":"settings","label":"Manage team access and security"}}
 ---
 # Team Access and Security
 SuperAdmins can choose any active business with the top-bar selector while remaining signed in as themselves. Other users who are enrolled in more than one business use the same selector for their enrolled businesses. This is business administration, not staff impersonation. See **Businesses and AI Plans** for the switching workflow and POS Device Setup behaviour.
@@ -42,6 +42,16 @@ Changing tier, business, register, or wholesale account changes the live checks 
 ## Switching businesses
 
 Users enrolled in two or more businesses can choose the active business from the top bar. The page reloads into that business and applies the tier assigned there. On the next sign-in, Solvantis opens the most recently active business; if none has been used yet, it opens the default enrollment.
+
+## Privacy information and requests
+
+The public [Privacy policy](/privacy) explains information collection, retailer responsibilities, connected providers, overseas processing, AI-assisted features, security history, retention and privacy requests. The separate [Amazon data handling notice](/amazon-data-handling) explains Amazon-specific processing and the current manual cleanup limitations.
+
+- For access, correction or deletion requests, email **sales@solvantis.com** with the subject **Privacy request**. Identify the relevant account, retailer or conversation without including passwords or unnecessary customer details.
+- Retail customers should normally contact the retailer first about their customer or purchase records. Identity and authority must be checked before records are disclosed or changed.
+- The public Sales Assistant's **Delete conversation** removes that conversation's messages, not separately submitted contact requests, emails, security records or backups.
+- Authentication history covers the last 12 calendar months. Closing an account or disconnecting an integration does not automatically delete historical sales records or every retained copy.
+- Privacy complaints can be sent to the same address with the subject **Privacy complaint**.
 
 ## Before you begin
 

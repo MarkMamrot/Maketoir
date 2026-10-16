@@ -31,7 +31,7 @@ export async function GET() {
       tier: business.tier,
     }));
 
-    return NextResponse.json({ success: true, activeBusinessId: session.businessId, businesses });
+    return NextResponse.json({ success: true, userTier: access.actor.tier, activeBusinessId: session.businessId, businesses });
   } catch (error) {
     await reportRuntimeIssue({
       businessId: activeBusinessId,

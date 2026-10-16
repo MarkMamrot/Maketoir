@@ -99,7 +99,7 @@ function scopeHint(message: string) {
     : message;
 }
 
-function buildUpdate(existing: ImsContactRow, customer: ShopifyCustomer, activeMonthsCutoff: Date, activeCustomerIds: Set<string>) {
+function buildUpdate(existing: ImsContactRow, customer: ShopifyCustomer, activeMonthsCutoff: Date | null, activeCustomerIds: Set<string>) {
   const nextFirstName = normalizeString(customer.first_name);
   const nextLastName = normalizeString(customer.last_name);
   const nextEmail = normalizeString(customer.email);
@@ -111,7 +111,7 @@ function buildUpdate(existing: ImsContactRow, customer: ShopifyCustomer, activeM
   const nextPromoSms = marketingSmsFlag(customer);
   const createdAt = customer.created_at ? new Date(customer.created_at).getTime() : null;
   const hasRecentActivity = activeCustomerIds.has(String(customer.id));
-  const activeByWindow = hasRecentActivity || (createdAt != null && !Number.isNaN(createdAt) && createdAt >= activeMonthsCutoff.getTime());
+  const activeByWindow = activeMonthsCutoff === null || hasRecentActivity || (createdAt != null && !Number.isNaN(createdAt) && createdAt >= activeMonthsCutoff.getTime());
 
   const update: Record<string, string | number | null> = {
     is_active: customerActive(customer) === 0 ? 0 : (activeByWindow ? 1 : 0),
@@ -219,7 +219,14 @@ export async function POST(req: Request) {
   const mode = body?.mode === 'push' ? 'push' : 'pull';
   const pageInfo = typeof body?.pageInfo === 'string' && body.pageInfo.trim() ? body.pageInfo.trim() : null;
   const batchLimit = Math.min(250, Math.max(1, Number(body?.batchLimit) || 100));
-  const inactiveAfterMonths = Math.max(0, Number(body?.inactiveAfterMonths) || 60);
+  const rawInactiveMonths = body?.inactiveAfterMonths;
+  const inactiveAfterMonths = rawInactiveMonths === undefined ? 60
+    : rawInactiveMonths === null || (typeof rawInactiveMonths === 'string' && !rawInactiveMonths.trim()) ? 0
+    : typeof rawInactiveMonths === 'number' || typeof rawInactiveMonths === 'string' ? Number(rawInactiveMonths)
+    : NaN;
+  if (mode === 'pull' && (!Number.isSafeInteger(inactiveAfterMonths) || inactiveAfterMonths < 0)) {
+    return NextResponse.json({ error: 'Inactive after must be blank or a non-negative whole number of months.' }, { status: 400 });
+  }
 
   await ensureContactShopifyCustomerSchema();
 
@@ -276,10 +283,15 @@ export async function POST(req: Request) {
 
   const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);
   const activeCustomerIds = new Set<string>();
-  const activeMonthsCutoff = new Date();
-  activeMonthsCutoff.setMonth(activeMonthsCutoff.getMonth() - inactiveAfterMonths);
-  activeMonthsCutoff.setDate(1);
-  activeMonthsCutoff.setHours(0, 0, 0, 0);
+  const activeMonthsCutoff = inactiveAfterMonths > 0 ? new Date() : null;
+  if (activeMonthsCutoff) {
+    activeMonthsCutoff.setMonth(activeMonthsCutoff.getMonth() - inactiveAfterMonths);
+    activeMonthsCutoff.setDate(1);
+    activeMonthsCutoff.setHours(0, 0, 0, 0);
+    if (Number.isNaN(activeMonthsCutoff.getTime())) {
+      return NextResponse.json({ error: 'Inactive after is outside the supported date range.' }, { status: 400 });
+    }
+  }
 
   if (inactiveAfterMonths > 0) {
     try {
@@ -336,7 +348,7 @@ export async function POST(req: Request) {
     const phone = normalizeString(customer.phone);
     const name = customerName(customer);
     const createdAt = customer.created_at ? new Date(customer.created_at).getTime() : null;
-    const activeByWindow = activeCustomerIds.has(shopifyCustomerId) || (createdAt != null && !Number.isNaN(createdAt) && createdAt >= activeMonthsCutoff.getTime());
+    const activeByWindow = activeMonthsCutoff === null || activeCustomerIds.has(shopifyCustomerId) || (createdAt != null && !Number.isNaN(createdAt) && createdAt >= activeMonthsCutoff.getTime());
     const isActive = customerActive(customer) === 0 ? 0 : (activeByWindow ? 1 : 0);
 
     try {

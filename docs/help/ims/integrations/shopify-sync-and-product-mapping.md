@@ -105,12 +105,14 @@ Shopify supplies one standard **vendor** value rather than separate brand and su
 ### Synchronize Shopify customers
 
 1. Open **Sales > Sales Channels**, configure the intended Shopify store, then open **Customers & Gift Cards**.
-2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active.
+2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active (default **60**), or leave it blank for no activity cutoff.
 3. Choose **Pull Customers From Shopify** and keep the page open while all batches complete.
 4. Review the created, linked, updated, skipped, and error totals.
 5. Search **Contacts** for the customer and confirm the Shopify customer link and active status.
 
-Pull matches the Shopify customer ID first and then uses an exact email match when no Shopify link exists. Existing nonblank IMS contact details are preserved. Customers older than the selected period with no order in that period are marked inactive. When a later identified Shopify order arrives, its linked IMS customer is reactivated automatically and blank profile details are filled from the order.
+Pull always downloads all Shopify customers; **Inactive after** controls their active status, not which customers are downloaded. A blank value or **0** disables the activity cutoff: imported customers become active, including previously inactive linked contacts, unless disabled in Shopify. This is useful for manually added in-store customers without Shopify order history.
+
+Pull matches the Shopify customer ID first and then uses an exact email match when no Shopify link exists. Existing nonblank IMS contact details are preserved. With a month limit, customers older than the selected period with no Shopify order in that period are marked inactive; recently created Shopify customers remain active unless disabled in Shopify. In-store purchases recorded only in Solvantis do not count as Shopify order activity. Contacts not matched to an imported Shopify customer are unchanged. When a later identified Shopify order arrives, its linked IMS customer is reactivated automatically and blank profile details are filled from the order.
 
 > **Warning:** **Push IMS Retail Customers** sends IMS status and details to Shopify. Review unexpectedly inactive customers before running a push, because an inactive linked IMS customer is disabled in Shopify.
 

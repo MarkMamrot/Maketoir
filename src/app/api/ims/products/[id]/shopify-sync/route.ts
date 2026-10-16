@@ -349,6 +349,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           shop.channelInstanceId,
         );
       }
+      await shop.service.syncVariantSkus(String(created.id), variants.flatMap((variant, index) =>
+        variant.sku?.trim() ? [{ id: String(created.variants[index].id), sku: variant.sku }] : []));
       // Push images one-by-one so we can update IMS URLs to Shopify CDN URLs (prevents re-upload on future syncs)
       let imagesAdded = 0;
       const imageErrors: string[] = [];
@@ -383,9 +385,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       tags: product.tags ?? '',
     });
 
-    // Prices, SKU and barcode per linked variant.
-    // Use direct fetch (not the shopify-api-node wrapper) so sku + barcode fields are
-    // not silently dropped by the library's type mapping.
+    const skuMappings = await getIMSPool().execute<import('mysql2/promise').RowDataPacket[]>(
+      `SELECT mapping.external_variant_id, variant.sku
+         FROM ims_sales_channel_product_mappings mapping
+         JOIN ims_product_variants variant
+           ON BINARY variant.business_id = BINARY mapping.business_id
+          AND variant.variant_id = mapping.variant_id
+        WHERE mapping.business_id = ? AND mapping.channel_instance_id = ?
+          AND mapping.external_product_id = ? AND variant.product_id = ?
+          AND mapping.mapping_status = 'linked'`,
+      [session.businessId, shop.channelInstanceId, shopifyProductId, params.id],
+    );
+    await shop.service.syncVariantSkus(shopifyProductId, skuMappings[0].flatMap(row =>
+      row.sku?.trim() && row.external_variant_id ? [{ id: String(row.external_variant_id), sku: String(row.sku) }] : []));
+
+    // Prices and barcode per linked variant; SKU is verified separately above.
     let pricesUpdated = 0;
     const variantErrors: string[] = [];
     for (const v of variants) {
@@ -394,7 +408,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         ...shopifyVariantPricePayload(v.price_rrp, v.price_rrp_sale),
         ...shopifyInventoryPolicyPayload(product.is_stock_item),
       };
-      if (v.sku)     variantPayload.sku     = v.sku;
       if (v.barcode) variantPayload.barcode = v.barcode;
       try {
         const vRes = await fetch(
@@ -455,6 +468,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       ? `${e.message}: ${JSON.stringify(shopifyErrors).slice(0, 400)}`
       : (e.message ?? 'Shopify push failed');
     await ImsShopifyRepo.logAction('resync', 'error', detail, session.businessId, { product_id: params.id }, channelInstanceId).catch(() => {});
+    await reportRuntimeIssue({
+      businessId: session.businessId, source: 'shopify', operation: 'product_sync',
+      title: 'Shopify product sync failed', error: new Error(detail),
+      context: { channelInstanceId, productId: params.id },
+      reference: { type: 'product', id: params.id },
+    });
     return NextResponse.json({ error: detail }, { status: 500 });
   }
 }

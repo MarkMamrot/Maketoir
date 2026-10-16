@@ -33,6 +33,8 @@ In Help, expand **Integrations** for connections and readiness checks, or **Sett
 
 SuperAdmins have a separate **Platform administration** category for business administration, feature rollouts, runtime issues and scheduled jobs. That category and its guides are not available to other users.
 
+Setup Help uses your verified account tier for this category. Being an Admin in an individual business does not make your account a SuperAdmin or unlock platform-only guides.
+
 ## Connection readiness
 
 Setup Connections links to individual IMS integration pages. Enablement is saved before connection details are requested. Opening a page does not automatically run an external connection test.

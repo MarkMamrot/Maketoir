@@ -47,6 +47,13 @@ export interface ShopifyUpdatedOrder {
   fulfillment_status?: string | null;
 }
 
+export interface ShopifySkuVariant {
+  id: string;
+  sku: string | null;
+  product: { id: string };
+  inventoryItem: { id: string; sku: string | null };
+}
+
 interface GiftCardMutationTransaction {
   id: string;
   amount: { amount: string; currencyCode: string };
@@ -920,6 +927,76 @@ export class ShopifyService {
   /** Create a new product in Shopify. Returns the created product (with variants). */
   async createProduct(payload: Record<string, any>): Promise<any> {
     return (this.shopify as any).product.create(payload);
+  }
+
+  private async skuGraphql<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const response = await fetch(`https://${this.shopName_}/admin/api/2026-07/graphql.json`, {
+      method: 'POST',
+      headers: { 'X-Shopify-Access-Token': this.accessToken_, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(`Shopify SKU request failed: HTTP ${response.status}.`);
+    const result = await response.json() as { data?: T; errors?: Array<{ message: string }> };
+    if (result.errors?.length) throw new Error(result.errors.map(error => error.message).join('; '));
+    if (!result.data) throw new Error('Shopify SKU response did not contain data.');
+    return result.data;
+  }
+
+  async getSkuVariants(ids: string[]): Promise<Array<ShopifySkuVariant | null>> {
+    if (ids.length === 0 || ids.length > 100) throw new Error('Read between 1 and 100 Shopify variants at a time.');
+    const result = await this.skuGraphql<{ nodes: Array<ShopifySkuVariant | null> }>(
+      `query skuVariants($ids: [ID!]!) {
+        nodes(ids: $ids) { ... on ProductVariant { id sku product { id } inventoryItem { id sku } } }
+      }`, { ids: ids.map(id => `gid://shopify/ProductVariant/${id}`) },
+    );
+    if (result.nodes.length !== ids.length) throw new Error('Shopify returned an incomplete SKU lookup.');
+    return result.nodes;
+  }
+
+  async getSkuVariantsPage(after: string | null = null): Promise<{
+    nodes: ShopifySkuVariant[]; pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  }> {
+    const result = await this.skuGraphql<{ productVariants: {
+      nodes: ShopifySkuVariant[]; pageInfo: { hasNextPage: boolean; endCursor: string | null };
+    } }>(`query skuCatalogue($after: String) {
+      productVariants(first: 250, after: $after) {
+        nodes { id sku product { id } inventoryItem { id sku } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }`, { after });
+    return result.productVariants;
+  }
+
+  async syncVariantSkus(productId: string, variants: Array<{ id: string; sku: string }>): Promise<void> {
+    if (!variants.length) return;
+    if (variants.length > 250 || variants.some(variant => !variant.sku.trim())) {
+      throw new Error('SKU updates require 1-250 variants with nonblank SKUs.');
+    }
+    // SKU belongs to InventoryItem in Shopify's current product model.
+    const result = await this.skuGraphql<{ productVariantsBulkUpdate: {
+      productVariants: ShopifySkuVariant[] | null;
+      userErrors: Array<{ message: string }>;
+    } }>(`mutation syncSkus($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkUpdate(productId: $productId, variants: $variants, allowPartialUpdates: false) {
+        productVariants { id sku product { id } inventoryItem { id sku } }
+        userErrors { message }
+      }
+    }`, {
+      productId: `gid://shopify/Product/${productId}`,
+      variants: variants.map(variant => ({
+        id: `gid://shopify/ProductVariant/${variant.id}`, inventoryItem: { sku: variant.sku },
+      })),
+    });
+    const update = result.productVariantsBulkUpdate;
+    if (update.userErrors.length) throw new ShopifyAdminUserError(update.userErrors);
+    for (const variant of variants) {
+      const saved = update.productVariants?.find(row => row.id === `gid://shopify/ProductVariant/${variant.id}`);
+      if (saved?.product.id !== `gid://shopify/Product/${productId}`
+        || saved.sku !== variant.sku || saved.inventoryItem.sku !== variant.sku) {
+        throw new Error(`Shopify did not persist SKU for variant ${variant.id}.`);
+      }
+    }
   }
 
   static readonly COLLECTION_HEADERS = [

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), execute: vi.fn(), operationContext: vi.fn(), shopifyUpdate: vi.fn(), shopifyCreate: vi.fn(),
   shopifyCreateImage: vi.fn(), productGet: vi.fn(), imageList: vi.fn(), imageUpdate: vi.fn(), inventoryPush: vi.fn(),
-  amazonAccess: vi.fn(), amazonPut: vi.fn(), amazonDelete: vi.fn(), locations: vi.fn(),
+  amazonAccess: vi.fn(), amazonPut: vi.fn(), amazonDelete: vi.fn(), locations: vi.fn(), syncSkus: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query, imsExecute: mocks.execute }));
 vi.mock('@/lib/onlineShop/onlineShopPages', () => ({ normalizeOnlineShopPageSlug: (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-') }));
@@ -12,6 +12,7 @@ vi.mock('@/services/ShopifyService', () => ({ ShopifyService: class {
   updateProduct = mocks.shopifyUpdate;
   createProduct = mocks.shopifyCreate;
   createProductImage = mocks.shopifyCreateImage;
+  syncVariantSkus = mocks.syncSkus;
 } }));
 vi.mock('@/lib/ims/ImsRepository', () => ({
   ImsProductsRepo: { get: mocks.productGet },
@@ -87,10 +88,27 @@ describe('channel product publication adapters', () => {
     })).resolves.toEqual({ outcome: 'applied', providerState: 'published', externalProductId: '9988' });
     expect(mocks.query.mock.calls[1]?.[0]).toContain('BINARY variant.variant_id = BINARY mapping.variant_id');
     expect(mocks.shopifyCreate).toHaveBeenCalledWith(expect.objectContaining({ status: 'draft' }));
+    expect(mocks.syncSkus).toHaveBeenCalledWith('9988', [{ id: '7766', sku: 'BLUE-1' }]);
     expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('ims_sales_channel_product_mappings'),
       expect.arrayContaining(['business-1', 'shopify-2', 'variant-1', '9988', '7766', '5544']));
     expect(mocks.inventoryPush).toHaveBeenCalledWith(expect.objectContaining({ channelInstanceId: 'shopify-2' }));
     expect(mocks.shopifyUpdate).toHaveBeenCalledWith('9988', { status: 'active' });
+  });
+
+  it('does not publish a newly created listing when Shopify fails to persist its SKU', async () => {
+    mocks.query.mockResolvedValue([]);
+    mocks.productGet.mockResolvedValue({
+      name: 'Vase', is_active: 1,
+      variants: [{ variant_id: 'v1', sku: 'KEEP', price_rrp: 20 }],
+    });
+    mocks.operationContext.mockResolvedValue({ credentials: { shopDomain: 'sandbox.myshopify.com', token: 'token' } });
+    mocks.shopifyCreate.mockResolvedValue({ id: 9988, variants: [{ id: 7766, inventory_item_id: 5544 }] });
+    mocks.syncSkus.mockRejectedValueOnce(new Error('SKU not saved'));
+    await expect(publishShopifyProduct({
+      businessId: 'business-1', channelInstanceId: 'shopify-2', productId: 'p1', desiredState: 'published',
+    })).rejects.toThrow('SKU not saved');
+    expect(mocks.execute).toHaveBeenCalledWith(expect.stringContaining('ims_sales_channel_product_mappings'), expect.any(Array));
+    expect(mocks.shopifyUpdate).not.toHaveBeenCalled();
   });
 
   it('treats an unmapped Shopify unpublish as complete without provider mutation', async () => {

@@ -1535,7 +1535,7 @@ export function ShopifyGiftCardsTab({ section = 'all' }: { section?: 'all' | 'cu
         const r = await fetch('/api/ims/shopify/sync-customers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode: 'pull', channelInstanceId: shopifySelection.channelInstanceId, pageInfo: nextPageInfo, batchLimit: 100, inactiveAfterMonths: Number(customerInactiveMonths) || 60 }),
+          body: JSON.stringify({ mode: 'pull', channelInstanceId: shopifySelection.channelInstanceId, pageInfo: nextPageInfo, batchLimit: 100, inactiveAfterMonths: customerInactiveMonths.trim() === '' ? null : customerInactiveMonths }),
         });
         const d = await readApiResponse(r);
         if (!r.ok || !d.success) throw new Error(d.error ?? 'Customer sync failed');
@@ -1720,6 +1720,8 @@ export function ShopifyGiftCardsTab({ section = 'all' }: { section?: 'all' | 'cu
               type="number"
               min={0}
               step={1}
+              placeholder="All"
+              aria-describedby="shopify-customer-activity-help"
               disabled={customerSyncing || loyaltySyncing}
               value={customerInactiveMonths}
               onChange={e => setCustomerInactiveMonths(e.target.value)}
@@ -1742,6 +1744,9 @@ export function ShopifyGiftCardsTab({ section = 'all' }: { section?: 'all' | 'cu
             {loyaltySyncing ? 'Publishing Loyalty…' : 'Publish Loyalty to Shopify'}
           </button>
         </div>
+        <p id="shopify-customer-activity-help" style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>
+          All Shopify customers are downloaded. Leave Inactive after blank (or enter 0) to keep all imported customers active unless disabled in Shopify, including previously inactive linked contacts. A month limit uses Shopify orders and customer creation dates, not in-store purchases recorded only in Solvantis.
+        </p>
         {customerSyncProgress && <p style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>{customerSyncProgress}</p>}
         {customerSyncError && <p style={{ marginTop: 10, fontSize: 13, color: 'var(--sv-red)' }}>{customerSyncError}</p>}
         {loyaltySyncProgress && <p style={{ marginTop: 10, fontSize: 12, color: 'var(--sv-text-dim)' }}>{loyaltySyncProgress}</p>}

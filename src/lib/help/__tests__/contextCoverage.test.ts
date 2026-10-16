@@ -37,6 +37,18 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
 ];
 
 describe('canonical Help context coverage', () => {
+  it('opens privacy guidance at the request and retention section', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'setup', context: 'privacy' });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'setup-team-access-security' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Privacy information and requests');
+  });
+
+  it('opens Setup Help at the role-aware guidance section', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'setup', context: 'setup-help' });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'setup-connections' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Finding setup guidance');
+  });
+
   it('maps every settings leaf to current contextual guidance', () => {
     const check = (items: readonly SettingsItem[], superAdmin = false) => {
       for (const item of items) {

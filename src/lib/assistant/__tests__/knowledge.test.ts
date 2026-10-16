@@ -212,7 +212,8 @@ describe('assistant knowledge retrieval', () => {
       audience: 'ims',
     });
     const costing = results.find(result => result.title === 'Inventory Costing and Stock Value' && result.heading === 'Main operations');
-    expect(costing?.content).toContain('Settings > General > Inventory Costing');
+    expect(costing?.content).toContain('Settings > Inventory & Locations > Inventory costing');
+    expect(costing?.content).not.toContain('Settings > General > Inventory Costing');
     expect(costing?.content).toContain('What cost was attached to an earlier receipt, sale or return?');
     expect(costing?.content).toContain('Inventory Valuation');
   });
