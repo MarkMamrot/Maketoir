@@ -10,6 +10,8 @@
  * running unrelated migrations. Optional --schema=registered_schema limits scope.
  * Amazon delivery evidence rollout: use separate --table=ims_amazon_delivery_evidence
  * and --table=ims_amazon_delivery_poll_state runs; carrier polling stays Off until verified.
+ * Consignment rollout only: --consignment-only creates its tables and ownership columns
+ * without running unrelated data repairs. Safe to re-run across all registered tenants.
  */
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
@@ -1341,6 +1343,7 @@ const TABLE_DDLS = [
 ];
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
+const consignmentOnly = process.argv.includes('--consignment-only');
 const requestedRepair = process.argv.find(argument => argument.startsWith('--repair='))?.slice('--repair='.length);
 const auditLegacyStockAvgCost = process.argv.includes('--audit-legacy-stock-avg-cost');
 const dropLegacyStockAvgCost = process.argv.includes('--drop-legacy-stock-avg-cost');
@@ -2159,15 +2162,37 @@ async function installAmazonPiiGuards(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
-  const tableDdls = requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
+  const tableDdls = consignmentOnly
+    ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl).startsWith('ims_consignment_'))
+    : requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
   for (const ddl of tableDdls) {
     try {
       await conn.query(`USE \`${schema}\``);
       await conn.query(ddl);
     } catch (e) {
+      if (consignmentOnly) throw e;
       console.error(`  ✗ ${schema} table bootstrap: ${e.message}`);
     }
-    if (!requestedTable || requestedTable === 'ims_shipping_labels') await ensureShippingLabelRequestIndex(schema);
+    if (!consignmentOnly && (!requestedTable || requestedTable === 'ims_shipping_labels')) await ensureShippingLabelRequestIndex(schema);
+  }
+  if (consignmentOnly) {
+    const ownershipTables = new Set(['ims_purchase_orders', 'ims_supplier_credit_notes', 'ims_stock_movements']);
+    const columns = COLUMNS.filter(([table, column]) =>
+      (table === 'ims_contacts' && column === 'is_consignment')
+      || (ownershipTables.has(table) && column === 'consignment_supplier_id'));
+    let added = 0;
+    for (const [table, column, definition] of columns) {
+      const [existing] = await conn.query(
+        `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+        [schema, table, column],
+      );
+      if (existing.length) continue;
+      await conn.query(`ALTER TABLE ${conn.escapeId(schema)}.${conn.escapeId(table)} ADD COLUMN ${conn.escapeId(column)} ${definition}`);
+      added++;
+    }
+    console.log(`  ${schema}: ${tableDdls.length} consignment tables ensured; ${added} ownership columns added`);
+    return;
   }
   if (!requestedTable || requestedTable === 'ims_crm_lead_contact_points') {
     await conn.query(
@@ -2864,6 +2889,9 @@ async function transitionLegacyStockAvgCost(schema, apply) {
 }
 
 try {
+  if (consignmentOnly && (requestedTable || requestedRepair || auditLegacyStockAvgCost || dropLegacyStockAvgCost)) {
+    throw new Error('--consignment-only cannot be combined with another migration mode.');
+  }
   const schemas = new Set();
   const businessIdsBySchema = new Map();
   if (process.env.IMS_MYSQL_DATABASE) schemas.add(process.env.IMS_MYSQL_DATABASE);
@@ -2894,7 +2922,7 @@ try {
       continue;
     }
     await migrateSchema(schema, businessIdsBySchema.get(schema));
-    if (requestedTable) continue;
+    if (requestedTable || consignmentOnly) continue;
     await verifyStockAvailabilitySchema(schema);
     await verifyGiftCardReconciliationSchema(schema);
     await verifyOutstandingResolutionSchema(schema);
