@@ -13,8 +13,10 @@ describe('Shopify reconciliation discovery', () => {
       updated_at_min: '2026-10-17T00:00:00.000Z', updated_at_max: '2026-10-17T01:00:00.000Z',
     });
   });
-  it('uses created time only for baseline and preserves opaque native cursors on continuation', () => {
-    expect(shopifyReconciliationParameters({ ...window, phase: 'baseline' }, null)).toHaveProperty('created_at_min');
+  it('uses updated time for the initial recent catch-up and preserves opaque native cursors', () => {
+    const initial = shopifyReconciliationParameters({ ...window, phase: 'baseline' }, null);
+    expect(initial).toHaveProperty('updated_at_min', '2026-10-17T00:00:00.000Z');
+    expect(initial).not.toHaveProperty('created_at_min');
     expect(shopifyReconciliationParameters(window, 'cursor==')).toEqual({
       limit: 250, page_info: 'cursor==', fields: 'id,created_at,updated_at',
     });

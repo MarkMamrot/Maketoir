@@ -471,6 +471,33 @@ describe.skipIf(!port)('daily accounting recovery on real isolated MySQL (loopba
     expect(postCounts()).toEqual({ invoice: 0, payment: 0, fee: 0, journal: 0 });
   });
 
+  it('leaves known older reviews held without blocking an unrelated verified accounting day', async () => {
+    await tenant.execute("UPDATE ims_sales_orders SET order_date='2020-01-02' WHERE business_id=?", [input.businessId]);
+    await tenant.execute(`INSERT INTO ims_shopify_order_recovery
+      (business_id,channel_instance_id,external_order_id,review_reason) VALUES (?,?,'123','source_provenance_conflict')`,
+    [input.businessId, input.channelInstanceId]);
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ ready: true });
+    expect((await rows(tenant, 'SELECT review_reason FROM ims_shopify_order_recovery'))[0].review_reason)
+      .toBe('source_provenance_conflict');
+    await tenant.execute('UPDATE ims_sales_orders SET order_date=? WHERE business_id=?', [input.date, input.businessId]);
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ ready: false, reason: 'order_review_required' });
+  });
+
+  it('does not certify an unowned review as unrelated to the accounting day', async () => {
+    await tenant.execute(`INSERT INTO ims_shopify_order_recovery
+      (business_id,channel_instance_id,external_order_id,review_reason) VALUES (?,?,'999','source_provenance_conflict')`,
+    [input.businessId, input.channelInstanceId]);
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ ready: false, reason: 'order_review_required' });
+  });
+
+  it('creates no posting state or provider request for accounting before its start date', async () => {
+    await main.execute(`UPDATE sales_channel_instances
+      SET settings_json=JSON_SET(settings_json,'$.shopify.xero.dailyAccountingFrom','2020-01-04')
+      WHERE business_id=? AND channel_instance_id=?`, [input.businessId, input.channelInstanceId]);
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ reason: 'before_accounting_start' });
+    expect(await rows(main, 'SELECT batch_date FROM xero_online_batches')).toHaveLength(0);
+    expect(postCounts()).toEqual({ invoice: 0, payment: 0, fee: 0, journal: 0 });
+  });
   it('blocks a stale completed baseline when the configured eligible history moves earlier', async () => {
     await main.execute(
       "UPDATE sales_channel_instances SET settings_json = JSON_SET(settings_json, '$.shopify.orders.syncFrom', '2019-12-01') WHERE channel_instance_id = ?",

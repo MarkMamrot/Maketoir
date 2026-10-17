@@ -6,11 +6,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { parseSchemaStatements } from '@/lib/ims/provisionBusiness';
 import type { OnlineSyncSqlValue } from '../onlineSyncJobs';
 import type { ShopifyGiftCardRecoveryCommitGuard } from '../shopifyGiftCardRecoveryHistory';
+import { shopifyOrderSnapshot } from '../shopifyOrderSnapshot';
 
 const mocks = vi.hoisted(() => ({
   main: vi.fn(), query: vi.fn(), execute: vi.fn(), pool: vi.fn(), instances: vi.fn(),
   page: vi.fn(), detail: vi.fn(), history: vi.fn(), apply: vi.fn(),
   report: vi.fn(), cron: vi.fn(), gift: vi.fn(), accounting: vi.fn(),
+  context: vi.fn(), refundEffects: vi.fn(),
 }));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.main }));
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -30,10 +32,7 @@ vi.mock('../channelInstanceRepository', () => ({
   SalesChannelInstanceRepository: { listForBusiness: mocks.instances },
 }));
 vi.mock('../shopifyOperationContext', () => ({
-  getShopifyOperationContext: async () => ({
-    instance: { settings: { shopify: { orders: { enabled: true, locationId: 7, syncFrom: '2026-01-01' } } } },
-    credentials: { shopDomain: 'test.myshopify.com', token: 'test-fixture' },
-  }),
+  getShopifyOperationContext: mocks.context,
 }));
 vi.mock('@/services/ShopifyService', () => ({
   ShopifyService: class {
@@ -47,7 +46,7 @@ vi.mock('../shopifyOrderRecovery', async () => {
   return { applyShopifyRecoverySnapshot: mocks.apply, OnlineSyncSliceYield };
 });
 vi.mock('../shopifyOrderRecoveryEffects', () => ({
-  recoverShopifyPaidOrderEffects: vi.fn(), recoverShopifyRefundDownstreamEffects: vi.fn(),
+  recoverShopifyPaidOrderEffects: vi.fn(), recoverShopifyRefundDownstreamEffects: mocks.refundEffects,
 }));
 vi.mock('../shopifyGiftCardRecoveryEffects', () => ({ recoverShopifyGiftCardEffects: mocks.gift }));
 vi.mock('@/lib/xero/onlineDailyAccountingRecovery', () => ({ runOnlineDailyAccountingRecovery: mocks.accounting }));
@@ -98,7 +97,8 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
   beforeEach(async () => {
     vi.resetAllMocks();
     await pool.query('DROP TRIGGER IF EXISTS test_reject_coverage');
-    for (const table of ['ims_sales_channel_jobs', 'ims_shopify_reconciliation', 'ims_online_sync_control',
+    for (const table of ['ims_credit_notes', 'ims_sales_orders', 'ims_locations',
+      'ims_sales_channel_jobs', 'ims_shopify_reconciliation', 'ims_online_sync_control',
       'ims_online_day_changes', 'ims_shopify_order_recovery']) await pool.query(`DELETE FROM ${table}`);
     await pool.execute(
       "INSERT INTO ims_online_sync_control(business_id,rollout_state,paused) VALUES ('alpha','validation',0)",
@@ -111,12 +111,17 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
     mocks.execute.mockImplementation(async (sql: string, params: OnlineSyncSqlValue[] = []) =>
       (await pool.execute<ResultSetHeader>(sql, params))[0]);
     mocks.instances.mockResolvedValue([channel]);
+    mocks.context.mockResolvedValue({
+      instance: { settings: channel.settings },
+      credentials: { shopDomain: 'test.myshopify.com', token: 'test-fixture' },
+    });
     mocks.cron.mockResolvedValue(null);
     mocks.page.mockResolvedValue({ orders: [], nextPageInfo: null });
     mocks.detail.mockImplementation(async (id: string) => ({ id, updated_at: new Date().toISOString() }));
     mocks.apply.mockResolvedValue('applied');
     mocks.gift.mockResolvedValue({ status: 'completed', continuation: null, processed: 0, reviewRequired: 0 });
     mocks.accounting.mockResolvedValue({ status: 'completed' });
+    mocks.refundEffects.mockResolvedValue({ status: 'completed' });
   });
 
   afterAll(async () => {
@@ -133,11 +138,15 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
     expect(mocks.apply).not.toHaveBeenCalled();
   });
   it('persists the frozen initial window before provider access, then requires separate update catchup', async () => {
+    const started = Date.now();
     mocks.page.mockImplementation(async () => {
       expect(decoded((await job()).payload_json).window).toBeDefined();
       return { orders: [], nextPageInfo: null };
     });
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0, jobs: 1 });
+    const initialFrom = Date.parse(String((await state()).baseline_from).replace(' ', 'T') + 'Z');
+    expect(initialFrom).toBeGreaterThanOrEqual(started - 7 * 86400_000);
+    expect(initialFrom).toBeLessThanOrEqual(Date.now() - 7 * 86400_000);
     expect(Number((await state()).baseline_complete)).toBe(0);
     expect(decoded((await job()).payload_json).window).toMatchObject({ phase: 'catchup' });
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0, jobs: 1 });
@@ -203,6 +212,58 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ jobs: 1, failed: 0 });
     expect(mocks.accounting).not.toHaveBeenCalled();
     expect(mocks.page).toHaveBeenCalledOnce();
+  });
+  it('never selects saved accounting jobs before the configured date even after coverage completes', async () => {
+    mocks.instances.mockResolvedValue([{ ...channel, settings: { shopify: {
+      ...channel.settings.shopify, xero: { dailyAutoSyncEnabled: true, dailyAccountingFrom: '2026-01-02' },
+    } } }]);
+    await runOnlineRecoveryDispatch();
+    await runOnlineRecoveryDispatch();
+    expect(Number((await state()).baseline_complete)).toBe(1);
+    for (const date of ['2026-01-01', '2026-01-02']) {
+      await pool.execute(`INSERT INTO ims_sales_channel_jobs
+        (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
+        VALUES ('alpha','store','shopify','online_daily_accounting',?,?,UTC_TIMESTAMP(3))`,
+      [date, JSON.stringify({ kind: 'daily_accounting', date })]);
+    }
+    expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0 });
+    expect(mocks.accounting).toHaveBeenCalledWith(expect.objectContaining({ date: '2026-01-02' }));
+    expect(mocks.accounting).not.toHaveBeenCalledWith(expect.objectContaining({ date: '2026-01-01' }));
+    expect((await rows("SELECT status FROM ims_sales_channel_jobs WHERE operation_key='2026-01-01'"))[0].status).toBe('pending');
+  });
+  it.each([{ cnDate: '2026-01-01', calls: 0 }, { cnDate: '2026-01-02', calls: 1 }])(
+    'only recovers credit-note posting within the accounting date: %j', async ({ cnDate, calls }) => {
+    const settings = { shopify: {
+      ...channel.settings.shopify, xero: { dailyAccountingFrom: '2026-01-02' },
+    } };
+    mocks.instances.mockResolvedValue([{ ...channel, settings }]);
+    mocks.context.mockResolvedValue({
+      instance: { settings }, credentials: { shopDomain: 'test.myshopify.com', token: 'test-fixture' },
+    });
+    const order = {
+      id: '123', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-03T00:00:00Z',
+      financial_status: 'paid', currency: 'AUD', cancelled_at: null, fulfillment_status: null,
+      subtotal_price: '20', total_tax: '2', total_price: '22', total_discounts: '0',
+      line_items: [{ id: '456', quantity: 2, price: '11' }], fulfillments: [], refunds: [{ id: '8001' }],
+    };
+    const snapshot = shopifyOrderSnapshot({ businessId: 'alpha', channelInstanceId: 'store', order });
+    mocks.detail.mockResolvedValue(order);
+    await pool.query("INSERT INTO ims_locations (id,business_id,name) VALUES (7,'alpha','Fixture')");
+    await pool.query(`INSERT INTO ims_sales_orders
+      (id,business_id,so_number,so_type,sales_channel,channel_instance_id,external_order_id,location_id,status,order_date)
+      VALUES (44,'alpha','SO-44','online','shopify','store','123',7,'confirmed','2026-01-01')`);
+    await pool.execute(`INSERT INTO ims_credit_notes
+      (id,business_id,cn_number,so_id,location_id,status,source,channel_instance_id,external_refund_id,cn_date)
+      VALUES (71,'alpha','CN-71',44,7,'complete','shopify','store','8001',?)`, [cnDate]);
+    await pool.execute(`INSERT INTO ims_sales_channel_jobs
+      (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
+      VALUES ('alpha','store','shopify','shopify_order_apply','effects:123',?,UTC_TIMESTAMP(3))`, [JSON.stringify({
+      kind: 'order_effects', orderId: '123', updatedAt: snapshot.updatedAt, hash: snapshot.hash, paid: false, refundIds: ['8001'],
+    })]);
+    expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0 });
+    expect(mocks.refundEffects).toHaveBeenCalledTimes(calls);
+    expect((await rows("SELECT status FROM ims_sales_channel_jobs WHERE operation_key='effects:123'"))[0].status).toBe('complete');
+    expect((await rows('SELECT status FROM ims_credit_notes WHERE id=71'))[0].status).toBe('complete');
   });
   it('caps one business at 25 jobs even when its two storefronts and global budget have spare capacity', async () => {
     mocks.instances.mockResolvedValue([channel, { ...channel, channelInstanceId: 'store-2' }]);

@@ -7,6 +7,7 @@ import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { requestOnlineRecovery } from '@/lib/channels/onlineRecoveryWorker';
 import { OnlineSyncLeaseLostError } from '@/lib/channels/onlineSyncPolicy';
+import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,16 +22,19 @@ export async function GET() {
       const channels = [];
       for (const channel of instances.filter(instance => instance.provider === 'shopify' || instance.provider === 'native_shop')) {
         const [state] = await imsQuery<{
-          baseline_complete: number; covered_through: string | null; next_check_at: string | null; safe_error_code: string | null;
+          baseline_from: string; baseline_complete: number; covered_through: string | null; next_check_at: string | null; safe_error_code: string | null;
         }>(
-          `SELECT baseline_complete,DATE_FORMAT(covered_through,'%Y-%m-%dT%H:%i:%sZ') AS covered_through,
+          `SELECT DATE_FORMAT(baseline_from,'%Y-%m-%dT%H:%i:%sZ') AS baseline_from,
+             baseline_complete,DATE_FORMAT(covered_through,'%Y-%m-%dT%H:%i:%sZ') AS covered_through,
              DATE_FORMAT(next_check_at,'%Y-%m-%dT%H:%i:%sZ') AS next_check_at,safe_error_code
             FROM ims_shopify_reconciliation WHERE business_id = ? AND channel_instance_id = ?`,
           [session.businessId, channel.channelInstanceId],
         );
-        const [jobs] = await imsQuery<{ pending: number; failed: number; safe_error: string | null }>(
-          `SELECT SUM(status IN ('pending','processing')) AS pending,SUM(status = 'failed') AS failed,
-             MAX(CASE WHEN status = 'failed' THEN safe_error END) AS safe_error
+        const [jobs] = await imsQuery<{ pending: number; failed: number; held: number; safe_error: string | null }>(
+          `SELECT SUM(status IN ('pending','processing') AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.blockedReason')),'') <> 'historical_scope_paused') AS pending,
+             SUM(status = 'failed' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.blockedReason')),'') <> 'historical_scope_paused') AS failed,
+             SUM(JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.blockedReason')) = 'historical_scope_paused') AS held,
+             MAX(CASE WHEN status = 'failed' AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.blockedReason')),'') <> 'historical_scope_paused' THEN safe_error END) AS safe_error
             FROM ims_sales_channel_jobs WHERE business_id = ? AND channel_instance_id = ?
               AND operation IN ('shopify_order_reconcile','shopify_order_apply','online_daily_accounting')`,
           [session.businessId, channel.channelInstanceId],
@@ -47,6 +51,9 @@ export async function GET() {
         );
         channels.push({
           channelInstanceId: channel.channelInstanceId, displayName: channel.displayName,
+          recoveryFrom: state?.baseline_from ?? null,
+          accountingFrom: channel.provider === 'shopify' ? shopifyInstanceSettings(channel.settings).xero.dailyAccountingFrom ?? null : null,
+          heldHistoricalJobs: Number(jobs?.held ?? 0),
           baselineComplete: channel.provider === 'native_shop' || Number(state?.baseline_complete) === 1,
           coveredThrough: state?.covered_through ?? null, nextCheckAt: state?.next_check_at ?? null,
           safeErrorCode: state?.safe_error_code ?? jobs?.safe_error ?? null,
@@ -112,6 +119,7 @@ export async function POST(request: Request) {
           `UPDATE ims_sales_channel_jobs SET status = 'pending',available_at = UTC_TIMESTAMP(3),
              payload_json = JSON_REMOVE(payload_json,'$.blockedReason')
             WHERE business_id = ? AND operation IN ('shopify_order_reconcile','shopify_order_apply','online_daily_accounting')
+              AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.blockedReason')),'') <> 'historical_scope_paused'
               AND (status IN ('pending','failed') OR (status = 'processing' AND lease_expires_at <= UTC_TIMESTAMP(3)))
               ${typeof channelInstanceId === 'string' ? 'AND channel_instance_id = ?' : ''}`,
           typeof channelInstanceId === 'string' ? [session.businessId, channelInstanceId] : [session.businessId],

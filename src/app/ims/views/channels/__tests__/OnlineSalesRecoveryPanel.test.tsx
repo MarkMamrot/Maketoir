@@ -46,6 +46,16 @@ afterEach(() => {
 });
 
 describe('OnlineSalesRecoveryPanel', () => {
+  it('distinguishes recent coverage and accounting dates from held historical work', async () => {
+    mockStatus({ ...snapshot, channels: [{
+      ...channel, recoveryFrom: '2026-10-10T00:00:00Z', accountingFrom: '2026-10-18', heldHistoricalJobs: 107,
+    }] });
+    render(<OnlineSalesRecoveryPanel />);
+    expect(await screen.findByText('Recovery coverage from')).toBeTruthy();
+    expect(screen.getByText('Scheduled accounting from').nextElementSibling?.textContent).toBe('2026-10-18');
+    expect(screen.getByText('Historical work held').nextElementSibling?.textContent).toBe('107');
+    expect(screen.getByText(/Only the displayed recovery window is verified/)).toBeTruthy();
+  });
   it('shows separate baseline, coverage, queued, failed and review status for each exact store', async () => {
     const fetchMock = mockStatus();
     render(<OnlineSalesRecoveryPanel canManage />);

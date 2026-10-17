@@ -3,6 +3,7 @@ export type ShopifyOrderReviewReason =
   | 'ambiguous_variant_mapping'
   | 'invalid_source_line_identity'
   | 'existing_order_mapping_mismatch'
+  | 'fulfilment_stock_conflict'
   | 'source_provenance_conflict';
 
 export class ShopifyOrderReviewRequiredError extends Error {

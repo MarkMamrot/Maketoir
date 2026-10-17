@@ -71,9 +71,26 @@ describe('tenant-scoped online recovery control', () => {
     expect(mocks.request).toHaveBeenCalledWith('alpha', 'store');
     const [sql, params] = mocks.execute.mock.calls[0];
     expect(sql).toContain("JSON_REMOVE(payload_json,'$.blockedReason')");
+    expect(sql).toContain("<> 'historical_scope_paused'");
     expect(sql).toContain("status = 'processing' AND lease_expires_at <= UTC_TIMESTAMP(3)");
     expect(sql).not.toContain('review_reason');
     expect(params).toEqual(['alpha', 'store']);
+  });
+  it('reports explicit recovery/accounting scope and held historical work separately', async () => {
+    mocks.instances.mockResolvedValue([{
+      channelInstanceId: 'store', provider: 'shopify', displayName: 'Shop',
+      settings: { shopify: { xero: { dailyAccountingFrom: '2026-10-18' } } },
+    }]);
+    mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('ims_shopify_reconciliation')) return [{ baseline_from: '2026-10-10T00:00:00Z', baseline_complete: 1 }];
+      if (sql.includes('AS pending')) return [{ pending: 1, failed: 0, held: 107 }];
+      if (sql.includes('COUNT(*)')) return [{ total: 0 }];
+      return [];
+    });
+    expect(await (await GET()).json()).toMatchObject({ channels: [{
+      recoveryFrom: '2026-10-10T00:00:00Z', accountingFrom: '2026-10-18', heldHistoricalJobs: 107,
+      pendingJobs: 1, failedJobs: 0,
+    }] });
   });
   it('requires resume rather than claiming to retry paused work', async () => {
     mocks.control.mockResolvedValue({ mode: 'cutover', paused: true, installed: true });

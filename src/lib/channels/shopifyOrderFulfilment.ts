@@ -5,6 +5,8 @@ import { persistShopifyShipment, persistShopifyShipmentInTransaction } from '@/l
 import { imsQuery } from '@/services/IMSMySQLService';
 import { lockInventoryCostState } from '@/lib/ims/costing/fifoCostingService';
 import { ShopifyOrderReviewRequiredError } from '@/lib/ims/shopifyOrderReview';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
+import { ProtectedStockConflict, SalesOrderPriorityConflict } from '@/lib/ims/stockAllocation/readinessService';
 
 type ShopifyFulfilmentTopic = 'fulfillments/create' | 'fulfillments/update' | 'orders/fulfilled';
 
@@ -124,8 +126,18 @@ async function processShopifyOrderFulfilment(
     allowIncomingCoveredStockShortfall: true,
     finalizeWhenComplete: true,
   };
-  if (connection) await fulfilSalesOrderPartialInTransaction(connection, fulfilmentInput);
-  else await fulfilSalesOrderPartial(fulfilmentInput);
+  try {
+    if (connection) await fulfilSalesOrderPartialInTransaction(connection, fulfilmentInput);
+    else await fulfilSalesOrderPartial(fulfilmentInput);
+  } catch (error) {
+    if (connection && (error instanceof StockShortfallError
+      || error instanceof ProtectedStockConflict || error instanceof SalesOrderPriorityConflict)) {
+      throw new ShopifyOrderReviewRequiredError(
+        'fulfilment_stock_conflict', 'Recovered shipment conflicts with available or protected stock; review its stock history before retrying.',
+      );
+    }
+    throw error;
+  }
   if (shipment) {
     await persist(shipment);
   }

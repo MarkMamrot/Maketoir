@@ -80,6 +80,8 @@ Returned stock stays linked to the original fulfilled sales-order line. Under FI
 
 Scheduled recovery holds partially fulfilled orders for review when their earlier stock deductions cannot be verified against exact-storefront shipment receipts. Retry does not adopt legacy shipment history or deduct those units again. When explicit Shopify shipments are available, recovery uses them without an additional whole-order stock fulfilment.
 
+Shipments that conflict with available stock, protected allocations, or waiting-order priority also stay in review. Recovery does not force negative stock or take another order's protected stock. Other orders can continue through the scan while the affected order and accounting day remain held.
+
 If Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.
 
 When accounting is required, scheduled recovery verifies both the completed credit note and its matching authorised Xero posting. A saved Xero reference alone does not confirm completion. Retrying resumes unfinished checks without creating another refund or stock return.
@@ -98,6 +100,8 @@ If an order update arrives before its matching order has been imported from that
 Before verified recovery cutover, automatic daily Xero batch sync can still attempt a catch-up order import when IMS opens, once per browser session. Validation alone does not change that behaviour. Only after verified cutover does bounded scheduled reconciliation replace catch-up triggered by opening POS or IMS; webhooks still prompt order updates.
 
 When scheduled recovery is active, **Import Orders from Shopify** reports **queued for scheduled recovery**. It requests unfinished recovery work rather than returning completed import counts. Check **Sales > Sales Channels > Online sales recovery** for progress; acceptance does not confirm that orders, gift card work or accounting have finished. Before rollout, direct imports retain their completed counts. Do not create duplicate orders or repeat customer charges or refunds while waiting.
+
+Scheduled recovery checks recently updated orders, normally starting with seven days, rather than replaying the entire import history. Later checks resume from a saved checkpoint. Recovery displays its coverage start and separate accounting start; older saved work stays held and is not resumed by Retry. An older order updated now is still eligible for recovery, but earlier accounting days and credit-note postings remain outside the configured accounting scope.
 
 ## Step-by-step
 

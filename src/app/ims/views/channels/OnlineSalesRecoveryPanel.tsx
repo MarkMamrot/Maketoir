@@ -10,6 +10,9 @@ interface RecoveryStatus {
     channelInstanceId: string;
     displayName: string;
     baselineComplete: boolean;
+    recoveryFrom?: string | null;
+    accountingFrom?: string | null;
+    heldHistoricalJobs?: number;
     coveredThrough: string | null;
     nextCheckAt: string | null;
     safeErrorCode: string | null;
@@ -32,6 +35,10 @@ function isRecoveryStatus(value: unknown): value is RecoveryStatus {
       && typeof channel.displayName === 'string' && typeof channel.baselineComplete === 'boolean'
       && nullableString(channel.coveredThrough) && nullableString(channel.nextCheckAt)
       && nullableString(channel.safeErrorCode)
+      && (channel.recoveryFrom === undefined || nullableString(channel.recoveryFrom))
+      && (channel.accountingFrom === undefined || nullableString(channel.accountingFrom))
+      && (channel.heldHistoricalJobs === undefined
+        || (typeof channel.heldHistoricalJobs === 'number' && Number.isInteger(channel.heldHistoricalJobs) && channel.heldHistoricalJobs >= 0))
       && Number.isInteger(channel.pendingJobs) && channel.pendingJobs >= 0
       && Number.isInteger(channel.failedJobs) && channel.failedJobs >= 0
       && Array.isArray(channel.reviewOrders)
@@ -47,6 +54,8 @@ const recoveryIssueLabels = new Map([
   ['gift_card_review_required', 'Gift card review required'],
   ['order_review_required', 'Order review required'],
   ['configuration_blocked', 'Recovery configuration needs attention'],
+  ['before_accounting_start', 'Before scheduled accounting start'],
+  ['fulfilment_stock_conflict', 'Stock fulfilment needs review'],
 ]);
 
 function displayTime(value: string | null, fallback: string): string {
@@ -159,7 +168,7 @@ export default function OnlineSalesRecoveryPanel({ canManage = false }: { canMan
         </div>
         <p>Pausing recovery does not restore old historical scans. Resume recovery before requesting a retry.</p>
         {!canManage && <p>Only Admins and SuperAdmins can retry, pause or resume recovery. Advisor accounting-sync access does not grant these controls.</p>}
-        <p>Baseline completion confirms initial order coverage only, not completion of gift card or accounting work. Baseline completion and incremental coverage are separate. Manual posting stays blocked until baseline and catch-up readiness checks pass, with no override. Retry never clears posted-day review.</p>
+        <p>Baseline completion confirms initial order coverage only, not completion of gift card or accounting work. Only the displayed recovery window is verified, not all historical orders. Manual posting stays blocked until baseline and catch-up readiness checks pass, with no override. Retry never clears posted-day review or resumes held historical work.</p>
         <p>Missing gift card permissions or genuine gift card discrepancies remain failed until an explicit retry after the cause is addressed.</p>
         {status.channels.length === 0 && <p>No online channels are reporting recovery status.</p>}
         <div className={styles.channels}>
@@ -171,7 +180,10 @@ export default function OnlineSalesRecoveryPanel({ canManage = false }: { canMan
                   onClick={() => void act('retry', channel.channelInstanceId)}>Retry recovery for {channel.displayName}</button>}
               </div>
               <dl className={styles.metrics}>
-                <div><dt>Baseline</dt><dd>{channel.baselineComplete ? 'Complete' : 'Incomplete — catch-up required'}</dd></div>
+                <div><dt>Initial catch-up</dt><dd>{channel.baselineComplete ? 'Complete' : 'Incomplete — catch-up required'}</dd></div>
+                {channel.recoveryFrom !== undefined && <div><dt>Recovery coverage from</dt><dd>{displayTime(channel.recoveryFrom, 'Not configured')}</dd></div>}
+                {channel.accountingFrom !== undefined && <div><dt>Scheduled accounting from</dt><dd>{channel.accountingFrom ?? 'Not configured'}</dd></div>}
+                {channel.heldHistoricalJobs !== undefined && <div><dt>Historical work held</dt><dd>{channel.heldHistoricalJobs}</dd></div>}
                 <div><dt>Incremental coverage through</dt><dd>{displayTime(channel.coveredThrough, 'Not yet confirmed')}</dd></div>
                 <div><dt>Next scheduled check</dt><dd>{displayTime(channel.nextCheckAt, 'Not scheduled')}</dd></div>
                 <div><dt>Queued work</dt><dd>{channel.pendingJobs}</dd></div>

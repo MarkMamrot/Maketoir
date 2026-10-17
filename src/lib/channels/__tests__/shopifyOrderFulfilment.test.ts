@@ -1,5 +1,7 @@
 import type { PoolConnection } from 'mysql2/promise';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StockShortfallError } from '@/lib/ims/orderResolution/stockShortfall';
+import { ProtectedStockConflict, SalesOrderPriorityConflict } from '@/lib/ims/stockAllocation/readinessService';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), fulfil: vi.fn(), persist: vi.fn(), fulfilTx: vi.fn(), persistTx: vi.fn(),
@@ -88,6 +90,22 @@ describe('applyShopifyOrderFulfilment', () => {
     it('propagates shipment failure to the outer transaction owner', async () => {
       mocks.persistTx.mockRejectedValueOnce(new Error('Shipment write failed'));
       await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toThrow('Shipment write failed');
+    });
+
+    it.each([
+      new StockShortfallError([]), new ProtectedStockConflict([]), new SalesOrderPriorityConflict([]),
+    ])('holds a typed stock constraint for review: %s', async error => {
+      mocks.fulfilTx.mockRejectedValueOnce(error);
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toMatchObject({
+        reason: 'fulfilment_stock_conflict',
+      });
+      expect(mocks.persistTx).not.toHaveBeenCalled();
+    });
+
+    it('does not disguise an unknown stock-owner failure as a review', async () => {
+      const error = new Error('Unexpected database failure');
+      mocks.fulfilTx.mockRejectedValueOnce(error);
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toBe(error);
     });
 
     it.each([{ operations: [] }, { operations: [{

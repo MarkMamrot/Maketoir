@@ -3,6 +3,22 @@ import { describe, expect, it } from 'vitest';
 import { mergeShopifyInstanceSettings, shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 
 describe('shopifyInstanceSettings', () => {
+  it('preserves explicit recovery and accounting boundaries through unrelated settings saves', () => {
+    const settings = { shopify: {
+      orders: { recoveryFrom: '2026-10-10T10:30:00+11:00' },
+      xero: { dailyAccountingFrom: '2026-10-18' },
+    } };
+    expect(mergeShopifyInstanceSettings(settings, { inventory: { buffer: 2 } })).toMatchObject({
+      orders: { recoveryFrom: '2026-10-09T23:30:00.000Z' },
+      xero: { dailyAccountingFrom: '2026-10-18' },
+    });
+  });
+  it.each(['2026-02-30', '2026-10-18T00:00:00Z', 1, ''])('rejects invalid accounting boundaries: %s', dailyAccountingFrom => {
+    expect(() => shopifyInstanceSettings({ shopify: { xero: { dailyAccountingFrom } } })).toThrow('Scheduled accounting start');
+  });
+  it.each(['2026-02-30T00:00:00Z', '2026-10-18', 1, ''])('rejects invalid recovery boundaries: %s', recoveryFrom => {
+    expect(() => shopifyInstanceSettings({ shopify: { orders: { recoveryFrom } } })).toThrow('Recovery start');
+  });
   it('defaults all provider mutations and outbound sync off', () => {
     expect(shopifyInstanceSettings({})).toEqual({
       orders: { enabled: false, syncFrom: null, lastUpdatedAt: null, locationId: null },
