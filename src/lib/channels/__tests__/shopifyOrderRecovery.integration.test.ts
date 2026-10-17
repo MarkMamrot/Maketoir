@@ -235,6 +235,70 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
     expect(mocks.forbidden).not.toHaveBeenCalled();
   });
 
+  it.each([1, 2])('quarantines %i historically fulfilled units without scoped receipts before stock replay', async fulfilled => {
+    await pool.query("UPDATE ims_sales_orders SET status='partially_fulfilled' WHERE id=44");
+    await pool.execute('UPDATE ims_sales_order_items SET qty_fulfilled=?', [fulfilled]);
+    await pool.execute('UPDATE ims_stock SET qty_on_hand=?,qty_committed=?', [10 - fulfilled, 3 - fulfilled]);
+    await pool.execute(`INSERT INTO ims_so_fulfilment_operations
+      (business_id,operation_key,request_hash,so_id,status,request_json)
+      VALUES ('alpha','shopify:fulfillments/create:7001',?,44,'complete',?)`, [
+      '0'.repeat(64), JSON.stringify({ shipmentQuantities: [{ itemId: 55, quantity: fulfilled }] }),
+    ]);
+    const before = await facts();
+    expect(await recover(source({
+      fulfillment_status: 'partial',
+      fulfillments: [{ id: '7001', status: 'success', line_items: [{ id: '9001', quantity: fulfilled }] }],
+    }))).toBe('review');
+    expect(await facts()).toMatchObject({ stock: before.stock, committed: before.committed, movements: 0 });
+    expect(Number((await rows('SELECT qty_fulfilled FROM ims_sales_order_items'))[0].qty_fulfilled)).toBe(fulfilled);
+    expect((await rows('SELECT review_reason FROM ims_shopify_order_recovery'))[0].review_reason)
+      .toBe('source_provenance_conflict');
+  });
+
+  it('continues known partial shipments without replaying their committed stock', async () => {
+    const first = source({
+      fulfillment_status: 'partial',
+      fulfillments: [{ id: '7001', status: 'success', line_items: [{ id: '9001', quantity: 1 }] }],
+    });
+    expect(await recover(first)).toBe('applied');
+    const second = {
+      ...first, updated_at: new Date(Date.parse(String(first.updated_at)) + 1000).toISOString(),
+      fulfillments: [
+        { id: '7001', status: 'success', line_items: [{ id: '9001', quantity: 1 }] },
+        { id: '7002', status: 'success', line_items: [{ id: '9001', quantity: 1 }] },
+      ],
+    };
+    expect(await recover(second)).toBe('applied');
+    expect(await recover(second)).toBe('already_current');
+    expect(await facts()).toMatchObject({ stock: 8, committed: 1, movements: 2 });
+  });
+
+  it('uses explicit shipments without fulfilling a cancelled unit through the whole-order fallback', async () => {
+    await pool.query('UPDATE ims_sales_order_items SET tax_rate=0.1');
+    await pool.query('UPDATE ims_stock SET qty_committed=2');
+    await pool.query('UPDATE ims_sales_orders SET refunded_amount=11');
+    await pool.query(`INSERT INTO ims_credit_notes
+      (id,business_id,cn_number,so_id,location_id,status,source,channel_instance_id,
+       external_refund_id,cn_date,subtotal,tax_amount,total_amount)
+      VALUES (71,'alpha','CN-71',44,4,'complete','shopify','store','8001',UTC_DATE(),10,1,11)`);
+    const order = source({
+      financial_status: 'partially_refunded', fulfillment_status: 'fulfilled',
+      line_items: [{
+        id: '9001', variant_id: '6001', title: 'Shirt', sku: 'SHIRT', quantity: 3, current_quantity: 2,
+        price: '11.00', total_discount: '0.00', tax_lines: [{ rate: 0.1, price: '3.00' }],
+      }],
+      fulfillments: [{ id: '7001', status: 'success', line_items: [{ id: '9001', quantity: 2 }] }],
+      refunds: [{
+        id: '8001', transactions: [{ kind: 'refund', status: 'success', amount: '11.00' }],
+        refund_line_items: [{ line_item_id: '9001', quantity: 1, subtotal: '10.00', total_tax: '1.00', restock_type: 'cancel' }],
+      }],
+    });
+    expect(await recover(order)).toBe('applied');
+    expect(await facts()).toMatchObject({ stock: 8, committed: 0, movements: 1, notes: 1 });
+    expect(await recover(order)).toBe('already_current');
+    expect(await facts()).toMatchObject({ stock: 8, movements: 1, notes: 1 });
+  });
+
   it.each([
     ['alpha', 71, 'xero-cn-71', 'success', 'AUTHORISED', true],
     ['beta', 71, 'xero-cn-71', 'success', 'AUTHORISED', false],

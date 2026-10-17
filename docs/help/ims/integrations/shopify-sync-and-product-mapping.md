@@ -14,6 +14,7 @@ Use Shopify integration status and history to keep supported catalogue and order
 - Pull Shopify customers into IMS and choose how long customers without recent orders remain active.
 - Review products that are linked, not linked, or waiting for synchronization.
 - Trace customer, order, inventory, fulfilment, and webhook activity in sync history.
+- Review stock-history warnings before retrying partially fulfilled historical orders.
 - Ask Assistant for a bounded local summary of connection readiness, catalogue linkage and recent sync outcomes.
 - Repair variant linkage before retrying affected Shopify data.
 - Use Xero's Shopify Payouts area for payout accounting, not product sync.
@@ -76,6 +77,8 @@ An administrator can run the same check immediately for one storefront. Open **S
 Initiate Shopify refunds in Shopify Admin. Solvantis records the refund as an externally settled customer credit note; it does not issue IMS store credit. Returnable lines restore stock, while **no restock** lines record value only.
 
 Returned stock stays linked to the original fulfilled sales-order line. Under FIFO, its cost comes from the original stock allocations, not today's product cost. Under Average Cost, the return uses the original line's captured cost. Missing or inconsistent source history blocks the stock return rather than inventing a cost.
+
+Scheduled recovery holds partially fulfilled orders for review when their earlier stock deductions cannot be verified against exact-storefront shipment receipts. Retry does not adopt legacy shipment history or deduct those units again. When explicit Shopify shipments are available, recovery uses them without an additional whole-order stock fulfilment.
 
 If Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.
 
