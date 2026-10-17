@@ -186,6 +186,8 @@ Each inventory request has a one-minute timeout. A timeout does not prove that i
 
 The protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shopify line and value without moving stock against the wrong IMS product. The original title is shown so staff can identify the purchased item even though no safe variant match was available.
 
+Extras explicitly marked as untracked in Shopify, such as gift wrapping, can continue as miscellaneous charges without an inventory mapping. When scheduled recovery is active, stock-tracked items without an exact mapping are held for review instead; missing tracking information is not treated as proof that an item is untracked.
+
 > **Warning:** Do not edit or delete Shopify Misc Charge. Do not use a manual stock adjustment to imitate the missing order-line movement until the product mapping and imported order state have been traced.
 
 ## Troubleshooting

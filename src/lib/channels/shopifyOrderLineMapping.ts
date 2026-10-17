@@ -2,7 +2,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { ShopifyOrderReviewRequiredError } from '@/lib/ims/shopifyOrderReview';
 
-type ShopifyOrderLine = Record<string, any>;
+type ShopifyOrderLine = Record<string, unknown>;
 type OrderVariantMapping = { external_variant_id: string; variant_id: string };
 
 export async function loadShopifyOrderMappings(
@@ -35,7 +35,8 @@ export function assertShopifyOrderLineMappings(
   for (const line of lines) {
     if (line.gift_card || Math.max(Number(line.quantity ?? 0), Number(line.current_quantity ?? 0)) <= 0) continue;
     const externalId = String(line.variant_id ?? '').trim();
-    if ((externalId || line.variant_inventory_management === 'shopify') && !variants.has(externalId)) {
+    if (line.variant_inventory_management !== null
+      && (externalId || line.variant_inventory_management === 'shopify') && !variants.has(externalId)) {
       throw new ShopifyOrderReviewRequiredError(
         'missing_variant_mapping', `Shopify variant ${externalId || '(missing)'} requires an exact linked mapping before stock can be applied.`,
       );
