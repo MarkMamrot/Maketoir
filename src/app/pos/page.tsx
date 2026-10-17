@@ -9,6 +9,8 @@ import type { DeviceConfig, PosSession, CachedProduct, CartItem, PaymentEntry, P
 import { isInStockAtLocation } from './_productFilters';
 import { createReceiptPrintGate } from './_receiptPrintGuard';
 import { createPosSyncCoordinator } from './_syncCoordinator';
+import { CatalogueBrowserError, CatalogueDeferredError, CatalogueHttpError, refreshCatalogue, scheduleCatalogueRebuild, withCatalogueLock } from './_catalogueSync';
+import { persistLocalStockChange } from './_productDatabase';
 import { canCompleteSaleLocally, recordLocalSale } from './_localSale';
 import * as Zeller from '@/lib/zeller';
 import { executeZellerTransaction, getApprovedZellerPurchase } from '@/lib/pos/zellerPurchaseResult';
@@ -303,10 +305,11 @@ function RegisterGate({ session, deviceConfig, staleSession, onContinue, onGoToE
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 
-function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
+function LoginScreen({ deviceConfig, onLogin, onDeviceSetup, rebuildCatalogue }: {
   deviceConfig:  DeviceConfig;
   onLogin:       (session: PosSession, products: CachedProduct[], methods: string[], defaultView?: string) => void;
   onDeviceSetup: () => void;
+  rebuildCatalogue: () => Promise<void>;
 }) {
   const [username,     setUsername]     = useState('');
   const [pin,          setPin]          = useState('');
@@ -344,32 +347,21 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function finishLogin(session: PosSession) {
-    const [prodRes, methodRes, viewRes] = await Promise.all([
-      fetch(`/api/pos/products?location_id=${deviceConfig.location_id}`),
+    const [cachedProducts, methodRes, viewRes] = await Promise.all([
+      loadProductsCache(deviceConfig),
       fetch('/api/pos/settings/payment-methods'),
       fetch('/api/pos/settings/products'),
     ]);
-    const prodData   = await prodRes.json().catch(() => ({ products: [], server_time: Date.now() }));
-    const methodData = await methodRes.json().catch(() => ({ methods: ['Cash', 'Card', 'EFT'] }));
-    const viewData   = await viewRes.json().catch(() => ({ defaultView: 'all' }));
-    const refreshedProducts = Array.isArray(prodData.products) ? prodData.products : [];
-    const cachedProducts = await loadProductsCache(deviceConfig);
-    if (!prodRes.ok && !cachedProducts.length) {
-      throw new Error('The product catalogue could not be loaded. Check the connection and try again.');
-    }
-    let products = prodRes.ok ? refreshedProducts : cachedProducts;
-    const imgCache = loadImageCache();
-    if (imgCache && products.length) products = mergeProductImages(products, imgCache);
-    const productsCached = prodRes.ok
-      ? await saveProductsCache({
-          config: deviceConfig,
-          products,
-          serverTime: prodData.server_time ?? Date.now(),
-          isFullSync: true,
-        })
-      : true;
+    if (!methodRes.ok || !viewRes.ok) throw new Error('POS payment methods or settings could not be loaded. Try signing in again.');
+    const methodData = await methodRes.json();
+    const viewData = await viewRes.json();
+    if (!Array.isArray(methodData.methods) || !methodData.methods.every((method: unknown) => typeof method === 'string')
+      || typeof viewData.defaultView !== 'string') throw new Error('POS payment methods or settings are invalid. Try signing in again.');
+    if (!cachedProducts.length) await rebuildCatalogue();
+    const products = cachedProducts.length ? cachedProducts : await loadProductsCache(deviceConfig);
+    if (!products.length) throw new Error('No usable product catalogue is available yet. Keep POS online and try again.');
     const sessionCached = saveLocalSession(session);
-    if (!productsCached || !sessionCached) {
+    if (!sessionCached) {
       fetch('/api/runtime-issues/client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -382,7 +374,7 @@ function LoginScreen({ deviceConfig, onLogin, onDeviceSetup }: {
         keepalive: true,
       }).catch(() => {});
     }
-    onLogin(session, products, methodData.methods ?? ['Cash', 'Card', 'EFT'], viewData.defaultView || 'all');
+    onLogin(session, products, methodData.methods, viewData.defaultView);
   }
 
   async function handlePinLogin() {
@@ -1784,8 +1776,8 @@ function MainPos({
       await onSync(true);
       const remaining = loadOfflineQueue().length + loadFailedQueue().length;
       setSyncMsg(remaining > 0 ? `${remaining} sale${remaining === 1 ? '' : 's'} still awaiting sync or review` : '✓ Synced');
-    } catch {
-      setSyncMsg('Sync failed');
+    } catch (error) {
+      setSyncMsg(error instanceof CatalogueDeferredError ? 'Rebuild waiting; retry shortly' : 'Sync failed');
     } finally {
       setSyncing(false);
       setTimeout(() => setSyncMsg(null), 3000);
@@ -8694,6 +8686,51 @@ export default function PosPage() {
   const [openRegSession, setOpenRegSession] = useState<any>(null);
   const [openEodOnMount, setOpenEodOnMount] = useState(false);
   const syncCoordinator = useMemo(() => createPosSyncCoordinator(), []);
+  const [catalogueWarning, setCatalogueWarning] = useState('');
+  const [catalogueHelpOpen, setCatalogueHelpOpen] = useState(false);
+  const catalogueAbortRef = useRef<AbortController | null>(null);
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  const stockRevisionRef = useRef(0);
+  const stockChangesRef = useRef(new Map<string, number>());
+  function pendingStockIds() {
+    const ids = new Set<string>();
+    for (const entry of [...loadOfflineQueue(), ...loadFailedQueue()]) {
+      const payload = entry.payload;
+      if (typeof payload !== 'object' || payload === null || !('items' in payload) || !Array.isArray(payload.items)) continue;
+      for (const item of payload.items) if (typeof item === 'object' && item !== null && 'variant_id' in item && typeof item.variant_id === 'string') ids.add(item.variant_id);
+    }
+    return ids;
+  }
+
+  useEffect(() => () => { catalogueAbortRef.current?.abort(); }, [deviceConfig?.business_id, deviceConfig?.location_id]);
+
+  useEffect(() => {
+    if (!deviceConfig || !session) return;
+    let checking = false;
+    let retryAfter = 0;
+    const check = async (opening = false) => {
+      if (checking || Date.now() < retryAfter) return;
+      checking = true;
+      let refreshing = false;
+      try {
+        const delay = await scheduleCatalogueRebuild(deviceConfig, opening);
+        if (delay !== undefined && delay <= 0 && navigator.onLine) {
+          refreshing = true;
+          await handleSync(true, deviceConfig);
+        }
+      } catch (error) {
+        retryAfter = Date.now() + (error instanceof CatalogueDeferredError ? 15_000 : 300_000);
+        if (refreshing) return;
+        setCatalogueWarning('Monthly catalogue rebuild is pending. Saved products remain available; try Sync.');
+        reportPosSaleBrowserIssue('pos_catalogue_refresh', undefined, deviceConfig.business_id);
+        console.error('[POS] Scheduled catalogue rebuild failed', error);
+      } finally { checking = false; }
+    };
+    void check(true);
+    const timer = window.setInterval(() => { void check(); }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [deviceConfig, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!session || !deviceConfig?.business_id) return;
@@ -8815,7 +8852,7 @@ export default function PosPage() {
             checkRegisterGate(sess, cfg, () => setScreen('pos'));
             // Refresh products + payment methods in the background. Admin-as-POS
             // replaces the unscoped browser cache; cashier restores stay incremental.
-            handleSync(sess.pos_user_id === 0, cfg).catch(() => {/* offline — keep cached */});
+            handleSync(false, cfg).catch(() => {/* the shared sync flow reports failures */});
           } else {
             // A valid session can survive staff clearing only the catalogue cache.
             // Do not open a scanner with an empty product list while the rebuild runs.
@@ -8871,12 +8908,14 @@ export default function PosPage() {
     return (
       <LoginScreen
         deviceConfig={deviceConfig}
+        rebuildCatalogue={() => handleSync(true, deviceConfig)}
         onLogin={(sess, prods, mets, view) => {
           setSession(sess);
           setProducts(prods);
           setMethods(mets);
           setDefaultView(view || 'all');
           checkRegisterGate(sess, deviceConfig, () => setScreen('pos'));
+          void handleSync(false, deviceConfig).catch(() => {/* the shared sync flow reports failures */});
         }}
         onDeviceSetup={() => { clearDeviceConfig(); setDeviceConfig(null); setScreen('setup'); }}
       />
@@ -8895,18 +8934,69 @@ export default function PosPage() {
     );
   }
 
-  // Central sync function — used by the 5-min background interval, the 15-min
-  // freshness check, the post-session-restore mount refresh, and the manual
-  // "Sync" button (forceFull=true). Uses incremental `since=` fetches driven
-  // by a server-time watermark, falling back to a full fetch when there's no
-  // watermark yet or it's been >12h since the last full resync (single shared
-  // watermark — see needsFullProductsResync — so login/mount and the 12h
-  // safety-net timer can never both trigger a full fetch back-to-back).
+  // Login, background refresh and manual Sync share generation receipts.
+  // Tenants not enabled for v2 retain the legacy timestamp safety net.
   async function handleSync(forceFull: boolean = false, cfgOverride?: DeviceConfig) {
     const cfg = cfgOverride ?? deviceConfig;
     if (!cfg) return;
-    const doFull = forceFull || await needsFullProductsResync(cfg);
-    return syncCoordinator.run(() => performSync(doFull, cfg), doFull);
+    return syncCoordinator.run(async () => {
+      const controller = new AbortController();
+      catalogueAbortRef.current = controller;
+      const revision = stockRevisionRef.current;
+      const current = () => {
+        const configured = loadDeviceConfig();
+        return !controller.signal.aborted && configured?.business_id === cfg.business_id && configured.location_id === cfg.location_id;
+      };
+      setCatalogueWarning('Using saved prices and stock while updating. Prices may be out of date.');
+      try {
+        const mode = await refreshCatalogue({
+          config: cfg, full: forceFull, signal: controller.signal, isCurrent: current,
+          pendingStock: pendingStockIds,
+          protectStock: (incoming, fromCache) => {
+            const pending = pendingStockIds();
+            const locals = new Map(productsRef.current.map(product => [product.variant_id, product]));
+            return incoming.map(product => {
+              const changed = stockChangesRef.current.get(product.variant_id);
+              if (!(fromCache && changed !== undefined) && (changed ?? 0) <= revision && !pending.has(product.variant_id)) return product;
+              const local = locals.get(product.variant_id);
+              return local ? { ...product, soh: local.soh, soh_all: local.soh_all, available: local.available, available_all: local.available_all } : product;
+            });
+          },
+          apply: (incoming, removed, full) => {
+            const updated = full ? incoming : mergeProductsDelta(productsRef.current, incoming, removed);
+            productsRef.current = updated;
+            setProducts(updated);
+          },
+        });
+        if (!current()) return;
+        if (mode === 'disabled') await performSync(forceFull || await needsFullProductsResync(cfg), cfg);
+        else if (mode === 'deferred') {
+          setCatalogueWarning('Full catalogue rebuild is waiting for another register. Saved prices and stock remain available; retry shortly.');
+          throw new CatalogueDeferredError();
+        } else {
+          const response = await fetch('/api/pos/settings/payment-methods', { signal: controller.signal });
+          if (!response.ok) throw new Error('Payment methods could not be refreshed.');
+          const data = await response.json();
+          if (!Array.isArray(data.methods) || !data.methods.every((method: unknown) => typeof method === 'string')) throw new Error('Payment method response is invalid.');
+          setMethods(data.methods);
+          setOfflineMode(false);
+          const pending = pendingStockIds();
+          for (const [id, changedAt] of stockChangesRef.current) if (changedAt <= revision && !pending.has(id)) stockChangesRef.current.delete(id);
+        }
+        if (current()) setCatalogueWarning('');
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof CatalogueDeferredError) throw error;
+        setCatalogueWarning(error instanceof CatalogueBrowserError || (error instanceof CatalogueHttpError && error.status === 426)
+          ? 'This browser needs an update to refresh products safely. Saved prices and stock may be out of date; ask a manager to update the browser.'
+          : 'Catalogue update failed. Saved prices and stock may be out of date. Keep POS online and try Sync.');
+        if (!(error instanceof CatalogueHttpError && error.status < 500) && !(error instanceof CatalogueBrowserError)) {
+          reportPosSaleBrowserIssue('pos_catalogue_refresh', undefined, cfg.business_id);
+        }
+        console.error('[POS] Catalogue refresh failed', error);
+        throw error;
+      }
+    }, forceFull);
   }
 
   async function performSync(doFull: boolean, cfg: DeviceConfig) {
@@ -8974,6 +9064,14 @@ export default function PosPage() {
   }
 
   const mainPosContent = (
+    <>
+    {catalogueWarning && <div role="status" style={{ padding: '10px 16px', background: '#78350f', color: '#fff7ed' }}>
+      {catalogueWarning}{' '}
+      <button onClick={() => setCatalogueHelpOpen(true)} style={{ color: 'inherit', background: 'transparent', border: '1px solid currentColor', borderRadius: 4, padding: '2px 8px' }}>Help</button>
+    </div>}
+    <UnifiedHelpDrawer open={catalogueHelpOpen} onOpenChange={setCatalogueHelpOpen} audience="pos" product="pos"
+      currentContext="pos-catalogue" chatEndpoint="/api/pos/assistant/chat" escalationEndpoint="/api/pos/assistant/escalate"
+      supportEndpoint="/api/pos/support-tickets" showFloatingTrigger={false} assistantDisabled={offlineMode} />
     <MainPos
       deviceConfig={deviceConfig}
       session={session}
@@ -9000,6 +9098,7 @@ export default function PosPage() {
           );
           if (!proceed) return;
         }
+        catalogueAbortRef.current?.abort();
         await fetch('/api/pos/auth/logout', { method: 'POST' });
         clearLocalSession();
         setSession(null);
@@ -9007,33 +9106,35 @@ export default function PosPage() {
       }}
       onSaleCompleted={(sale) => {
         if (sale.is_training || (sale.sale_type === 'layby' && sale.status !== 'layby_complete')) { setLastSale(sale); return; }
-        // Instantly patch local SOH so counts update without waiting for a full sync
-        if (sale.sale_type !== 'return') {
-          setProducts(prev => {
-            const updated = prev.map(p => {
-              const item = sale.items.find(i => i.variant_id === p.variant_id);
-              if (!item) return p;
-              return { ...p, soh: Math.max(0, p.soh - item.qty), soh_all: Math.max(0, p.soh_all - item.qty), available: Math.max(0, (p.available ?? p.soh) - item.qty), available_all: Math.max(0, (p.available_all ?? p.soh_all) - item.qty) };
-            });
-            void saveProductsCache({ config: deviceConfig, products: updated });
-            return updated;
-          });
-        } else {
-          // Return — add stock back
-          setProducts(prev => {
-            const updated = prev.map(p => {
-              const item = sale.items.find(i => i.variant_id === p.variant_id);
-              if (!item) return p;
-              return { ...p, soh: p.soh + item.qty, soh_all: p.soh_all + item.qty, available: (p.available ?? p.soh) + item.qty, available_all: (p.available_all ?? p.soh_all) + item.qty };
-            });
-            void saveProductsCache({ config: deviceConfig, products: updated });
-            return updated;
-          });
-        }
+        stockRevisionRef.current++;
+        for (const item of sale.items) if (item.variant_id) stockChangesRef.current.set(item.variant_id, stockRevisionRef.current);
+        const quantities = sale.items.filter((item): item is CartItem & { variant_id: string } => typeof item.variant_id === 'string')
+          .map(item => ({ variant_id: item.variant_id, qty: sale.sale_type === 'return' ? -item.qty : item.qty }));
+        const updated = productsRef.current.map(product => {
+          const quantity = quantities.filter(item => item.variant_id === product.variant_id).reduce((sum, item) => sum + item.qty, 0);
+          if (!quantity) return product;
+          const stock = (value: number) => sale.sale_type === 'return' ? value - quantity : Math.max(0, value - quantity);
+          return { ...product, soh: stock(product.soh), soh_all: stock(product.soh_all),
+            available: stock(product.available), available_all: stock(product.available_all) };
+        });
+        productsRef.current = updated;
+        setProducts(updated);
+        void withCatalogueLock(deviceConfig, async () => {
+          const changedIds = new Set(quantities.map(item => item.variant_id));
+          const stocks = productsRef.current.filter(product => changedIds.has(product.variant_id));
+          if (!await persistLocalStockChange(deviceConfig, stocks)) {
+            if (!await saveProductsCache({ config: deviceConfig, products: productsRef.current })) throw new Error('Local stock could not be persisted.');
+          }
+        }).catch(error => {
+          console.error('[POS] Local stock cache persistence failed', error);
+          setCatalogueWarning('Device storage could not retain updated stock. Keep POS open and ask a manager to review storage.');
+          reportPosSaleBrowserIssue('pos_catalogue_refresh', sale.local_id, deviceConfig.business_id);
+        });
         setLastSale(sale);
       }}
       onReceipt={showCompletedReceipt}
     />
+    </>
   );
   return (
     <PosDeviceRuntime key={`${deviceConfig.business_id}:${deviceConfig.location_id}:${deviceConfig.register_id ?? 'none'}`} businessId={deviceConfig.business_id}>

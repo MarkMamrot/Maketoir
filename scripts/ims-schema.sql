@@ -1213,6 +1213,43 @@ CREATE TABLE IF NOT EXISTS ims_website_content_attempts (
 -- qty_on_hand   = physical stock at location
 -- qty_incoming  = on approved POs (not yet received)
 -- qty_committed = on confirmed SOs (not yet fulfilled)
+CREATE TABLE IF NOT EXISTS pos_catalogue_control (
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
+  epoch CHAR(36) NOT NULL,
+  ready TINYINT NOT NULL DEFAULT 0,
+  lease_owner CHAR(36) NULL,
+  lease_until DATETIME(3) NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_catalogue_changes (
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  generation CHAR(36) NOT NULL,
+  PRIMARY KEY (business_id, variant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_catalogue_consumers (
+  consumer_id CHAR(36) NOT NULL PRIMARY KEY,
+  business_id VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  location_id INT NOT NULL,
+  epoch CHAR(36) NOT NULL,
+  initialized TINYINT NOT NULL DEFAULT 0,
+  pending_json LONGTEXT NULL,
+  last_receipt CHAR(36) NULL,
+  last_full_at BIGINT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  INDEX idx_catalogue_scope (business_id, location_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS pos_catalogue_acknowledgements (
+  consumer_id CHAR(36) NOT NULL,
+  variant_id VARCHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  generation CHAR(36) NOT NULL,
+  pricing_date DATE NOT NULL,
+  PRIMARY KEY (consumer_id, variant_id),
+  CONSTRAINT fk_catalogue_consumer FOREIGN KEY (consumer_id) REFERENCES pos_catalogue_consumers(consumer_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS ims_stock (
   id            INT AUTO_INCREMENT PRIMARY KEY,
   business_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '',

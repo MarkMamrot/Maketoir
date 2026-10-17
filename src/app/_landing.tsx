@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, FileUp, Play, Sparkles, X } from 'lucide-react';
 import PricingPlanCards from '@/components/PricingPlanCards';
+import IntegrationBelt from '@/components/IntegrationBelt';
 import SolvantisCapabilityMap from '@/components/SolvantisCapabilityMap';
 import { ProspectLeadDialog } from '@/components/assistant/ProspectLeadForm';
 import { ProspectSalesAssistant } from '@/components/assistant/ProspectSalesAssistant';
@@ -285,11 +286,14 @@ export default function Landing() {
                   'Products with unlimited variants (size, colour, style)',
                   'Purchase Orders with full supplier management',
                   'Sales Orders and fulfilment tracking',
+                  'Partial receiving, stock allocation and incremental fulfilment',
+                  'Consignment stock, activity reports and optional supplier statements',
                   'Inter-branch stock transfers with audit trail',
                   'Guided stocktakes with discrepancy reports',
                   'Multi-currency pricing and costing',
                 ].map((t) => <Bullet key={t} text={t} />)}
               </ul>
+              <p className="text-xs text-slate-500 mt-4 leading-relaxed">Consignment separates supplier-owned stock from owned inventory. Statements support external settlement; they do not create supplier bills or payments.</p>
               <Link
                 href="/register"
                 className="inline-block mt-8 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg transition text-sm shadow-sm"
@@ -497,29 +501,10 @@ export default function Landing() {
           <Eyebrow>Integrations</Eyebrow>
           <h2 className="text-3xl font-black text-slate-900 mb-3">Works with the tools you already use</h2>
           <p className="text-slate-500 text-sm mb-10 max-w-md mx-auto">
-            Connect your accounting, ecommerce, marketing, customer communications, and payment platforms. No manual data entry, ever.
+            Connect your accounting, ecommerce, shipping, marketing and customer communications, with supported workflows confirmed for your operation.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {[
-              { name: 'Xero', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
-              { name: 'Shopify', cls: 'text-green-700 bg-green-50 border-green-200' },
-              { name: 'Google Analytics', cls: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
-              { name: 'Google Ads', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
-              { name: 'Meta Ads', cls: 'text-blue-600 bg-blue-50 border-blue-200' },
-              { name: 'Google Apps', cls: 'text-red-700 bg-red-50 border-red-200' },
-              { name: 'Australia Post', cls: 'text-red-700 bg-red-50 border-red-200' },
-              { name: 'Amazon', cls: 'text-orange-700 bg-orange-50 border-orange-200' },
-              { name: 'Payment Terminal Integration', cls: 'text-cyan-700 bg-cyan-50 border-cyan-200' },
-              { name: '+ More Coming', cls: 'text-slate-500 bg-slate-50 border-slate-200' },
-            ].map((item) => (
-              <span
-                key={item.name}
-                className={`inline-flex items-center px-5 py-2.5 rounded-xl border text-sm font-semibold ${item.cls}`}
-              >
-                {item.name}
-              </span>
-            ))}
-          </div>
+          <IntegrationBelt />
+          <p className="text-xs text-slate-500 mt-6 max-w-3xl mx-auto leading-relaxed">Availability depends on your plan, provider and setup. Amazon support covers configured Australia seller-fulfilled channels and existing-ASIN offers. Scale and Enterprise include supported standard 3PL workflows; provider fit is confirmed during onboarding. Specialist connectors and third-party charges may require separate scope and quotation.</p>
         </div>
       </section>
 
@@ -543,6 +528,7 @@ export default function Landing() {
                   { title: 'Loyalty Points', desc: 'Earn points on every purchase, redeem in-store or online' },
                   { title: 'Automated Rewards', desc: 'Set milestone rules — the system does the rest' },
                   { title: 'Customer Segmentation', desc: 'Group customers for targeted promotions' },
+                  { title: 'Klaviyo Customer & Sales Sync', desc: 'Sync eligible profiles and selected sales sources where enabled, without changing marketing consent' },
                 ].map((item) => (
                   <div key={item.title} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:bg-white/[0.07] transition">
                     <p className="text-white font-semibold text-sm mb-1">{item.title}</p>

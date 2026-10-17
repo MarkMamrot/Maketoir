@@ -78,6 +78,8 @@ The public [Privacy policy](/privacy) explains information collection, retailer 
 
 Named platform accounts, including SuperAdmins, Admins, staff and Advisors, use the same password and multi-factor sign-in rules. These rules do not change cashier PINs or separate wholesale and online-shop customer sign-ins.
 
+The explicitly designated local development sandbox test account can sign in without password renewal while sandbox automation is paused. This exception does not apply on the public website or to other accounts and businesses. The existing password must still be correct.
+
 - Passwords require at least 12 characters, uppercase and lowercase letters, a number, and a non-whitespace special character.
 - Passwords must not contain the person's name, username, or full sign-in email. Control characters are not accepted, and the maximum is 72 UTF-8 bytes; non-English characters can use more than one byte.
 - The current password and the previous nine passwords cannot be reused.

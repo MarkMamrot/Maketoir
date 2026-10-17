@@ -16,6 +16,7 @@ Use this guide to change permitted POS presentation and device settings, use Tra
 - Use the paired terminal for supported card-present refunds as well as payments; a declined or cancelled refund does not complete the POS refund.
 - Continue supported ordinary sales from the device's persisted product catalogue while offline.
 - Inspect queued and failed sales, retry them, and confirm they reached Reports.
+- Read catalogue freshness notices before relying on saved prices or stock, and use **Sync** to retry an update.
 - Stop online-only workflows until connectivity returns.
 - Open **Help > Contact Support** to report an issue with optional screenshots while online.
 
@@ -56,6 +57,16 @@ Support tickets require an internet connection. If submission fails, the descrip
 - [ ] Use **Discard** only when a queued sale definitely never happened or was already recorded another way.
 
 > **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue.
+
+### Catalogue freshness and background maintenance
+
+POS may allow ordinary sales from saved products while refreshing. **Using saved prices and stock while updating** means the displayed values have not yet been confirmed current. Verify prices while the warning remains. If an update fails, saved products stay available and the warning remains until a successful refresh; do not assume an unsuccessful Sync updated the device.
+
+Where incremental catalogue refresh is enabled, normal updates include complete records only for changed products. A product update does not alter prices already recorded in your current or parked cart. Image changes and product removals also refresh without clearing sales data.
+
+**Sync** still requests a full catalogue rebuild as well as retrying queued sales. If another register is already rebuilding, POS shows that the rebuild is waiting; retry shortly. Automatic full rebuilds are staggered after they become due at least a calendar month after the last successful rebuild. Closed or offline devices defer that work until they are available.
+
+If device storage cannot retain an update, keep POS open and ask a manager to review the warning. Do not clear browser data to repair the catalogue while queued, failed or parked sales need recovery.
 
 ## Step-by-step
 

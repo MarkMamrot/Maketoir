@@ -1,0 +1,35 @@
+.belt { margin-top: 32px; text-align: left; }
+.controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; color: #52636b; font-size: 12px; line-height: 1.6; }
+.controls button { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 7px; min-height: 44px; padding: 8px 14px; border: 1px solid #d7e1e1; border-radius: 999px; background: white; color: #172d30; font-size: 12px; font-weight: 600; }
+.controls button:hover { background: #f1f6f7; }
+.controls button:focus-visible { outline: 3px solid #277dd0; outline-offset: 3px; }
+.viewport { overflow: hidden; padding: 6px 0 16px; mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent); }
+.track { display: flex; width: max-content; animation: integration-belt 88s linear infinite; }
+.group { display: flex; flex-shrink: 0; gap: 18px; margin: 0; padding: 0 18px 0 0; list-style: none; }
+.card { width: 224px; flex-shrink: 0; padding: 20px; border: 1px solid #dce5ea; border-radius: 16px; background: white; box-shadow: 0 5px 16px #172d3008; }
+.logo { display: flex; align-items: center; justify-content: center; height: 88px; margin-bottom: 16px; overflow: hidden; border-radius: 8px; background: white; }
+.logo img { width: 168px; height: 76px; object-fit: contain; }
+.logo span { font-size: 23px; font-weight: 800; color: #172d30; text-align: center; line-height: 1.2; }
+.name { margin: 0 0 8px; color: #172d30; font-size: 14px; font-weight: 700; line-height: 1.5; }
+.description { margin: 0; color: #52636b; font-size: 12px; line-height: 1.7; }
+.track[data-paused='true'], .viewport:hover .track { animation-play-state: paused; }
+
+@keyframes integration-belt {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+
+@media (max-width: 600px) {
+  .controls { align-items: flex-start; }
+  .controls p { max-width: 210px; }
+  .card { width: 208px; padding: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controls button { display: none; }
+  .viewport { overflow: visible; mask-image: none; }
+  .track { width: 100%; animation: none; }
+  .group { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(208px, 100%), 1fr)); padding: 0; }
+  .group[aria-hidden='true'] { display: none; }
+  .card { width: auto; }
+}

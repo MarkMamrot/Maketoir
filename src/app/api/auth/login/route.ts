@@ -30,7 +30,7 @@ import { query } from '@/services/MySQLService';
 import { recordAuthEvent } from '@/lib/auth/authActivity';
 import { getPasswordValidation, passwordExpiresAt, passwordRequiresRenewal, PasswordRenewalRequiredError } from '@/lib/auth/passwordPolicy';
 
-async function mayBypassMfaForLiveE2E(req: Request, email: string, businessId: string): Promise<boolean> {
+async function mayUseLocalSandboxTestLogin(req: Request, email: string, businessId: string): Promise<boolean> {
   let hostname = '';
   try {
     hostname = new URL(req.url).hostname;
@@ -88,8 +88,11 @@ export async function POST(req: Request) {
       await recordAuthEvent({ userId: user?.id, businessId: user?.business_id, eventType: 'login_failure', request: req });
       return NextResponse.json({ success: false, error: 'Invalid email or password.' }, { status: 401 });
     }
-    if (passwordRequiresRenewal(user.password_changed_at)
-      || !getPasswordValidation(password, user.username, user.name, user.email).isValid) {
+    const membership = await resolveLoginMembership(user);
+    const sandboxTestLogin = membership
+      ? await mayUseLocalSandboxTestLogin(req, user.email, membership.businessId) : false;
+    if (!sandboxTestLogin && (passwordRequiresRenewal(user.password_changed_at)
+      || !getPasswordValidation(password, user.username, user.name, user.email).isValid)) {
       clearAdminSessionCookie();
       clearMfaTrustCookie();
       await recordAuthEvent({ userId: user.id, businessId: user.business_id, eventType: 'password_renewal_required', request: req });
@@ -100,7 +103,6 @@ export async function POST(req: Request) {
       }, { status: 403 });
     }
 
-    const membership = await resolveLoginMembership(user);
     if (!membership) {
       const application = await BusinessApplicationsRepository.findLatestForUser(user.id);
       if (application && application.status !== 'approved') {
@@ -136,11 +138,11 @@ export async function POST(req: Request) {
       role:              user.role ?? 'user',
       tier:              effectiveTier,
       userId:            user.id,
-      passwordExpiresAt: passwordExpiresAt(user.password_changed_at)!,
+      passwordExpiresAt: sandboxTestLogin ? undefined : passwordExpiresAt(user.password_changed_at)!,
     };
 
     clearAdminSessionCookie();
-    if (await mayBypassMfaForLiveE2E(req, user.email, membership.businessId)) {
+    if (sandboxTestLogin) {
       setAdminSessionCookie(userData);
       if (user.tier !== 'SuperAdmin') await recordActiveBusiness(user.id, membership.businessId);
       await clearAuthRateLimit('password-login', rateLimitSubject);

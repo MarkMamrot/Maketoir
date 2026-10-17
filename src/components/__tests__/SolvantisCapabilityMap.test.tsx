@@ -34,6 +34,21 @@ describe('landing map variants', () => {
     expect(screen.getByRole('link', { name: 'More about Multi Channel' }).getAttribute('href')).toBe('#sales-channels');
   });
 
+  it('keeps consignments under inventory and explains optional settlement tracking', () => {
+    render(<SolvantisCapabilityMap refreshed />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore Advanced Inventory features' }));
+    expect(screen.getByText('Supplier-owned stock kept separate from owned inventory')).toBeTruthy();
+    expect(screen.getByText('Optional supplier settlement statements when tracking is enabled')).toBeTruthy();
+    expect(screen.getByText('Statements do not create supplier bills or payments')).toBeTruthy();
+  });
+
+  it('includes governed Klaviyo profile and sales sync in customer relationships', () => {
+    render(<SolvantisCapabilityMap refreshed />);
+    fireEvent.click(screen.getByRole('button', { name: 'Explore CRM features' }));
+    expect(screen.getByText('Eligible customer profiles and selected sales-source sync where enabled')).toBeTruthy();
+    expect(screen.getByText('Customer matching without changing marketing consent')).toBeTruthy();
+  });
+
   it('links to the detailed landing sections when embedded on the original page', () => {
     render(<SolvantisCapabilityMap refreshed sectionBasePath="/landing2.html" />);
     fireEvent.click(screen.getByRole('button', { name: 'Explore Multi Channel Commerce features' }));

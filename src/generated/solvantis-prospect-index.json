@@ -616,7 +616,7 @@
     {
       "id": "public-capability:pos-register-device-login",
       "title": "Register, Device, and Login",
-      "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
+      "summary": "Assign a POS device to a branch and register, sign in, open the register with a counted float, and understand saved-catalogue freshness notices.",
       "capabilities": [
         "pos"
       ],
@@ -710,7 +710,7 @@
     {
       "id": "prospect-integrations",
       "title": "Integration Approach",
-      "summary": "Solvantis connects Xero, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, Australia Post eParcel, Cin7 and supported Google and Meta tools. Scale and Enterprise include supported standard 3PL workflows. Setup, plan allowances, provider readiness and separately scoped costs still apply.",
+      "summary": "Solvantis connects Xero, multiple Shopify stores, configured Amazon Australia seller-fulfilled channels, Australia Post eParcel, Klaviyo, Cin7 and supported Google and Meta tools. Scale and Enterprise include supported standard 3PL workflows. Setup, plan allowances, provider readiness and separately scoped costs still apply.",
       "capabilities": [
         "integrations",
         "accounting",
@@ -718,7 +718,8 @@
         "inventory",
         "loyalty",
         "marketing",
-        "analytics"
+        "analytics",
+        "crm"
       ],
       "product": "prospect",
       "availability": "qualified"
@@ -748,7 +749,7 @@
     {
       "id": "prospect-product-fit",
       "title": "Solvantis Product and Fit",
-      "summary": "Solvantis connects inventory, purchasing, POS, Store Daybooks, customers, wholesale ordering and online commerce for Australian retailers and wholesalers. Shaped through close collaboration with operators, it supports shared stock visibility and daily work across locations and supported sales channels.",
+      "summary": "Solvantis connects inventory, consignment stock, purchasing, POS, Store Daybooks, customers, wholesale ordering and online commerce for Australian retailers and wholesalers. Shared stock visibility, optional consignment supplier statements and connected customer workflows support daily work across locations.",
       "capabilities": [
         "inventory",
         "purchasing",
@@ -756,7 +757,8 @@
         "crm",
         "wholesale",
         "commerce",
-        "analytics"
+        "analytics",
+        "integrations"
       ],
       "product": "prospect",
       "availability": "qualified"

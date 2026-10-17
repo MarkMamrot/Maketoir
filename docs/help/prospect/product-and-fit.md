@@ -1,5 +1,5 @@
 ---
-{"id":"prospect-product-fit","title":"Solvantis Product and Fit","audiences":["prospect"],"product":"prospect","summary":"Solvantis connects inventory, purchasing, POS, Store Daybooks, customers, wholesale ordering and online commerce for Australian retailers and wholesalers. Shaped through close collaboration with operators, it supports shared stock visibility and daily work across locations and supported sales channels.","capabilityTags":["inventory","purchasing","pos","crm","wholesale","commerce","analytics"],"lastReviewed":"2026-10-07","owner":"sales"}
+{"id":"prospect-product-fit","title":"Solvantis Product and Fit","audiences":["prospect"],"product":"prospect","summary":"Solvantis connects inventory, consignment stock, purchasing, POS, Store Daybooks, customers, wholesale ordering and online commerce for Australian retailers and wholesalers. Shared stock visibility, optional consignment supplier statements and connected customer workflows support daily work across locations.","capabilityTags":["inventory","purchasing","pos","crm","wholesale","commerce","analytics","integrations"],"lastReviewed":"2026-10-17","owner":"sales"}
 ---
 # Solvantis Product and Fit
 
@@ -8,6 +8,10 @@
 Solvantis supports retail operations from product and supplier management through selling, fulfilment, customer relationships and performance review. Browser-based point of sale, multi-location stock visibility, purchasing, customer orders, loyalty, wholesale and online commerce can work as one operating platform.
 
 The public feature map presents customer relationships and loyalty separately. It includes Store Daybooks, multiple Shopify storefronts, configured Amazon Australia channels and native online selling. Feature availability depends on the plan and provider setup; feature details link to the relevant product overview.
+
+Inventory includes partial receiving, stock allocation, incremental fulfilment and consignment management. Supplier-owned consignment stock is kept separate from owned inventory valuation. Activity reports support period review and exports; optional managed supplier statements support external settlement when tracking is enabled. Receiving consignment stock and preparing statements do not create supplier bills or payments.
+
+Customer workflows include eligible Klaviyo profile and selected sales-source sync where enabled. Sync does not subscribe customers or change marketing consent, and Shopify sources require checks to avoid sending duplicate commerce events.
 
 Smaller retailers can use the core retail foundation, while growing teams can add advanced inventory, planning, analytics and wholesale capabilities. Large groups can discuss tailored implementation, service and integration needs with the Solvantis team.
 

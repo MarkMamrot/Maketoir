@@ -1,5 +1,5 @@
 ---
-{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day"],"contexts":["pos-register"],"contextSections":{"pos-register":"Step-by-step"},"order":5,"summary":"Assign a POS device to a branch and register, sign in, and open the register with a counted float.","lastReviewed":"2026-08-31","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Set up a register and start the day","subgroup":"Start & end of day"}}
+{"id":"pos-register-device-login","title":"Register, Device, and Login","audiences":["pos","ims"],"capability":"pos","screen":"POS Device Setup and Login","product":"pos","format":"task","parentId":"pos-workspaces","relatedTopics":["pos-selling-payments-manager-approval","pos-settings-terminals-offline-recovery","pos-end-of-day"],"contexts":["pos-register","pos-catalogue"],"contextSections":{"pos-register":"Step-by-step","pos-catalogue":"Saved products and catalogue updates"},"order":5,"summary":"Assign a POS device to a branch and register, sign in, open the register with a counted float, and understand saved-catalogue freshness notices.","lastReviewed":"2026-10-17","owner":"retail","quickSections":["Main operations","At a glance"],"navigation":{"category":"pos","label":"Set up a register and start the day","subgroup":"Start & end of day"}}
 ---
 # Register, Device, and Login
 
@@ -53,6 +53,18 @@ The Assistant can check the register assigned to the signed-in POS session. It r
 3. Open **Register**, select **Open Register**, and count the opening cash by denomination.
 4. Compare **Counted Float** with **Expected Float**, resolve any unexplained difference, and save.
 5. Return to POS and confirm the Charge action is available.
+
+## Saved products and catalogue updates
+
+Use a current Chrome, Edge, Firefox or Safari browser. If POS asks for a browser update, keep the freshness warning in view and ask a manager to update the browser before relying on saved prices or stock.
+
+On a device with saved products, signing in can open POS using its saved catalogue while current prices and stock refresh in the background. A visible notice explains when saved prices and stock may be out of date. You may continue ordinary supported sales, but verify prices while that notice remains. An item already added to a cart keeps its recorded price; a later catalogue update does not silently reprice the cart or parked sales.
+
+If the update fails, the notice remains and asks you to keep POS online and try **Sync**. A successful refresh updates newly selected items. A device without a usable saved catalogue must finish its initial catalogue download before product selling opens.
+
+Where incremental catalogue refresh is enabled, ordinary sign-in and background refreshes download changed products rather than rebuilding the entire catalogue. New products, corrected names and barcodes, promotion changes, stock changes and removed products are included.
+
+Full rebuilds remain available through **Sync**. An automatic rebuild becomes due at least one calendar month after the last successful rebuild, with a random delay of up to two hours from the first authenticated POS opening when due. The delay is remembered across reloads. Only one full rebuild runs at a time for the business, so another register's rebuild can delay the start. Offline, sleeping or closed devices resume pending maintenance when available; they cannot update while closed.
 
 ## Login and register decisions
 

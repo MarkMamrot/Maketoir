@@ -6,6 +6,10 @@ export const IMS_SCHEMA_IDENTITY_COLLATION = collationContract.identityCollation
 export const IMS_SCHEMA_IDENTITY_COLUMNS = collationContract.tenantIdentityColumns;
 
 export const IMS_SCHEMA_REQUIRED_TABLES = [
+  'pos_catalogue_control',
+  'pos_catalogue_changes',
+  'pos_catalogue_consumers',
+  'pos_catalogue_acknowledgements',
   'ims_consignment_tracking_state',
   'ims_consignment_tracking_intervals',
   'ims_consignment_ownership_history',
@@ -190,6 +194,10 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  pos_catalogue_control: ['business_id', 'epoch', 'ready', 'lease_owner', 'lease_until'],
+  pos_catalogue_changes: ['business_id', 'variant_id', 'generation'],
+  pos_catalogue_consumers: ['consumer_id', 'business_id', 'location_id', 'epoch', 'initialized', 'pending_json', 'last_receipt', 'last_full_at'],
+  pos_catalogue_acknowledgements: ['consumer_id', 'variant_id', 'generation', 'pricing_date'],
   ims_contacts: ['is_consignment'],
   ims_consignment_tracking_state: ['business_id', 'enabled', 'evidence_from', 'active_interval_id'],
   ims_consignment_tracking_intervals: ['business_id', 'cutover_date', 'enabled_at', 'disabled_at', 'handover_json'],

@@ -328,6 +328,7 @@ const refreshedCapabilities: Capability[] = capabilities.map((capability) => {
       groups: [
         { title: 'Know your stock', features: ['Products, variants, suppliers and location stock', 'On-hand, committed, incoming and available quantities', 'Bulk catalogue updates and guided stocktakes', 'Branch transfers with sending and receiving confirmation'] },
         { title: 'Receive and fulfil', features: ['Purchase orders and partial delivery receiving', 'Sales-order allocation and incremental fulfilment', 'Backorders and outstanding-order follow-up', 'Multi-currency purchasing where included in your plan'] },
+        { title: 'Consignment stock', features: ['Supplier-owned stock kept separate from owned inventory', 'Consignment activity reporting with CSV and PDF exports', 'Optional supplier settlement statements when tracking is enabled', 'Statements do not create supplier bills or payments'] },
       ],
     },
     wholesale: {
@@ -366,6 +367,7 @@ const refreshedCapabilities: Capability[] = capabilities.map((capability) => {
       groups: [
         { title: 'Customer context', features: ['Customer profiles and purchase history', 'Retail and wholesale pricing tiers', 'Supported Shopify customer linking', 'Customer follow-up alongside store operations'] },
         { title: 'Customer service', features: ['Linked order and return history', 'Auditable store-credit transactions', 'Shared contacts across locations', 'Customer service supported by the operational record'] },
+        { title: 'Klaviyo connection', features: ['Eligible customer profiles and selected sales-source sync where enabled', 'Customer matching without changing marketing consent', 'Shopify source checks to avoid duplicate commerce events'] },
       ],
     },
     marketing: {

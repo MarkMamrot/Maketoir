@@ -5516,14 +5516,16 @@
         "pos-end-of-day"
       ],
       "contexts": [
-        "pos-register"
+        "pos-register",
+        "pos-catalogue"
       ],
       "contextSections": {
-        "pos-register": "Step-by-step"
+        "pos-register": "Step-by-step",
+        "pos-catalogue": "Saved products and catalogue updates"
       },
       "order": 5,
-      "summary": "Assign a POS device to a branch and register, sign in, and open the register with a counted float.",
-      "lastReviewed": "2026-08-31",
+      "summary": "Assign a POS device to a branch and register, sign in, open the register with a counted float, and understand saved-catalogue freshness notices.",
+      "lastReviewed": "2026-10-17",
       "owner": "retail",
       "quickSections": [
         "Main operations",
@@ -5568,24 +5570,30 @@
         },
         {
           "id": "pos-register-device-login:6",
+          "heading": "Saved products and catalogue updates",
+          "content": "Use a current Chrome, Edge, Firefox or Safari browser. If POS asks for a browser update, keep the freshness warning in view and ask a manager to update the browser before relying on saved prices or stock.\n\nOn a device with saved products, signing in can open POS using its saved catalogue while current prices and stock refresh in the background. A visible notice explains when saved prices and stock may be out of date. You may continue ordinary supported sales, but verify prices while that notice remains. An item already added to a cart keeps its recorded price; a later catalogue update does not silently reprice the cart or parked sales.\n\nIf the update fails, the notice remains and asks you to keep POS online and try **Sync**. A successful refresh updates newly selected items. A device without a usable saved catalogue must finish its initial catalogue download before product selling opens.\n\nWhere incremental catalogue refresh is enabled, ordinary sign-in and background refreshes download changed products rather than rebuilding the entire catalogue. New products, corrected names and barcodes, promotion changes, stock changes and removed products are included.\n\nFull rebuilds remain available through **Sync**. An automatic rebuild becomes due at least one calendar month after the last successful rebuild, with a random delay of up to two hours from the first authenticated POS opening when due. The delay is remembered across reloads. Only one full rebuild runs at a time for the business, so another register's rebuild can delay the start. Offline, sleeping or closed devices resume pending maintenance when available; they cannot update while closed.",
+          "presentation": "detail"
+        },
+        {
+          "id": "pos-register-device-login:7",
           "heading": "Login and register decisions",
           "content": "| Situation | Correct action |\n|---|---|\n| The device shows the wrong branch or register | Select **Change Branch / Register** and set it up again before trading |\n| Today's session is already open | Continue it; do not open a second session for the same register |\n| A session from a previous day is still open | Close it through End of Day, then open a fresh session for today |\n| The register is confirmed closed | Open it and count the actual float before the first sale |\n| The device starts offline with saved session and product data | Ordinary sales can open in recovery mode; verify the register as soon as connectivity returns |",
           "presentation": "detail"
         },
         {
-          "id": "pos-register-device-login:7",
+          "id": "pos-register-device-login:8",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Location code is not recognised | The code is wrong, expired, or belongs to another branch | Re-enter it exactly or ask the manager to confirm the code in IMS |\n| No registers are listed | The branch has no active register | Select **Open Locations in IMS**, choose the location, then add or reactivate a register before setup |\n| Products are missing after signing into a different business in the same browser | The saved POS device or session belongs to the previously used business | POS clears the stale session and returns to Device Setup; select a branch and register for the currently signed-in business |\n| Username or PIN fails | The details do not match an active POS user at this location | Check the username and ask a manager to review access; do not use another person's PIN |\n| Browser storage or product-cache warning appears during sign-in | The browser could not retain the refreshed catalogue for offline recovery | Sign-in can continue using the available catalogue while online. Do not clear browser data while queued or failed sales exist; ask a manager to review the offline queue and device storage first |\n| POS stays on Loading after its product cache was cleared | The full catalogue is rebuilding into persistent device storage before the scanner opens | Keep the device online and wait for the login screen or POS to appear; do not repeatedly refresh during the rebuild |\n| Register not open blocks Charge | No open session was confirmed for this register | Open **Register** and save the opening float |\n| A prior-day session warning appears | The till was not closed on its trading day | Count and close that session before opening today's session |",
           "presentation": "detail"
         },
         {
-          "id": "pos-register-device-login:8",
+          "id": "pos-register-device-login:9",
           "heading": "Worked examples",
           "content": "### Move a replacement tablet to the Melbourne register\n\nThe manager enters Melbourne's location code, selects **Front Till**, and completes setup. Alex signs in with their own username and PIN, counts $200 in the drawer, and opens the register with a $200 float. The header now shows Melbourne and Front Till before the first sale is charged.",
           "presentation": "detail"
         },
         {
-          "id": "pos-register-device-login:9",
+          "id": "pos-register-device-login:10",
           "heading": "Related tasks",
           "content": "See **Selling, Payments, and Manager Approval** for checkout and **End of Day and Register Close** for closing the session.",
           "presentation": "detail"
@@ -5941,7 +5949,7 @@
         {
           "id": "pos-settings-terminals-offline-recovery:2",
           "heading": "Main operations",
-          "content": "- Open POS Settings with a permitted staff role.\n- Choose the current location's default product view, whether this device groups the catalogue by product or shows every variant, and where its cart appears.\n- Choose whether the current location can sell against recorded incoming branch-transfer stock.\n- Turn Training Mode on or off for the current POS device.\n- Mute Solvantis chat and scan-error sounds on this device without hiding visual alerts.\n- Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.\n- Use the paired terminal for supported card-present refunds as well as payments; a declined or cancelled refund does not complete the POS refund.\n- Continue supported ordinary sales from the device's persisted product catalogue while offline.\n- Inspect queued and failed sales, retry them, and confirm they reached Reports.\n- Stop online-only workflows until connectivity returns.\n- Open **Help > Contact Support** to report an issue with optional screenshots while online.",
+          "content": "- Open POS Settings with a permitted staff role.\n- Choose the current location's default product view, whether this device groups the catalogue by product or shows every variant, and where its cart appears.\n- Choose whether the current location can sell against recorded incoming branch-transfer stock.\n- Turn Training Mode on or off for the current POS device.\n- Mute Solvantis chat and scan-error sounds on this device without hiding visual alerts.\n- Pair or re-pair the configured Zeller terminal and control whether it is active for the current session.\n- Use the paired terminal for supported card-present refunds as well as payments; a declined or cancelled refund does not complete the POS refund.\n- Continue supported ordinary sales from the device's persisted product catalogue while offline.\n- Inspect queued and failed sales, retry them, and confirm they reached Reports.\n- Read catalogue freshness notices before relying on saved prices or stock, and use **Sync** to retry an update.\n- Stop online-only workflows until connectivity returns.\n- Open **Help > Contact Support** to report an issue with optional screenshots while online.",
           "presentation": "quick"
         },
         {
@@ -5959,7 +5967,7 @@
         {
           "id": "pos-settings-terminals-offline-recovery:5",
           "heading": "Before you begin",
-          "content": "- [ ] Confirm this browser has previously signed in and cached products before relying on offline mode.\n- [ ] Check whether the product-cache warning says prices may be out of date.\n- [ ] Know which card methods are configured to route to Zeller.\n- [ ] Keep the browser and device storage intact until every queued sale is resolved.\n- [ ] Use **Discard** only when a queued sale definitely never happened or was already recorded another way.\n\n> **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue.",
+          "content": "- [ ] Confirm this browser has previously signed in and cached products before relying on offline mode.\n- [ ] Check whether the product-cache warning says prices may be out of date.\n- [ ] Know which card methods are configured to route to Zeller.\n- [ ] Keep the browser and device storage intact until every queued sale is resolved.\n- [ ] Use **Discard** only when a queued sale definitely never happened or was already recorded another way.\n\n> **Important:** A queued sale is the record of a real checkout. Never enter it again merely because it is not yet visible in Reports; first reconnect, sync, and inspect the queue.\n\n### Catalogue freshness and background maintenance\n\nPOS may allow ordinary sales from saved products while refreshing. **Using saved prices and stock while updating** means the displayed values have not yet been confirmed current. Verify prices while the warning remains. If an update fails, saved products stay available and the warning remains until a successful refresh; do not assume an unsuccessful Sync updated the device.\n\nWhere incremental catalogue refresh is enabled, normal updates include complete records only for changed products. A product update does not alter prices already recorded in your current or parked cart. Image changes and product removals also refresh without clearing sales data.\n\n**Sync** still requests a full catalogue rebuild as well as retrying queued sales. If another register is already rebuilding, POS shows that the rebuild is waiting; retry shortly. Automatic full rebuilds are staggered after they become due at least a calendar month after the last successful rebuild. Closed or offline devices defer that work until they are available.\n\nIf device storage cannot retain an update, keep POS open and ask a manager to review the warning. Do not clear browser data to repair the catalogue while queued, failed or parked sales need recovery.",
           "presentation": "detail"
         },
         {
@@ -7155,7 +7163,7 @@
         {
           "id": "setup-team-access-security:9",
           "heading": "Platform password and sign-in rules",
-          "content": "Named platform accounts, including SuperAdmins, Admins, staff and Advisors, use the same password and multi-factor sign-in rules. These rules do not change cashier PINs or separate wholesale and online-shop customer sign-ins.\n\n- Passwords require at least 12 characters, uppercase and lowercase letters, a number, and a non-whitespace special character.\n- Passwords must not contain the person's name, username, or full sign-in email. Control characters are not accepted, and the maximum is 72 UTF-8 bytes; non-English characters can use more than one byte.\n- The current password and the previous nine passwords cannot be reused.\n- A known-age password must normally be at least one day old before replacement and must be renewed after 365 days. Accounts without a recorded password age must renew at their next sign-in, with no grace period.\n- Five unsuccessful platform sign-in attempts trigger a 30-minute account-wide lock; changing network or IP address does not bypass it.\n- Use **Forgot password** when renewal is required. If a suspected compromise needs urgent action during the one-day minimum age, contact the responsible administrator for incident containment rather than repeatedly requesting links.",
+          "content": "Named platform accounts, including SuperAdmins, Admins, staff and Advisors, use the same password and multi-factor sign-in rules. These rules do not change cashier PINs or separate wholesale and online-shop customer sign-ins.\n\nThe explicitly designated local development sandbox test account can sign in without password renewal while sandbox automation is paused. This exception does not apply on the public website or to other accounts and businesses. The existing password must still be correct.\n\n- Passwords require at least 12 characters, uppercase and lowercase letters, a number, and a non-whitespace special character.\n- Passwords must not contain the person's name, username, or full sign-in email. Control characters are not accepted, and the maximum is 72 UTF-8 bytes; non-English characters can use more than one byte.\n- The current password and the previous nine passwords cannot be reused.\n- A known-age password must normally be at least one day old before replacement and must be renewed after 365 days. Accounts without a recorded password age must renew at their next sign-in, with no grace period.\n- Five unsuccessful platform sign-in attempts trigger a 30-minute account-wide lock; changing network or IP address does not bypass it.\n- Use **Forgot password** when renewal is required. If a suspected compromise needs urgent action during the one-day minimum age, contact the responsible administrator for incident containment rather than repeatedly requesting links.",
           "presentation": "detail"
         },
         {

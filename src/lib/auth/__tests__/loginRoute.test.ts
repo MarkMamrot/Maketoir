@@ -144,6 +144,33 @@ describe('POST /api/auth/login MFA gate', () => {
     expect(mocks.setAdminSessionCookie).not.toHaveBeenCalled();
   });
 
+  it.each([null, new Date(Date.now() - 366 * 86400000)])('allows the configured local paused sandbox test account without password renewal (%s)', async changedAt => {
+    process.env.LIVE_E2E_CONFIRM = 'MONSTERTHREADS_LIVE_E2E';
+    process.env.LIVE_E2E_MFA_BYPASS_EMAIL = USER.email;
+    process.env.LIVE_E2E_EXPECTED_BUSINESS_ID = USER.business_id;
+    mocks.query.mockResolvedValue([{ is_sandbox: 1, automation_paused: 1 }]);
+    mocks.findByEmail.mockResolvedValue({ ...USER, password_changed_at: changedAt });
+    const response = await POST(loginRequest({ email: USER.email, password: 'test-only', destination: 'ims' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ success: true, nextRoute: '/ims' });
+    expect(mocks.setAdminSessionCookie).toHaveBeenCalledWith(expect.objectContaining({ passwordExpiresAt: undefined }));
+    expect(mocks.createPreauthSession).not.toHaveBeenCalled();
+  });
+
+  it.each(['host', 'email', 'business', 'sandbox', 'paused', 'confirmation'])('still requires renewal when the sandbox exception fails its %s guard', async guard => {
+    process.env.LIVE_E2E_CONFIRM = guard === 'confirmation' ? '' : 'MONSTERTHREADS_LIVE_E2E';
+    process.env.LIVE_E2E_MFA_BYPASS_EMAIL = guard === 'email' ? 'other@example.com' : USER.email;
+    process.env.LIVE_E2E_EXPECTED_BUSINESS_ID = guard === 'business' ? 'other-business' : USER.business_id;
+    mocks.query.mockResolvedValue([{ is_sandbox: guard === 'sandbox' ? 0 : 1, automation_paused: guard === 'paused' ? 0 : 1 }]);
+    mocks.findByEmail.mockResolvedValue({ ...USER, password_changed_at: null });
+    const localRequest = loginRequest({ email: USER.email, password: 'test-only', destination: 'ims' });
+    const request = guard === 'host' ? new Request('https://solvantis.com.au/api/auth/login', localRequest) : localRequest;
+    const response = await POST(request);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: 'password_renewal_required' });
+    expect(mocks.setAdminSessionCookie).not.toHaveBeenCalled();
+  });
+
   it('creates enrollment pre-auth without issuing an admin session', async () => {
     const response = await POST(loginRequest({
       email: 'admin@example.com',

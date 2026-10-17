@@ -1,9 +1,12 @@
 ﻿import { NextResponse } from 'next/server';
-import { imsQuery } from '@/services/IMSMySQLService';
+import { getIMSPool, imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { getAdminSession, getPosSession } from '@/lib/sessionUtils';
 import { resolveBuildFromSalePolicy } from '@/lib/ims/builds/buildFromSalePolicy';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { CatalogueRequestError, withLegacyCatalogueLease } from '@/lib/pos/catalogueSync.server';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 export async function GET(req: Request) {
   const posSession   = getPosSession();
@@ -29,6 +32,7 @@ export async function GET(req: Request) {
   const serverTime = Date.now();
   const sinceDate = since ? new Date(Number(since)) : null;
   const isIncremental = !!(sinceDate && !isNaN(sinceDate.getTime()));
+  const project = async () => {
 
   // Images are NOT included here — served by GET /api/pos/products/images,
   // cached client-side for 24 h. This keeps the frequent 5-min stock sync fast.
@@ -198,4 +202,13 @@ export async function GET(req: Request) {
   }
 
   return NextResponse.json({ products, removed, server_time: serverTime, location_id: locationId, buildFromSale: buildPolicy });
+  };
+  if (isIncremental) return project();
+  try {
+    return await runImsForBusiness(session.businessId, () => withLegacyCatalogueLease(getIMSPool(), session.businessId, project));
+  } catch (error) {
+    if (error instanceof CatalogueRequestError) return NextResponse.json({ error: error.message }, { status: error.status, headers: { 'Retry-After': '15' } });
+    await reportRuntimeIssue({ businessId: session.businessId, source: 'pos', operation: 'legacy_catalogue_rebuild', title: 'POS catalogue rebuild failed', error, context: { locationId } });
+    return NextResponse.json({ error: 'Catalogue rebuild failed. Saved products remain available; retry Sync.' }, { status: 503 });
+  }
 }

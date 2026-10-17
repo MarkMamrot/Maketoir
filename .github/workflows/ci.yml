@@ -67,6 +67,12 @@ jobs:
           MYSQL_PASSWORD: test-password
           MYSQL_DATABASE: mysql
 
+      - name: Verify POS catalogue transactions and concurrency
+        run: npm test -- src/lib/pos/__tests__/catalogueSync.integration.test.ts
+        env:
+          POS_CATALOGUE_TEST_PORT: '3306'
+          POS_CATALOGUE_TEST_PASSWORD: test-password
+
       - name: Verify FIFO transactions and concurrency
         run: npm test -- --run src/lib/ims/costing/__tests__/fifoCosting.integration.test.ts
         env:

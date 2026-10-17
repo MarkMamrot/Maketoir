@@ -10,6 +10,7 @@ import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
 import amazonPiiGuards from '../../../scripts/amazon-pii-guards.json';
+import { installCatalogueTracking } from '../../../scripts/pos-catalogue-triggers.mjs';
 import { execute, getPool, query } from '@/services/MySQLService';
 import { invalidateImsDbCache } from '@/lib/db/BusinessRegistry';
 import {
@@ -174,6 +175,7 @@ export async function createImsDatabase(dbName: string): Promise<void> {
       await conn.query(stmt);
     }
     await installBusinessIdTriggers(conn);
+    await installCatalogueTracking(conn);
   } finally {
     await conn.end();
   }

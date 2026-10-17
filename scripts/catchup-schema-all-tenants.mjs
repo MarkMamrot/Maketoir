@@ -18,6 +18,7 @@ import dotenv from 'dotenv';
 import fs from 'node:fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { installCatalogueTracking } from './pos-catalogue-triggers.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
@@ -95,6 +96,10 @@ const PRODUCT_BUILD_TABLES = [
   'ims_product_build_reversals',
 ];
 const MISC_TENANT_TABLES = [
+  'pos_catalogue_control',
+  'pos_catalogue_changes',
+  'pos_catalogue_consumers',
+  'pos_catalogue_acknowledgements',
   'ims_consignment_tracking_state',
   'ims_consignment_tracking_intervals',
   'ims_consignment_ownership_history',
@@ -1344,9 +1349,14 @@ const TABLE_DDLS = [
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
 const consignmentOnly = process.argv.includes('--consignment-only');
+const catalogueOnly = process.argv.includes('--pos-catalogue-only');
+if (catalogueOnly && (consignmentOnly || requestedTable)) throw new Error('--pos-catalogue-only cannot be combined with other migration modes.');
 const requestedRepair = process.argv.find(argument => argument.startsWith('--repair='))?.slice('--repair='.length);
 const auditLegacyStockAvgCost = process.argv.includes('--audit-legacy-stock-avg-cost');
 const dropLegacyStockAvgCost = process.argv.includes('--drop-legacy-stock-avg-cost');
+if (catalogueOnly && (requestedRepair || auditLegacyStockAvgCost || dropLegacyStockAvgCost)) {
+  throw new Error('--pos-catalogue-only cannot be combined with repair or stock-cost modes.');
+}
 if (auditLegacyStockAvgCost && dropLegacyStockAvgCost) {
   throw new Error('Choose either --audit-legacy-stock-avg-cost or --drop-legacy-stock-avg-cost, not both.');
 }
@@ -2162,6 +2172,14 @@ async function installAmazonPiiGuards(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
+  if (catalogueOnly) {
+    await conn.query('SET SESSION lock_wait_timeout = 5');
+    await conn.query(`USE \`${schema}\``);
+    for (const ddl of TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl).startsWith('pos_catalogue_'))) await conn.query(ddl);
+    await installCatalogueTracking(conn);
+    console.log(`  ${schema}: POS catalogue tracking installed; rollout remains disabled`);
+    return;
+  }
   const tableDdls = consignmentOnly
     ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl).startsWith('ims_consignment_'))
     : requestedTable ? TABLE_DDLS.filter(ddl => tableNameFromDdl(ddl) === requestedTable) : TABLE_DDLS;
@@ -2922,7 +2940,7 @@ try {
       continue;
     }
     await migrateSchema(schema, businessIdsBySchema.get(schema));
-    if (requestedTable || consignmentOnly) continue;
+    if (requestedTable || consignmentOnly || catalogueOnly) continue;
     await verifyStockAvailabilitySchema(schema);
     await verifyGiftCardReconciliationSchema(schema);
     await verifyOutstandingResolutionSchema(schema);

@@ -12,7 +12,13 @@ vi.mock('@/lib/sessionUtils', () => ({
   getPosSession: mockGetPosSession,
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: mockGetImsSession }));
-vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mockImsQuery }));
+vi.mock('@/services/IMSMySQLService', () => ({
+  imsQuery: mockImsQuery,
+  getIMSPool: () => ({ query: async () => [[]] }),
+}));
+vi.mock('@/lib/db/BusinessRegistry', () => ({
+  runImsForBusiness: async (_businessId: string, work: () => Promise<unknown>) => work(),
+}));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: vi.fn().mockResolvedValue('Australia/Sydney') }));
 
 import { GET } from '../route';

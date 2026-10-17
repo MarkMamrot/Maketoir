@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, Boxes, Check, ClipboardCheck, FileUp, Menu, Network, Play, ShoppingBag, Sparkles, Store, Truck, UsersRound, X, type LucideIcon } from 'lucide-react';
 import PricingPlanCards from '@/components/PricingPlanCards';
+import IntegrationBelt from '@/components/IntegrationBelt';
 import SolvantisCapabilityMap from '@/components/SolvantisCapabilityMap';
 import { SolvantisMark } from '@/components/SolvantisMark';
 import { ProspectLeadDialog } from '@/components/assistant/ProspectLeadForm';
@@ -110,7 +111,8 @@ export default function LandingPreview() {
 
       <section id="inventory" className={styles.section}><div className={`${styles.container} ${styles.twoColumns}`}>
         <div><SectionHeading label="Inventory & purchasing" title="Know what is available. Not just what is on the shelf.">Keep products, suppliers, stock and customer demand together, from the next delivery to the last unit of a split order.</SectionHeading>
-          <Bullets items={['On-hand, committed, incoming and available stock', 'Products, variants and supplier purchasing', 'Partial receiving and incremental order fulfilment', 'Allocations, backorders and outstanding-order follow-up', 'Branch transfers and stocktakes with an audit trail', 'Multi-currency purchasing where included in your plan']} />
+          <Bullets items={['On-hand, committed, incoming and available stock', 'Products, variants and supplier purchasing', 'Partial receiving and incremental order fulfilment', 'Allocations, backorders and outstanding-order follow-up', 'Consignment stock, activity reports and optional supplier statements', 'Branch transfers and stocktakes with an audit trail', 'Multi-currency purchasing where included in your plan']} />
+          <p className={styles.note}>Consignment separates supplier-owned stock from owned inventory. Statements support external settlement; they do not create supplier bills or payments.</p>
           <a href="#features" className={styles.textLink}>Explore Inventory <ArrowRight size={17} /></a>
         </div>
         <figure className={styles.productFigure}><Image src="/landing/sales-order.jpg" alt="Solvantis sales order workspace" width={1000} height={700} sizes="(max-width: 800px) 92vw, 540px" /><figcaption>Stock and customer orders in the same operation.</figcaption></figure>
@@ -182,22 +184,13 @@ export default function LandingPreview() {
 
       <section id="integrations" className={styles.section}><div className={styles.container}>
         <SectionHeading label="Integrations" title="Reduce duplicate entry. Keep control.">Connect the systems you already use, with setup and supported workflows confirmed for your operation.</SectionHeading>
-        <dl className={styles.integrationGrid}>{[
-          ['Xero', 'Retail accounting, payment clearing and reconciliation.'],
-          ['Shopify', 'Multiple stores with separate product, stock and order settings.'],
-          ['Amazon Australia', 'Configured seller-fulfilled channels and existing-ASIN offers.'],
-          ['Australia Post eParcel', 'Configured shipping quotes, labels, tracking and manifests.'],
-          ['Zeller', 'Supported integrated EFTPOS at the counter.'],
-          ['Cin7', 'Product, stock and purchasing alignment with agreed ownership.'],
-          ['Google & Meta', 'Supported business tools and marketing analysis where enabled.'],
-          ['Supported 3PLs', 'Standard workflows on Scale and Enterprise; provider fit confirmed.'],
-        ].map(([name, description]) => <div key={name}><dt>{name}</dt><dd>{description}</dd></div>)}</dl>
-        <p className={styles.note}>Integration allowances vary by plan. Specialist connectors, complex workflows and third-party charges may require separate scope and quotation.</p>
+        <IntegrationBelt />
+        <p className={styles.note}>Integration allowances vary by plan. Scale and Enterprise include supported standard 3PL workflows, with provider fit confirmed during onboarding. Specialist connectors, complex workflows and third-party charges may require separate scope and quotation.</p>
       </div></section>
 
       <section id="customers" className={`${styles.section} ${styles.customerBand}`}><div className={`${styles.container} ${styles.twoColumns}`}>
         <SectionHeading label="Customers & loyalty" title="Know the customer behind the next order.">Bring purchase history, pricing, linked returns and customer value into the same view your staff use to serve people.</SectionHeading>
-        <div><Bullets items={['Customer profiles and retail or wholesale pricing', 'Configurable loyalty earning on eligible purchases', 'Eligible reward redemption and supported online loyalty', 'Store credit with linked return and transaction history']} /><p className={styles.note}>Shopify and native-shop workflows depend on setup and provider support. Customer matching and reward rules are confirmed during onboarding.</p></div>
+        <div><Bullets items={['Customer profiles and retail or wholesale pricing', 'Configurable loyalty earning on eligible purchases', 'Eligible reward redemption and supported online loyalty', 'Store credit with linked return and transaction history', 'Klaviyo customer profiles and selected sales-source sync where enabled']} /><p className={styles.note}>Shopify and native-shop workflows depend on setup and provider support. Customer matching and reward rules are confirmed during onboarding. Klaviyo sync does not subscribe customers or change their marketing consent; Shopify sources require duplicate-event checks.</p></div>
       </div></section>
 
       <section id="pricing" className={styles.section}><div className={styles.container}><SectionHeading label="Plans & pricing" title="A foundation for today. Room for what comes next.">Choose the capacity and support that fit your operation. All prices are AUD excluding GST.</SectionHeading><PricingPlanCards onContactSales={() => setDemoOpen(true)} /></div></section>

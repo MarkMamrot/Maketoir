@@ -11,6 +11,15 @@ vi.mock('@/components/assistant/ProspectLeadForm', () => ({ ProspectLeadDialog: 
 afterEach(cleanup);
 
 describe('separate landing preview', () => {
+  it.each([['original', Landing], ['preview', LandingPreview]] as const)('shows shared integration motion and recent inventory and customer features on the %s landing', (_name, Page) => {
+    render(<Page />);
+    expect(screen.getByRole('region', { name: 'Connected integrations' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pause integration animation' })).toBeTruthy();
+    expect(screen.getByText('Consignment stock, activity reports and optional supplier statements')).toBeTruthy();
+    expect(screen.getByText(/Statements support external settlement; they do not create supplier bills or payments/)).toBeTruthy();
+    expect(screen.getByText(/Klaviyo [Cc]ustomer.*[Ss]ales/)).toBeTruthy();
+  });
+
   it('shares identical pricing and refreshed feature content with the original landing', () => {
     render(<Landing />);
     const originalPricing = Array.from(document.querySelectorAll('#pricing article')).map(card => card.textContent);
