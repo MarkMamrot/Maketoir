@@ -109,9 +109,10 @@ describe.runIf(runIntegration)('FIFO costing MySQL integration', () => {
         businessId, state, variantId: 'variant-1', locationId: 1,
         stockMovementId: 102, quantity: 3,
       });
+      const secondRejection = expect(secondPromise).rejects.toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
       await firstConnection.commit();
 
-      await expect(secondPromise).rejects.toMatchObject({ code: 'FIFO_COSTING_CONFLICT' });
+      await secondRejection;
       await secondConnection.rollback();
 
       const verification = await mysql.createConnection(serverConfig(databaseName));
