@@ -410,7 +410,10 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
   it('holds an old unscoped gift-card cursor rather than silently continuing historical scanning', async () => {
     const settings = { shopify: { orders: { enabled: false }, giftCards: { mode: 'combined' } } };
     mocks.instances.mockResolvedValue([{ ...channel, settings }]);
-    const continuation = { status: 'enabled', pageInfo: null, pageLoaded: true, pendingCardIds: ['123'] };
+    const continuation = {
+      status: 'enabled', pageInfo: null, pageLoaded: true, pendingCardIds: ['123'],
+      nextPageInfo: null, currentCard: null, reviewRequired: 0,
+    };
     await pool.execute(`INSERT INTO ims_sales_channel_jobs
       (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
       VALUES ('alpha','store','shopify','shopify_order_apply','gift_cards',?,UTC_TIMESTAMP(3))`,
