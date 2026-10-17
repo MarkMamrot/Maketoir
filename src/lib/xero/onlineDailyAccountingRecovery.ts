@@ -158,8 +158,12 @@ export async function getOnlineDailyAccountingReadiness(
     const channel = channels[0];
     if (!channel?.is_enabled || !['shopify', 'native_shop'].includes(channel.provider)) return blocked('channel_unavailable');
     const provider = channel.provider as 'shopify' | 'native_shop';
+    const settings = shopifyInstanceSettings(json(channel.settings_json) ?? {});
+    if (provider === 'shopify' && settings.xero.dailyAccountingFrom && input.date < settings.xero.dailyAccountingFrom) {
+      return { ...blocked('before_accounting_start'), provider };
+    }
     if (provider === 'shopify' && input.manual !== true
-      && !shopifyInstanceSettings(json(channel.settings_json) ?? {}).xero.dailyAutoSyncEnabled) {
+      && !settings.xero.dailyAutoSyncEnabled) {
       return { ...blocked('automatic_accounting_disabled'), provider };
     }
     const timeZone = await getBusinessTimeZone(input.businessId);
@@ -183,14 +187,14 @@ export async function getOnlineDailyAccountingReadiness(
       );
       const coverage = reconciliation[0];
       if (!coverage?.baseline_complete) return { ...blocked('baseline_incomplete'), provider, requiredThrough };
-      const syncFrom = shopifyInstanceSettings(json(channel.settings_json) ?? {}).orders.syncFrom;
+      const syncFrom = settings.orders.syncFrom;
       const configuredStart = syncFrom && /^\d{4}-\d{2}-\d{2}$/.test(syncFrom) ? Date.parse(`${syncFrom}T00:00:00.000Z`) : NaN;
       if (!Number.isFinite(configuredStart) || new Date(configuredStart).toISOString().slice(0, 10) !== syncFrom) {
         return { ...blocked('reconciliation_configuration_incomplete'), provider, requiredThrough };
       }
-      // Baselines start one UTC day early to cover all supported business-timezone boundaries.
-      // Moving the configured date earlier requires an explicit rebaseline, never a silent reset.
-      if (!coverage.baseline_from || Date.parse(iso(coverage.baseline_from)) > configuredStart - 86_400_000) {
+      const requiredStart = settings.orders.recoveryFrom
+        ? Date.parse(settings.orders.recoveryFrom) : configuredStart - 86_400_000;
+      if (!coverage.baseline_from || Date.parse(iso(coverage.baseline_from)) > requiredStart) {
         return { ...blocked('rebaseline_required'), provider, requiredThrough };
       }
       if (!coverage.covered_through || iso(coverage.covered_through) < requiredThrough) {
@@ -199,11 +203,16 @@ export async function getOnlineDailyAccountingReadiness(
       // A newer in-flight interval may be discovering relevant changes. Conservatively wait.
       if (coverage.continuation_json) return { ...blocked('reconciliation_in_progress'), provider, requiredThrough };
       const review = await imsQuery(
-        `SELECT external_order_id FROM ims_shopify_order_recovery
-          WHERE BINARY business_id = BINARY ? AND BINARY channel_instance_id = BINARY ?
-            AND (review_reason IS NOT NULL OR lease_expires_at > UTC_TIMESTAMP(3))
+        `SELECT recovery.external_order_id FROM ims_shopify_order_recovery recovery
+          LEFT JOIN ims_sales_orders so ON so.business_id = recovery.business_id
+            AND so.channel_instance_id = recovery.channel_instance_id
+            AND (so.external_order_id = recovery.external_order_id
+              OR (so.external_order_id IS NULL AND so.shopify_order_id = recovery.external_order_id))
+          WHERE BINARY recovery.business_id = BINARY ? AND BINARY recovery.channel_instance_id = BINARY ?
+            AND (recovery.lease_expires_at > UTC_TIMESTAMP(3)
+              OR (recovery.review_reason IS NOT NULL AND (so.id IS NULL OR DATE_FORMAT(so.order_date,'%Y-%m-%d') = ?)))
           LIMIT 1`,
-        [input.businessId, input.channelInstanceId],
+        [input.businessId, input.channelInstanceId, input.date],
       );
       if (review.length) return { ...blocked('order_review_required'), provider, requiredThrough };
     } else {

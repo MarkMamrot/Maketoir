@@ -17,9 +17,7 @@ export function shopifyReconciliationParameters(
     limit: ONLINE_SYNC_LIMITS.pageSize,
     status: 'any',
     fields: 'id,created_at,updated_at',
-    ...(normalized.phase === 'baseline'
-      ? { created_at_min: normalized.from, created_at_max: normalized.to }
-      : { updated_at_min: normalized.from, updated_at_max: normalized.to }),
+    updated_at_min: normalized.from, updated_at_max: normalized.to,
   };
 }
 

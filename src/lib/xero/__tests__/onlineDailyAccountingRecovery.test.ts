@@ -131,6 +131,36 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('daily accounting readiness', () => {
+  it('leaves dates before the explicit accounting start untouched, including manual retries', async () => {
+    channel.settings_json = { shopify: {
+      orders: { syncFrom: '2026-07-01', recoveryFrom: '2026-10-10T00:00:00Z' },
+      xero: { dailyAutoSyncEnabled: true, dailyAccountingFrom: '2026-10-16' },
+    } };
+    for (const manual of [false, true]) {
+      expect(await getOnlineDailyAccountingReadiness({ ...input, manual }))
+        .toMatchObject({ ready: false, reason: 'before_accounting_start' });
+    }
+    expect(mocks.execute).not.toHaveBeenCalled();
+  });
+  it('requires real recent-window coverage rather than the original import start date', async () => {
+    channel.settings_json = { shopify: {
+      orders: { syncFrom: '2026-07-01', recoveryFrom: '2026-10-10T00:00:00Z' },
+      xero: { dailyAutoSyncEnabled: true, dailyAccountingFrom: input.date },
+    } };
+    coverage.baseline_from = '2026-10-10T00:00:00Z';
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ ready: true });
+    coverage.baseline_from = '2026-10-11T00:00:00Z';
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ reason: 'rebaseline_required' });
+  });
+  it('checks historical reviews against the exact accounting day, while retaining live-lease protection', async () => {
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ ready: true });
+    expect(mocks.imsQuery).toHaveBeenCalledWith(expect.stringContaining("DATE_FORMAT(so.order_date,'%Y-%m-%d') = ?"),
+      [input.businessId, input.channelInstanceId, input.date]);
+    orderReview = [{ external_order_id: '123' }];
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ reason: 'order_review_required' });
+    dirty = { generation: 'new', propagated_generation: null, review_reason: 'source_provenance_conflict' };
+    expect(await getOnlineDailyAccountingReadiness(input)).toMatchObject({ reason: 'source_provenance_conflict' });
+  });
   it('leaves legacy and validation businesses on their existing route', async () => {
     for (const state of ['legacy', 'validation']) {
       control.rollout_state = state;

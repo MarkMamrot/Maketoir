@@ -1,9 +1,12 @@
+import { OnlineSyncValidationError, onlineSyncTimestamp } from './onlineSyncPolicy';
+
 export type ShopifyGiftCardMode = 'off' | 'combined';
 
 export type ShopifyInstanceSettings = {
   orders: {
     enabled: boolean;
     syncFrom: string | null;
+    recoveryFrom?: string | null;
     lastUpdatedAt: string | null;
     locationId: number | null;
   };
@@ -23,6 +26,7 @@ export type ShopifyInstanceSettings = {
   };
   xero: {
     dailyAutoSyncEnabled: boolean;
+    dailyAccountingFrom?: string | null;
     payoutPostingEnabled: boolean;
     payoutAutoPostEnabled: boolean;
   };
@@ -37,6 +41,27 @@ export type ShopifyInstanceSettingsPatch = {
 };
 
 export class ShopifyInstanceSettingsValidationError extends Error {}
+
+function recoveryFrom(value: unknown): string | null {
+  if (value === null) return null;
+  try {
+    if (typeof value !== 'string') throw new OnlineSyncValidationError('Invalid recovery timestamp.');
+    return new Date(onlineSyncTimestamp(value)).toISOString();
+  } catch (error) {
+    if (!(error instanceof OnlineSyncValidationError)) throw error;
+    throw new ShopifyInstanceSettingsValidationError('Recovery start must be an ISO timestamp with a timezone or empty.');
+  }
+}
+
+function dailyAccountingFrom(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)
+    || !Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+    || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value) {
+    throw new ShopifyInstanceSettingsValidationError('Scheduled accounting start must be a valid YYYY-MM-DD date or empty.');
+  }
+  return value;
+}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -80,6 +105,7 @@ export function shopifyInstanceSettings(settings: Record<string, unknown>): Shop
     orders: {
       enabled: enabled(orders.enabled),
       syncFrom: nullableString(orders.syncFrom),
+      ...(orders.recoveryFrom === undefined ? {} : { recoveryFrom: recoveryFrom(orders.recoveryFrom) }),
       lastUpdatedAt: nullableString(orders.lastUpdatedAt),
       locationId: positiveInteger(orders.locationId),
     },
@@ -99,6 +125,7 @@ export function shopifyInstanceSettings(settings: Record<string, unknown>): Shop
     },
     xero: {
       dailyAutoSyncEnabled: enabled(xero.dailyAutoSyncEnabled),
+      ...(xero.dailyAccountingFrom === undefined ? {} : { dailyAccountingFrom: dailyAccountingFrom(xero.dailyAccountingFrom) }),
       payoutPostingEnabled: enabled(xero.payoutPostingEnabled),
       payoutAutoPostEnabled: enabled(xero.payoutAutoPostEnabled),
     },

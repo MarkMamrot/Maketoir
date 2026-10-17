@@ -28,13 +28,18 @@ Availability is shown explicitly:
 - **Validation:** recovery is being checked while existing catch-up behaviour remains in place. Do not assume that opening POS or IMS has stopped triggering catch-up.
 - **Cutover:** bounded scheduled order reconciliation is active. Only after verified cutover does opening POS or IMS no longer trigger order catch-up.
 
-Webhooks prompt order updates. Scheduled reconciliation checks bounded periods for missed changes; daily accounting runs independently. A complete baseline confirms initial order coverage only: it does not confirm that later changes, gift card work or accounting work are complete, including for the Solvantis Online Store.
+Webhooks prompt order updates. Scheduled reconciliation starts with a recent updated-order window, normally seven days, then checks changes since its last confirmed checkpoint with a short overlap. An older order changed recently can still be discovered. It does not automatically audit every imported order; historical backfills require a separate, explicitly chosen scope.
+
+Daily accounting runs independently from its configured business start date, after each trading day closes. Older accounting days and earlier credit-note postings are left unchanged. A complete initial catch-up confirms only the displayed recovery window: it does not certify all historical orders or completion of gift card and accounting work.
 
 Each exact storefront shows:
 
 | Status | Meaning |
 |---|---|
-| Baseline | Whether the initial order coverage is complete |
+| Initial catch-up | Whether the displayed initial recovery window is complete |
+| Recovery coverage from | The earliest updated-order timestamp covered by this recovery rollout |
+| Scheduled accounting from | The first business date eligible for scheduled accounting |
+| Historical work held | Earlier saved work retained outside the active scope; retry does not resume it |
 | Incremental coverage through | The latest confirmed recovery coverage, not the time a page was opened |
 | Next scheduled check | When the next recovery check is expected; it is not a completion guarantee |
 | Queued work / Failed work | Work still waiting or needing a recovery retry |
@@ -50,7 +55,7 @@ Missing gift card permissions or genuine gift card discrepancies remain failed u
 
 **Pause recovery** and **Resume recovery** apply to scheduled order recovery across channels. Pausing does not restore old historical scans and is not an accounting posting switch. Resume recovery before requesting a retry.
 
-Manual daily posting remains blocked until baseline and catch-up readiness checks pass. There is no posting override, force-ready action or clear-review bypass. Retry does not clear review for a previously posted day. Investigate non-refund late changes to an already posted day in **Online Sales** before treating the accounting as reconciled.
+Manual daily posting remains blocked until the selected recovery window and catch-up readiness checks pass. Dates before the configured accounting start remain excluded. Review holds on the affected accounting day remain blocking; an unrelated historical review does not prevent a verified current day from posting. There is no posting override, force-ready action or clear-review bypass. Retry does not clear review for a previously posted day. Investigate non-refund late changes to an already posted day in **Online Sales** before treating the accounting as reconciled.
 
 Recovered refunds repair local orders and linked credit notes and automatically use the existing Xero flow when eligible. They never charge or refund the customer again. Do not repeat the original customer refund to repair local or accounting records.
 

@@ -7,6 +7,7 @@ import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { ShopifyService } from '@/services/ShopifyService';
 import { SalesChannelInstanceRepository } from './channelInstanceRepository';
+import type { SalesChannelInstance } from './types';
 import { assertOnlineRecoveryBusinessActive, getOnlineSyncControl } from './onlineSyncControl';
 import { classifyOnlineSyncFailure } from './onlineSyncFailure';
 import { checkCronJobEnabled } from '@/lib/cron/settings';
@@ -269,14 +270,16 @@ async function runApplication(lease: OnlineSyncJobLease, deadline: number) {
         if (!Array.isArray(order.refunds)) throw new OnlineSyncValidationError('Incomplete recovery refund source.');
         const refund = order.refunds.find(row => String(row.id) === refundId);
         if (!refund) throw new OnlineSyncValidationError('Planned recovery refund is missing.');
-        const [note] = await imsQuery<{ id: number }>(
-          `SELECT cn.id FROM ims_credit_notes cn JOIN ims_sales_orders so ON so.id = cn.so_id
+        const [note] = await imsQuery<{ id: number; cn_date: string }>(
+          `SELECT cn.id,DATE_FORMAT(cn.cn_date,'%Y-%m-%d') AS cn_date
+            FROM ims_credit_notes cn JOIN ims_sales_orders so ON so.id = cn.so_id
             WHERE cn.business_id = ? AND cn.channel_instance_id = ? AND cn.external_refund_id = ?
               AND cn.status = 'complete' AND so.business_id = ? AND so.channel_instance_id = ?
               AND so.external_order_id = ?`,
           [businessId, lease.channelInstanceId, refundId, businessId, lease.channelInstanceId, payload.orderId],
         );
         if (!note) throw new Error('Downstream refund has no exact completed credit note.');
+        if (settings.xero.dailyAccountingFrom && note.cn_date < settings.xero.dailyAccountingFrom) continue;
         const result = await recoverShopifyRefundDownstreamEffects({
           businessId, channelInstanceId: lease.channelInstanceId,
           refund: { ...refund, order_id: payload.orderId }, creditNoteId: note.id,
@@ -294,6 +297,13 @@ async function runApplication(lease: OnlineSyncJobLease, deadline: number) {
   }
   await renewRecoveryLease(lease);
   await finishOnlineSyncJob(lease, null);
+}
+
+function scheduledAccountingBounds(channels: SalesChannelInstance[]) {
+  return channels.flatMap(channel => {
+    const from = channel.provider === 'shopify' ? shopifyInstanceSettings(channel.settings).xero.dailyAccountingFrom : null;
+    return from ? [{ id: channel.channelInstanceId, from }] : [];
+  });
 }
 
 async function prepareBusiness(
@@ -317,10 +327,11 @@ async function prepareBusiness(
       });
     }
     if (!settings.orders.enabled || !settings.orders.syncFrom || !settings.orders.locationId) continue;
-    const start = onlineSyncTimestamp(`${settings.orders.syncFrom}T00:00:00.000Z`);
+    const start = settings.orders.recoveryFrom
+      ? onlineSyncTimestamp(settings.orders.recoveryFrom) : Date.now() - 7 * 86400_000;
     await imsExecute(
       `INSERT IGNORE INTO ims_shopify_reconciliation (business_id,channel_instance_id,baseline_from)
-       VALUES (?,?,?)`, [businessId, channel.channelInstanceId, new Date(start - 86400_000)],
+       VALUES (?,?,?)`, [businessId, channel.channelInstanceId, new Date(start)],
     );
     await enqueueOnlineSyncJob({
       businessId, channelInstanceId: channel.channelInstanceId, provider: 'shopify',
@@ -337,21 +348,29 @@ async function prepareBusiness(
       });
     }
   }
-  const accountingIds = await isXeroAccountingEnabled(businessId)
+  const accountingChannels = await isXeroAccountingEnabled(businessId)
     ? instances.filter(channel => channel.provider === 'native_shop'
-      || shopifyInstanceSettings(channel.settings).xero.dailyAutoSyncEnabled).map(channel => channel.channelInstanceId)
+      || shopifyInstanceSettings(channel.settings).xero.dailyAutoSyncEnabled)
     : [];
-  if (accountingIds.length && Date.now() < deadline) {
+  const accountingBounds = scheduledAccountingBounds(accountingChannels);
+  const beforeAccountingStart = accountingBounds.map(() => '(job.channel_instance_id = ? AND job.operation_key < ?)').join(' OR ');
+  const boundaryParams = accountingBounds.flatMap(bound => [bound.id, bound.from]);
+  if (accountingChannels.length && Date.now() < deadline) {
+    const ranges = accountingChannels.map(channel => {
+      const from = accountingBounds.find(bound => bound.id === channel.channelInstanceId)?.from;
+      return { sql: `(channel_instance_id = ?${from ? ' AND order_date >= ?' : ''})`,
+        params: from ? [channel.channelInstanceId, from] : [channel.channelInstanceId] };
+    });
     const dates = await imsQuery<{ channel_instance_id: string; business_date: string; provider: 'shopify' | 'native_shop' }>(
       `SELECT days.channel_instance_id,days.business_date,days.provider FROM
         (SELECT DISTINCT channel_instance_id,DATE_FORMAT(order_date,'%Y-%m-%d') AS business_date,sales_channel AS provider
           FROM ims_sales_orders WHERE business_id = ? AND so_type = 'online' AND is_staff_preview_test = 0
             AND COALESCE(is_historical,0) = 0 AND order_date < ?
-            AND channel_instance_id IN (${accountingIds.map(() => '?').join(',')})) days
+            AND (${ranges.map(range => range.sql).join(' OR ')})) days
         LEFT JOIN ims_sales_channel_jobs job ON job.business_id = ? AND job.channel_instance_id = days.channel_instance_id
           AND job.operation = 'online_daily_accounting' AND job.operation_key = days.business_date
         WHERE job.id IS NULL ORDER BY days.business_date LIMIT 25`,
-      [businessId, today, ...accountingIds, businessId],
+      [businessId, today, ...ranges.flatMap(range => range.params), businessId],
     );
     for (const day of dates) {
       if (Date.now() >= deadline) break;
@@ -370,10 +389,11 @@ async function prepareBusiness(
           AND changes.business_date = job.operation_key
         SET job.status = 'pending',job.available_at = UTC_TIMESTAMP(3)
         WHERE job.business_id = ? AND job.operation = 'online_daily_accounting' AND job.status = 'complete'
-          AND NOT (changes.generation <=> changes.propagated_generation)`, [businessId],
+          AND NOT (changes.generation <=> changes.propagated_generation)
+          ${beforeAccountingStart ? `AND NOT (${beforeAccountingStart})` : ''}`, [businessId, ...boundaryParams],
     );
   }
-  return instances.map(channel => channel.channelInstanceId);
+  return instances;
 }
 
 export async function requestOnlineRecovery(businessId: string, channelInstanceId?: string): Promise<void> {
@@ -435,7 +455,9 @@ export async function runOnlineRecoveryDispatch() {
       let lease: OnlineSyncJobLease | null = null;
       try {
         const today = new Date().toLocaleDateString('sv-SE', { timeZone: await getBusinessTimeZone(businessId) });
-        const ids = await prepareBusiness(businessId, today, undefined, deadline);
+        const channels = await prepareBusiness(businessId, today, undefined, deadline);
+        const ids = channels.map(channel => channel.channelInstanceId);
+        const accountingBounds = scheduledAccountingBounds(channels);
         if (!ids.length || Date.now() >= deadline) return;
         const perChannel = new Map<string, number>();
         const reconciled = new Set<string>();
@@ -462,9 +484,14 @@ export async function runOnlineRecoveryDispatch() {
                 ${reconciled.size ? `AND NOT (operation = 'shopify_order_reconcile'
                   AND channel_instance_id IN (${[...reconciled].map(() => '?').join(',')}))` : ''}
                 AND JSON_EXTRACT(payload_json,'$.blockedReason') IS NULL
+                ${accountingBounds.length ? `AND (operation <> 'online_daily_accounting' OR NOT (
+                  ${accountingBounds.map(() => '(channel_instance_id = ? AND operation_key < ?)').join(' OR ')}
+                ))` : ''}
                 AND ((status IN ('pending','failed') AND available_at <= UTC_TIMESTAMP(3))
                   OR (status = 'processing' AND lease_expires_at <= UTC_TIMESTAMP(3)))
-              ORDER BY available_at,id LIMIT 1`, [businessId, ...ids, ...exhausted, ...reconciled],
+              ORDER BY available_at,id LIMIT 1`, [
+                businessId, ...ids, ...exhausted, ...reconciled, ...accountingBounds.flatMap(bound => [bound.id, bound.from]),
+              ],
           );
           if (!job) break;
           lease = await claimOnlineSyncJob({

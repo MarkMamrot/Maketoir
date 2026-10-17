@@ -255,6 +255,19 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
       .toBe('source_provenance_conflict');
   });
 
+  it('holds an unavailable-stock shipment for review without negative stock or partial stock writes', async () => {
+    await pool.query('UPDATE ims_stock SET qty_on_hand=0');
+    expect(await recover(source({
+      fulfillment_status: 'fulfilled',
+      fulfillments: [{ id: '7001', status: 'success', line_items: [{ id: '9001', quantity: 3 }] }],
+    }))).toBe('review');
+    expect(await facts()).toMatchObject({ stock: 0, committed: 3, movements: 0, notes: 0 });
+    expect(Number((await rows('SELECT qty_fulfilled FROM ims_sales_order_items'))[0].qty_fulfilled)).toBe(0);
+    expect((await rows('SELECT review_reason FROM ims_shopify_order_recovery'))[0].review_reason)
+      .toBe('fulfilment_stock_conflict');
+    expect(await rows('SELECT * FROM ims_so_fulfilment_operations')).toHaveLength(0);
+  });
+
   it('continues known partial shipments without replaying their committed stock', async () => {
     const first = source({
       fulfillment_status: 'partial',
