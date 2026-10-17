@@ -61,6 +61,14 @@ describe('xeroApiFetch', () => {
     );
   });
 
+  it('preserves definite HTTP status and Retry-After metadata for durable accounting retries', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('Rate limit reached', { status: 429, headers: { 'Retry-After': '300' } }));
+    await expect(xeroApiFetch('biz-1', '/Payments', { method: 'POST' })).rejects.toMatchObject({
+      status: 429, retryAfter: '300',
+      message: 'Xero API POST /Payments failed (429): Rate limit reached',
+    });
+  });
+
   it('blocks writes before loading credentials or calling Xero when posting is paused', async () => {
     mockGetPolicy.mockResolvedValue({ postingEnabled: false });
 

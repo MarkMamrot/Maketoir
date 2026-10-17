@@ -73,6 +73,12 @@ jobs:
           POS_CATALOGUE_TEST_PORT: '3306'
           POS_CATALOGUE_TEST_PASSWORD: test-password
 
+      - name: Verify online recovery jobs and lease fencing
+        run: npm test -- src/lib/channels/__tests__/onlineSyncJobs.integration.test.ts src/lib/channels/__tests__/shopifyOrderCoordination.integration.test.ts src/lib/channels/__tests__/shopifyOrderLocalEffects.integration.test.ts src/lib/channels/__tests__/onlineRecoveryWorker.integration.test.ts src/lib/channels/__tests__/shopifyOrderRecovery.integration.test.ts src/lib/channels/__tests__/shopifyGiftCardRecovery.integration.test.ts src/lib/xero/__tests__/onlineDailyAccountingRecovery.integration.test.ts
+        env:
+          ONLINE_SYNC_TEST_PORT: '3306'
+          ONLINE_SYNC_TEST_PASSWORD: test-password
+
       - name: Verify FIFO transactions and concurrency
         run: npm test -- --run src/lib/ims/costing/__tests__/fifoCosting.integration.test.ts
         env:

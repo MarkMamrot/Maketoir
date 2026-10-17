@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('@/lib/channels/onlineSyncControl', () => ({
+  getOnlineSyncControl: vi.fn().mockResolvedValue({ mode: 'legacy', paused: false }),
+}));
+vi.mock('@/lib/channels/shopifyOrderRecovery', () => ({ queueShopifyRecoveryEvent: vi.fn() }));
 
 const mocks = vi.hoisted(() => ({
   verify: vi.fn(), stage: vi.fn(), claim: vi.fn(), finish: vi.fn(), importOrder: vi.fn(),
@@ -39,7 +43,9 @@ import { ShopifyWebhookIngressError } from '@/lib/channels/shopifyWebhookIngress
 import { ShopifyOrderImportPendingError } from '@/lib/channels/shopifyOrderUpdate';
 import { POST } from '@/app/api/webhooks/shopify/channels/[channelInstanceId]/route';
 
-function request(topic = 'orders/create') {
+function request(topic = 'orders/create', payload: Record<string, unknown> = {
+  id: 1001, created_at: '2026-09-25T01:00:00Z',
+}) {
   return new Request('http://localhost/api/webhooks/shopify/channels/instance-1', {
     method: 'POST',
     headers: {
@@ -48,7 +54,7 @@ function request(topic = 'orders/create') {
       'x-shopify-shop-domain': 'retail.myshopify.com',
       'x-shopify-hmac-sha256': 'signature',
     },
-    body: JSON.stringify({ id: 1001, created_at: '2026-09-25T01:00:00Z' }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -116,6 +122,18 @@ describe('exact-instance Shopify webhook route', () => {
     expect(mocks.getDb).not.toHaveBeenCalled();
     expect(mocks.run).not.toHaveBeenCalled();
     expect(mocks.stage).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed creation timestamps before domain mutations and reports the failure', async () => {
+    const response = await POST(request('orders/create', { id: 1001, created_at: { invalid: true } }), {
+      params: { channelInstanceId: 'instance-1' },
+    });
+    expect(response.status).toBe(500);
+    expect(mocks.importOrder).not.toHaveBeenCalled();
+    expect(mocks.finish).toHaveBeenCalledWith(expect.objectContaining({ status: 'failed' }));
+    expect(mocks.report).toHaveBeenCalledWith(expect.objectContaining({
+      businessId: 'business-1', operation: 'process_exact_instance_event',
+    }));
   });
 
   it('applies exact loyalty only after a paid order is imported', async () => {

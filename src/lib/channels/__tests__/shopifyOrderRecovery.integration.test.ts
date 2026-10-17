@@ -1,0 +1,215 @@
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import mysql, { type Pool, type ResultSetHeader, type RowDataPacket } from 'mysql2/promise';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { parseSchemaStatements } from '@/lib/ims/provisionBusiness';
+import type { OnlineSyncSqlValue } from '../onlineSyncJobs';
+
+const mocks = vi.hoisted(() => ({
+  pool: vi.fn(), query: vi.fn(), execute: vi.fn(), main: vi.fn(),
+  forbidden: vi.fn(() => { throw new Error('Unexpected provider or main-database mutation.'); }),
+}));
+vi.mock('@/services/IMSMySQLService', () => ({
+  getIMSPool: mocks.pool, imsQuery: mocks.query, imsExecute: mocks.execute,
+}));
+vi.mock('@/services/MySQLService', () => ({
+  query: mocks.main, execute: mocks.forbidden, getPool: mocks.forbidden,
+}));
+vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: async () => 'UTC' }));
+vi.mock('@/lib/ims/xeroHooks', () => ({
+  triggerCNXeroSync: mocks.forbidden, syncCNXeroWithOutcome: mocks.forbidden,
+  triggerSOXeroSync: mocks.forbidden,
+}));
+vi.mock('@/lib/loyalty/ShopifyLoyaltyService', () => ({
+  ShopifyLoyaltyService: { reverseRefund: mocks.forbidden, awardPaidOrder: mocks.forbidden },
+}));
+vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
+  ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mocks.forbidden },
+}));
+import { applyShopifyRecoverySnapshot } from '../shopifyOrderRecovery';
+
+const port = Number(process.env.ONLINE_SYNC_TEST_PORT);
+const password = process.env.ONLINE_SYNC_TEST_PASSWORD ?? '';
+const schema = `online_lifecycle_test_${randomUUID().replaceAll('-', '')}`;
+let pool: Pool;
+async function rows(sql: string) { return (await pool.query<RowDataPacket[]>(sql))[0]; }
+function source(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const now = new Date().toISOString();
+  return {
+    id: '123', name: '#123', created_at: now, updated_at: now, currency: 'AUD', taxes_included: true,
+    financial_status: 'paid', fulfillment_status: null, cancelled_at: null,
+    subtotal_price: '33.00', total_price: '33.00', total_tax: '3.00', total_discounts: '0.00',
+    total_shipping_price_set: { shop_money: { amount: '0.00', currency_code: 'AUD' } },
+    payment_gateway_names: ['shopify_payments'], customer: null, shipping_lines: [],
+    line_items: [{
+      id: '9001', variant_id: '6001', title: 'Shirt', sku: 'SHIRT', quantity: 3, current_quantity: 3,
+      price: '11.00', total_discount: '0.00', tax_lines: [{ rate: 0.1, price: '3.00' }],
+    }],
+    fulfillments: [], refunds: [], ...overrides,
+  };
+}
+function recover(order = source()) {
+  return applyShopifyRecoverySnapshot({
+    businessId: 'alpha', channelInstanceId: 'store', locationId: 4,
+    order, syncFrom: '2026-01-01', deadline: Date.now() + 45_000,
+  });
+}
+async function facts() {
+  const [[stock], [order], [counts]] = await Promise.all([
+    rows('SELECT qty_on_hand,qty_committed FROM ims_stock'),
+    rows('SELECT total_amount,tax_amount,status FROM ims_sales_orders'),
+    rows(`SELECT (SELECT COUNT(*) FROM ims_online_day_changes) AS dirty,
+      (SELECT COUNT(*) FROM ims_sales_channel_jobs) AS jobs,
+      (SELECT COUNT(*) FROM ims_credit_notes) AS notes,
+      (SELECT COUNT(*) FROM ims_stock_movements) AS movements`),
+  ]);
+  return {
+    stock: Number(stock.qty_on_hand), committed: Number(stock.qty_committed),
+    total: order ? Number(order.total_amount) : null, tax: order ? Number(order.tax_amount) : null,
+    status: order?.status ?? null, dirty: Number(counts.dirty), jobs: Number(counts.jobs),
+    notes: Number(counts.notes), movements: Number(counts.movements),
+  };
+}
+
+describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (loopback only)', () => {
+  beforeAll(async () => {
+    if (!Number.isSafeInteger(port) || port <= 0) throw new Error('Explicit loopback test port required.');
+    const server = await mysql.createConnection({ host: '127.0.0.1', port, user: 'root', password });
+    try { await server.query(`CREATE DATABASE \`${schema}\``); } finally { await server.end(); }
+    pool = mysql.createPool({
+      host: '127.0.0.1', port, user: 'root', password, database: schema,
+      connectionLimit: 6, timezone: 'Z', dateStrings: true,
+    });
+    const connection = await pool.getConnection();
+    try {
+      for (const sql of parseSchemaStatements(await readFile(path.join(process.cwd(), 'scripts', 'ims-schema.sql'), 'utf8'))) {
+        await connection.query(sql);
+      }
+    } finally { connection.release(); }
+    const connections = await Promise.all(Array.from({ length: 6 }, () => pool.getConnection()));
+    try { await Promise.all(connections.map(conn => conn.query("SET time_zone = '+11:00'"))); }
+    finally { connections.forEach(conn => conn.release()); }
+  }, 60_000);
+  beforeEach(async () => {
+    vi.resetAllMocks();
+    await pool.query('DROP TRIGGER IF EXISTS test_expire_lifecycle');
+    const connection = await pool.getConnection();
+    try {
+      await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+      for (const table of [
+        'ims_so_shipment_tracking', 'ims_so_shipment_items', 'ims_so_shipments', 'ims_so_fulfilment_operations',
+        'ims_credit_note_items', 'ims_credit_notes', 'ims_stock_movements', 'ims_stock_allocations',
+        'ims_stock', 'ims_sales_order_items', 'ims_sales_orders', 'ims_sales_channel_product_mappings',
+        'ims_product_variants', 'ims_products', 'ims_locations', 'ims_inventory_cost_state',
+        'ims_shopify_order_recovery', 'ims_online_sync_control', 'ims_online_day_changes',
+        'ims_sales_channel_jobs', 'ims_contact_channel_mappings', 'ims_contacts',
+      ]) await connection.query(`TRUNCATE TABLE ${table}`);
+    } finally { await connection.query('SET FOREIGN_KEY_CHECKS = 1'); connection.release(); }
+    await pool.query("INSERT INTO ims_online_sync_control (business_id,rollout_state) VALUES ('alpha','validation')");
+    await pool.query("INSERT INTO ims_locations (id,business_id,name) VALUES (4,'alpha','Test store')");
+    await pool.query("INSERT INTO ims_products (business_id,product_id,name) VALUES ('alpha','product','Shirt')");
+    await pool.query(`INSERT INTO ims_product_variants
+      (business_id,variant_id,product_id,sku,shopify_variant_id,avg_cost,cost_aud)
+      VALUES ('alpha','variant','product','SHIRT','6001',5,5)`);
+    await pool.query(`INSERT INTO ims_sales_channel_product_mappings
+      (business_id,channel_instance_id,variant_id,external_variant_id)
+      VALUES ('alpha','store','variant','6001')`);
+    await pool.query(`INSERT INTO ims_stock (business_id,variant_id,location_id,qty_on_hand,qty_committed)
+      VALUES ('alpha','variant',4,10,3)`);
+    await pool.query(`INSERT INTO ims_sales_orders
+      (id,business_id,so_number,so_type,sales_channel,channel_instance_id,external_order_id,
+       location_id,status,order_date,subtotal,tax_amount,total_amount,financial_status,payment_gateway,tax_treatment)
+      VALUES (44,'alpha','SO-44','online','shopify','store','123',4,'confirmed',UTC_DATE(),30,3,33,'paid','shopify_payments','inc_tax')`);
+    await pool.query(`INSERT INTO ims_sales_order_items
+      (id,business_id,so_id,external_order_item_id,variant_id,qty_ordered,unit_price,unit_cost,line_total,tax_rate)
+      VALUES (55,'alpha',44,'9001','variant',3,11,5,33,10)`);
+    mocks.pool.mockReturnValue(pool);
+    mocks.main.mockResolvedValue([{ business_id: 'alpha' }]);
+    mocks.query.mockImplementation(async (sql: string, params: OnlineSyncSqlValue[] = []) =>
+      (await pool.execute<RowDataPacket[]>(sql, params))[0]);
+    mocks.execute.mockImplementation(async (sql: string, params: OnlineSyncSqlValue[] = []) =>
+      (await pool.execute<ResultSetHeader>(sql, params))[0]);
+  });
+  afterAll(async () => {
+    if (!pool) return;
+    await pool.end();
+    const server = await mysql.createConnection({ host: '127.0.0.1', port, user: 'root', password });
+    try { await server.query(`DROP DATABASE \`${schema}\``); } finally { await server.end(); }
+  });
+
+  it('atomically updates financial facts, dirty generation and exact-hash handoff, then skips replay', async () => {
+    const order = source({
+      subtotal_price: '36.30', total_price: '36.30', total_tax: '3.30',
+      line_items: [{
+        id: '9001', variant_id: '6001', title: 'Shirt', sku: 'SHIRT', quantity: 3, current_quantity: 3,
+        price: '12.10', total_discount: '0.00', tax_lines: [{ rate: 0.1, price: '3.30' }],
+      }],
+    });
+    expect(await recover(order)).toBe('applied');
+    expect(await facts()).toMatchObject({ stock: 10, committed: 3, total: 36.3, tax: 3.3, dirty: 1, jobs: 1 });
+    const before = await facts();
+    expect(await recover(order)).toBe('already_current');
+    expect(await facts()).toEqual(before);
+    const [recovery] = await rows('SELECT applied_hash,effects_json FROM ims_shopify_order_recovery');
+    expect(recovery.applied_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(mocks.forbidden).not.toHaveBeenCalled();
+  });
+  it('rolls financial and dirty-day writes back with the receipt if the final order fence expires', async () => {
+    await pool.query(`CREATE TRIGGER test_expire_lifecycle BEFORE UPDATE ON ims_sales_orders
+      FOR EACH ROW UPDATE ims_shopify_order_recovery
+      SET lease_expires_at = UTC_TIMESTAMP(3) - INTERVAL 1 SECOND
+      WHERE business_id=NEW.business_id AND channel_instance_id=NEW.channel_instance_id
+        AND external_order_id=NEW.external_order_id`);
+    const before = await facts();
+    await expect(recover(source({ total_price: '44.00' }))).rejects.toThrow('no longer owned');
+    expect(await facts()).toEqual(before);
+    expect(mocks.forbidden).not.toHaveBeenCalled();
+  });
+  it('preserves original refunded quantities and lets only the CN owner restock', async () => {
+    await pool.query("UPDATE ims_sales_orders SET status='fulfilled' WHERE id=44");
+    await pool.query('UPDATE ims_sales_order_items SET qty_fulfilled=3');
+    await pool.query('UPDATE ims_stock SET qty_on_hand=7,qty_committed=0');
+    const order = source({
+      financial_status: 'partially_refunded', fulfillment_status: 'fulfilled',
+      line_items: [{
+        id: '9001', variant_id: '6001', title: 'Shirt', sku: 'SHIRT', quantity: 3, current_quantity: 1,
+        price: '11.00', total_discount: '0.00', tax_lines: [{ rate: 0.1, price: '3.00' }],
+      }],
+      refunds: [{
+        id: '8001', transactions: [{ kind: 'refund', status: 'success', amount: '22.00', gateway: 'shopify_payments' }],
+        refund_line_items: [{
+          line_item_id: '9001', quantity: 2, subtotal: '20.00', total_tax: '2.00', restock_type: 'return',
+          line_item: { id: '9001', variant_id: '6001', sku: 'SHIRT', title: 'Shirt' },
+        }],
+      }],
+    });
+    expect(await recover(order)).toBe('applied');
+    expect(await facts()).toMatchObject({ stock: 9, committed: 0, notes: 1, movements: 1, total: 33 });
+    expect(Number((await rows('SELECT qty_ordered FROM ims_sales_order_items'))[0].qty_ordered)).toBe(3);
+    expect(await recover(order)).toBe('already_current');
+    expect(await facts()).toMatchObject({ stock: 9, notes: 1, movements: 1 });
+    expect(mocks.forbidden).not.toHaveBeenCalled();
+  });
+  it('atomically quarantines historical stock uncertainty without inventing an order or movement', async () => {
+    await pool.query('DELETE FROM ims_sales_orders');
+    expect(await recover(source({
+      created_at: '2026-01-02T00:00:00Z', fulfillments: [{ id: '7001', status: 'success' }],
+    }))).toBe('review');
+    expect(await facts()).toMatchObject({ stock: 10, status: null, movements: 0, jobs: 0, dirty: 1 });
+    expect((await rows('SELECT review_reason FROM ims_online_day_changes'))[0].review_reason)
+      .toBe('historical_stock_evidence_missing');
+    expect((await rows('SELECT review_reason FROM ims_shopify_order_recovery'))[0].review_reason)
+      .toBe('historical_stock_evidence_missing');
+  });
+  it('imports a missing current-day order and commits its stock once', async () => {
+    await pool.query('DELETE FROM ims_sales_orders');
+    await pool.query('UPDATE ims_stock SET qty_committed=0');
+    const order = source();
+    expect(await recover(order)).toBe('applied');
+    expect(await facts()).toMatchObject({ stock: 10, committed: 3, status: 'confirmed', total: 33, jobs: 1 });
+    expect(await recover(order)).toBe('already_current');
+    expect(await facts()).toMatchObject({ committed: 3, jobs: 1 });
+    expect(mocks.forbidden).not.toHaveBeenCalled();
+  });
+});

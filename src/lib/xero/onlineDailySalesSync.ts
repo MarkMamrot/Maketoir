@@ -9,7 +9,7 @@ import {
 } from '@/lib/xero/onlineGatewayMappings';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
-import { syncDailySalesBatch, syncGiftCardLiabilityReclass } from '@/services/XeroSyncService';
+import { syncDailySalesBatch, syncGiftCardLiabilityReclass, type DailySalesBatch } from '@/services/XeroSyncService';
 import { getXeroDocumentPolicy } from '@/lib/xero/documentPolicyRepository';
 import { assertXeroAccountingEnabled } from '@/lib/ims/businessOperations';
 
@@ -60,11 +60,26 @@ export interface OnlineDailySalesSyncResult {
   orderCount: number;
 }
 
-export async function syncOnlineDailySalesDay(
+export interface PreparedOnlineDailySales {
+  totals: OnlineDailySalesSyncResult;
+  batch: DailySalesBatch | null;
+  policy: { postingEnabled: boolean; onlineBatchAction: string; paymentSyncEnabled: boolean; giftCardAccountingEnabled: boolean };
+  orderEvidence: OnlineBatchOrderRow[];
+}
+
+export class OnlineDailySalesPreparationBlockedError extends Error {
+  constructor(public readonly reason: string, message: string) {
+    super(message);
+  }
+}
+
+/** Read-only preparation shared by legacy posting and fenced accounting recovery. */
+export async function prepareOnlineDailySalesDay(
   businessId: string,
   date: string,
   channelInstanceId: string,
-): Promise<OnlineDailySalesSyncResult> {
+  options?: { strictRecovery: boolean },
+): Promise<PreparedOnlineDailySales> {
   const exactChannelInstanceId = channelInstanceId.trim();
   if (!exactChannelInstanceId) throw new Error('An exact sales channel instance is required.');
   return runImsForBusiness(businessId, async () => {
@@ -147,21 +162,34 @@ export async function syncOnlineDailySalesDay(
            FROM xero_account_mappings
           WHERE business_id = ? AND role_key = 'store_credit_liability' AND xero_account_code IS NOT NULL`,
         [businessId, exactChannelInstanceId, businessId],
-      ).catch(() => []),
+      ).catch(error => {
+        if (options?.strictRecovery) throw error;
+        return [];
+      }),
     ]);
 
     const totalSales = Number(totals[0]?.total_sales ?? 0);
     const totalTax = Number(totals[0]?.total_tax ?? 0);
     const giftCardAmount = Number(totals[0]?.gift_card_amount ?? 0);
     const orderCount = Number(totals[0]?.order_count ?? 0);
-    if (!(totalSales > 0)) {
-      return { xeroId: null, totalSales, totalTax, giftCardAmount, orderCount };
-    }
-    if (policy.onlineBatchAction === 'none') {
-      return { xeroId: null, totalSales, totalTax, giftCardAmount, orderCount };
+    const prepared = {
+      totals: { xeroId: null, totalSales, totalTax, giftCardAmount, orderCount },
+      policy: {
+        postingEnabled: policy.postingEnabled,
+        onlineBatchAction: policy.onlineBatchAction,
+        paymentSyncEnabled: policy.onlineBatchPaymentSyncEnabled,
+        giftCardAccountingEnabled: policy.giftCardAccountingEnabled,
+      },
+      orderEvidence: options?.strictRecovery
+        ? orderRows.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)))
+        : orderRows,
+    };
+    if (!(totalSales > 0) || policy.onlineBatchAction === 'none') {
+      return { ...prepared, batch: null };
     }
 
-    const paymentRows = gatewayRows
+    const orderedGatewayRows = options?.strictRecovery ? gatewayRows.sort((a, b) => a.gateway.localeCompare(b.gateway)) : gatewayRows;
+    const paymentRows = orderedGatewayRows
       .map(row => {
         const gateway = normalizeOnlineGateway(row.gateway);
         const amount = Math.round(Number(row.total_sales) * 100) / 100;
@@ -179,7 +207,8 @@ export async function syncOnlineDailySalesDay(
     const missingMappings = policy.onlineBatchPaymentSyncEnabled
       ? paymentRows.filter(row => !row.payoutManaged && !row.accountCode)
       : [];
-    if (gatewayMappings.length > 0 && missingMappings.length > 0) {
+    if ((options?.strictRecovery || gatewayMappings.length > 0) && missingMappings.length > 0) {
+      if (options?.strictRecovery) throw new OnlineDailySalesPreparationBlockedError('gateway_mapping_missing', 'Online gateway clearing mappings are incomplete.');
       throw new Error(`Missing gateway clearing mapping for: ${missingMappings.map(row => row.gateway).join(', ')}`);
     }
 
@@ -225,6 +254,7 @@ export async function syncOnlineDailySalesDay(
     const paypalOrderRows = orderRows.filter(row => isPayPalGateway(String(row.payment_gateway ?? '')));
     const paypalOrdersMissingIds = paypalOrderRows.filter(row => !getOnlineBatchOrderIdentity(row));
     if (paypalOrdersMissingIds.length > 0) {
+      if (options?.strictRecovery) throw new OnlineDailySalesPreparationBlockedError('source_identity_missing', 'Online order evidence has no stable source identity.');
       throw new Error(`${paypalOrdersMissingIds.length} PayPal order(s) have no stable online order ID and cannot be posted safely`);
     }
     const paypalPayments = policy.onlineBatchPaymentSyncEnabled ? paypalOrderRows
@@ -248,6 +278,30 @@ export async function syncOnlineDailySalesDay(
       .filter(row => row.payoutManaged)
       .reduce((sum, row) => sum + row.amount, 0);
     const targetTotal = Math.round(totalSales * 100) / 100;
+    if (options?.strictRecovery) {
+      const gatewayTotal = Math.round(paymentRows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
+      if (Math.abs(targetTotal - gatewayTotal) > 0.01) {
+        throw new OnlineDailySalesPreparationBlockedError('payment_evidence_incomplete', 'Online payment evidence does not match the daily sales total.');
+      }
+      if (orderRows.some(row => !getOnlineBatchOrderIdentity(row))) {
+        throw new OnlineDailySalesPreparationBlockedError('source_identity_missing', 'Online order evidence has no stable source identity.');
+      }
+      if (orderRows.some(row => row.sales_channel === 'native_shop')) {
+        const incomplete = await imsQuery<{ id: number }>(
+          `SELECT so.id FROM ims_sales_orders so
+             LEFT JOIN ims_sales_order_payments sop ON sop.so_id = so.id AND sop.business_id = so.business_id
+            WHERE so.business_id = ? AND DATE_FORMAT(so.order_date, '%Y-%m-%d') = ?
+              AND so.channel_instance_id = ? AND so.so_type = 'online' AND so.sales_channel = 'native_shop'
+              AND COALESCE(so.is_staff_preview_test, 0) = 0
+              AND (so.is_historical IS NULL OR so.is_historical = 0) AND so.status != 'cancelled'
+            GROUP BY so.id
+           HAVING ABS(COALESCE(SUM(sop.amount), 0) - MAX(so.total_amount)) > 0.01 OR COUNT(sop.id) = 0
+            LIMIT 1`,
+          [businessId, date, exactChannelInstanceId],
+        );
+        if (incomplete.length) throw new OnlineDailySalesPreparationBlockedError('payment_evidence_incomplete', 'Native order receipt evidence is incomplete.');
+      }
+    }
     if (clearingPayments.length > 0 && deferredShopifyTotal === 0) {
       const allocated = Math.round(clearingPayments.reduce((sum, payment) => sum + payment.amount, 0) * 100) / 100;
       const delta = Math.round((targetTotal - allocated) * 100) / 100;
@@ -257,7 +311,7 @@ export async function syncOnlineDailySalesDay(
       }
     }
 
-    const xeroId = await syncDailySalesBatch(businessId, {
+    return { ...prepared, batch: {
       date,
       channel: 'online',
       channelInstanceId: exactChannelInstanceId,
@@ -272,18 +326,29 @@ export async function syncOnlineDailySalesDay(
         payoutManaged: row.payoutManaged,
       })),
       invoiceStatus: policy.onlineBatchAction === 'draft' ? 'DRAFT' : 'AUTHORISED',
-    });
+    } };
+  });
+}
 
-    if (xeroId && giftCardAmount > 0) {
+export async function syncOnlineDailySalesDay(
+  businessId: string,
+  date: string,
+  channelInstanceId: string,
+): Promise<OnlineDailySalesSyncResult> {
+  return runImsForBusiness(businessId, async () => {
+    const prepared = await prepareOnlineDailySalesDay(businessId, date, channelInstanceId);
+    if (!prepared.batch) return prepared.totals;
+    const xeroId = await syncDailySalesBatch(businessId, prepared.batch);
+    if (xeroId && prepared.totals.giftCardAmount > 0) {
       await syncGiftCardLiabilityReclass({
         businessId,
-        amount: giftCardAmount,
+        amount: prepared.totals.giftCardAmount,
         date,
         channel: 'online',
-        dedupeKey: `gift card liability online ${exactChannelInstanceId} ${date}`,
+        dedupeKey: `gift card liability online ${channelInstanceId.trim()} ${date}`,
       });
     }
 
-    return { xeroId, totalSales, totalTax, giftCardAmount, orderCount };
+    return { ...prepared.totals, xeroId };
   });
 }

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-customer-orders","title":"Customer Orders, Allocation, and Credits","audiences":["ims"],"capability":"orders","screen":"Sales","product":"ims","format":"overview","parentId":"ims-sales","relatedTopics":["ims-sales-orders-fulfilment","ims-stock-allocation-backorders","ims-customer-returns-refunds"],"contexts":["wholesale-applications","pos-sales","online-sales"],"contextSections":{"wholesale-applications":"Wholesale applications","pos-sales":"POS and online sales","online-sales":"POS and online sales"},"order":30,"summary":"Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.","lastReviewed":"2026-08-23","owner":"sales","quickSections":["Main operations","Wholesale applications","POS and online sales"],"navigation":{"category":"sales","label":"Choose a customer-order workflow"}}
+{"id":"ims-customer-orders","title":"Customer Orders, Allocation, and Credits","audiences":["ims"],"capability":"orders","screen":"Sales","product":"ims","format":"overview","parentId":"ims-sales","relatedTopics":["ims-sales-orders-fulfilment","ims-stock-allocation-backorders","ims-customer-returns-refunds"],"contexts":["wholesale-applications","pos-sales","online-sales"],"contextSections":{"wholesale-applications":"Wholesale applications","pos-sales":"POS and online sales","online-sales":"POS and online sales"},"order":30,"summary":"Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.","lastReviewed":"2026-10-17","owner":"sales","quickSections":["Main operations","Wholesale applications","POS and online sales"],"navigation":{"category":"sales","label":"Choose a customer-order workflow"}}
 ---
 # Customer Orders, Allocation, and Credits
 
@@ -33,6 +33,12 @@ When Xero accounting is enabled for the business, **Online Sales** also shows da
 Shopify lines that cannot be matched to an IMS variant appear as **Shopify Misc Charge** with SKU **SHOPIFY-MISC**. The Shopify item title remains visible underneath. This preserves the order value without moving stock for the wrong product; it is not an added fee.
 
 If a normal product appears this way, check that its Shopify product and variant link is current. Repairing the link prevents later orders from using the fallback, but an existing import may need to be processed again.
+
+Open **Sales > Sales Channels > Online sales recovery** to distinguish the initial baseline from incremental coverage and inspect queued work, failed work and order references needing review. Admins and SuperAdmins can retry an exact storefront or pause and resume scheduled recovery when the controls are available. Advisor accounting-sync access does not grant order recovery controls.
+
+Before rollout, the panel shows that controls are unavailable and current runtime behaviour is unchanged. During validation, existing catch-up behaviour remains in place. Only after verified cutover does bounded scheduled reconciliation replace catch-up triggered by opening POS or IMS. Webhooks prompt updates, while daily accounting runs independently. Pausing recovery does not restore the old historical scans.
+
+Manual daily posting is blocked until baseline and catch-up readiness checks pass, with no override. A retry does not approve or clear non-refund late changes to an already posted day; these require review. A recovered refund repairs the local order and linked credit note and automatically follows the existing Xero flow when eligible, without charging or refunding the customer again.
 
 ## Troubleshooting
 

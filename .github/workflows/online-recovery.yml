@@ -1,0 +1,27 @@
+name: Scheduled online order recovery
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: online-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run bounded recovery slice
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$APP_URL" && test -n "$CRON_SECRET"
+          status=$(curl --silent --show-error --max-time 100 --output recovery-result.json --write-out "%{http_code}" \
+            --request POST --header "x-cron-secret: $CRON_SECRET" \
+            "$APP_URL/api/ims/online-sales/recovery-cron")
+          echo "Online recovery HTTP status: $status"
+          test "$status" = "200"

@@ -6,6 +6,10 @@ export const IMS_SCHEMA_IDENTITY_COLLATION = collationContract.identityCollation
 export const IMS_SCHEMA_IDENTITY_COLUMNS = collationContract.tenantIdentityColumns;
 
 export const IMS_SCHEMA_REQUIRED_TABLES = [
+  'ims_online_sync_control',
+  'ims_shopify_reconciliation',
+  'ims_shopify_order_recovery',
+  'ims_online_day_changes',
   'pos_catalogue_control',
   'pos_catalogue_changes',
   'pos_catalogue_consumers',
@@ -194,6 +198,10 @@ export const IMS_SCHEMA_REQUIRED_TABLES = [
 ] as const;
 
 export const IMS_SCHEMA_REQUIRED_COLUMNS = {
+  ims_online_sync_control: ['business_id', 'rollout_state', 'paused', 'last_run_at', 'lease_token', 'lease_expires_at'],
+  ims_shopify_reconciliation: ['business_id', 'channel_instance_id', 'baseline_from', 'baseline_complete', 'covered_through', 'continuation_json', 'next_check_at', 'last_success_at', 'safe_error_code'],
+  ims_shopify_order_recovery: ['business_id', 'channel_instance_id', 'external_order_id', 'lease_token', 'lease_expires_at', 'provider_updated_at', 'applied_hash', 'effects_json', 'review_reason'],
+  ims_online_day_changes: ['business_id', 'channel_instance_id', 'business_date', 'generation', 'propagated_generation', 'review_reason'],
   pos_catalogue_control: ['business_id', 'epoch', 'ready', 'lease_owner', 'lease_until'],
   pos_catalogue_changes: ['business_id', 'variant_id', 'generation'],
   pos_catalogue_consumers: ['consumer_id', 'business_id', 'location_id', 'epoch', 'initialized', 'pending_json', 'last_receipt', 'last_full_at'],
@@ -221,7 +229,7 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
   ims_sales_channel_product_rules: ['business_id', 'channel_instance_id', 'name', 'priority', 'is_enabled', 'match_mode', 'decision', 'conditions_json'],
   ims_sales_channel_product_assignments: ['business_id', 'channel_instance_id', 'product_id', 'rule_decision', 'matched_rule_id', 'override_mode', 'desired_state', 'readiness_status', 'provider_state', 'evaluation_hash'],
   ims_sales_channel_events: ['business_id', 'channel_instance_id', 'provider', 'event_type', 'external_event_id', 'status', 'attempts'],
-  ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at'],
+  ims_sales_channel_jobs: ['business_id', 'channel_instance_id', 'provider', 'operation', 'operation_key', 'status', 'attempts', 'available_at', 'lease_token', 'lease_expires_at'],
   ims_so_shipments: ['business_id', 'channel_instance_id', 'so_id', 'shopify_fulfilment_id'],
   gift_cards: ['channel_instance_id', 'shopify_gc_id', 'code', 'status'],
   loyalty_redemptions: ['expires_at'],
@@ -371,6 +379,9 @@ export const IMS_SCHEMA_REQUIRED_COLUMNS = {
 } as const;
 
 export const IMS_SCHEMA_REQUIRED_INDEXES = {
+  ims_shopify_reconciliation: ['idx_shopify_reconciliation_due'],
+  ims_shopify_order_recovery: ['idx_shopify_order_recovery_review'],
+  ims_online_day_changes: ['idx_online_day_change_work'],
   ims_consignment_events: ['uq_consignment_event', 'idx_consignment_activity', 'idx_consignment_claim', 'idx_consignment_original'],
   ims_consignment_ownership_history: ['idx_consignment_ownership'],
   ims_consignment_tracking_intervals: ['idx_consignment_interval'],

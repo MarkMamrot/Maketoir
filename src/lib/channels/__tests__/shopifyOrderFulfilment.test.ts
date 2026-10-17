@@ -1,18 +1,21 @@
+import type { PoolConnection } from 'mysql2/promise';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  query: vi.fn(), fulfil: vi.fn(), persist: vi.fn(),
+  query: vi.fn(), fulfil: vi.fn(), persist: vi.fn(), fulfilTx: vi.fn(), persistTx: vi.fn(),
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
 vi.mock('@/lib/ims/orderResolution/customerFulfilment', () => ({
   fulfilSalesOrderPartial: mocks.fulfil,
+  fulfilSalesOrderPartialInTransaction: mocks.fulfilTx,
 }));
 vi.mock('@/lib/ims/shopifyShipmentPersistence', () => ({
   persistShopifyShipment: mocks.persist,
+  persistShopifyShipmentInTransaction: mocks.persistTx,
 }));
 
-import { applyShopifyOrderFulfilment } from '@/lib/channels/shopifyOrderFulfilment';
+import { applyShopifyOrderFulfilment, applyShopifyOrderFulfilmentInTransaction } from '@/lib/channels/shopifyOrderFulfilment';
 
 const fulfilment = {
   id: 7001,
@@ -26,6 +29,61 @@ describe('applyShopifyOrderFulfilment', () => {
     vi.clearAllMocks();
     mocks.fulfil.mockResolvedValue({ status: 'fulfilled' });
     mocks.persist.mockResolvedValue(undefined);
+  });
+
+  describe('transaction-owned Shopify fulfilment', () => {
+    const execute = vi.fn();
+    const queryConnection: Pick<PoolConnection, 'execute'> = { execute };
+    const connection = queryConnection as PoolConnection;
+    const input = {
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      topic: 'fulfillments/create' as const, payload: fulfilment,
+    };
+
+    beforeEach(() => {
+      vi.resetAllMocks();
+      execute.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM ims_sales_orders')) return [[{ id: 44, status: 'confirmed' }]];
+        return [[{ id: 55, shopify_line_item_id: '9001', qty_ordered: 3, qty_fulfilled: 1 }]];
+      });
+    });
+
+    it('uses the supplied connection for reads, stock and shipment without an owning wrapper', async () => {
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, input))
+        .resolves.toEqual({ outcome: 'fulfilled', salesOrderId: 44 });
+      expect(mocks.fulfilTx).toHaveBeenCalledWith(connection, expect.objectContaining({
+        operationKey: 'shopify:instance-2:fulfillments/create:7001',
+        shipmentQuantities: [{ itemId: 55, quantity: 2 }],
+      }));
+      expect(mocks.persistTx).toHaveBeenCalledWith(connection, expect.objectContaining({ soId: 44 }));
+      expect(mocks.query).not.toHaveBeenCalled();
+      expect(mocks.fulfil).not.toHaveBeenCalled();
+      expect(mocks.persist).not.toHaveBeenCalled();
+    });
+
+    it.each(['fulfillments/update', 'fulfillments/create'] as const)(
+      'does not repeat stock for %s on an already fulfilled order', async topic => {
+        execute.mockResolvedValue([[{ id: 44, status: 'fulfilled' }]]);
+        await applyShopifyOrderFulfilmentInTransaction(connection, { ...input, topic });
+        expect(mocks.persistTx).toHaveBeenCalledOnce();
+        expect(mocks.fulfilTx).not.toHaveBeenCalled();
+      },
+    );
+
+    it('ships only the outstanding quantity for an order-level fallback', async () => {
+      await applyShopifyOrderFulfilmentInTransaction(connection, {
+        ...input, topic: 'orders/fulfilled', payload: { id: 1001 },
+      });
+      expect(mocks.fulfilTx).toHaveBeenCalledWith(connection, expect.objectContaining({
+        shipmentQuantities: [{ itemId: 55, quantity: 2 }],
+      }));
+      expect(mocks.persistTx).not.toHaveBeenCalled();
+    });
+
+    it('propagates shipment failure to the outer transaction owner', async () => {
+      mocks.persistTx.mockRejectedValueOnce(new Error('Shipment write failed'));
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toThrow('Shipment write failed');
+    });
   });
 
   it('fulfils only the order and lines owned by the exact instance', async () => {

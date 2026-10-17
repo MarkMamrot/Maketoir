@@ -6,6 +6,7 @@ import { useFeatureEnabled } from '../../components/FeatureToggleProvider';
 
 import AmazonChannelDetailView from './AmazonChannelDetailView';
 import BuiltInSalesChannels from './BuiltInSalesChannels';
+import OnlineSalesRecoveryPanel from './OnlineSalesRecoveryPanel';
 import ChannelProductRulesDialog from './ChannelProductRulesDialog';
 import SalesChannelRow from './SalesChannelRow';
 import ShopifyChannelDetailView from './ShopifyChannelDetailView';
@@ -856,6 +857,8 @@ export default function SalesChannelsView({ canManage = false, xeroAccountingEna
           <button type="button" onClick={() => void load()} style={{ border: 0, background: 'transparent', color: '#991b1b', fontWeight: 700, cursor: 'pointer' }}>Retry</button>
         </div>
       )}
+
+      <OnlineSalesRecoveryPanel canManage={canManage} />
 
       <BuiltInSalesChannels
         canManage={canManage}

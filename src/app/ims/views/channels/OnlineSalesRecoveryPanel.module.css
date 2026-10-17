@@ -1,0 +1,75 @@
+.panel {
+  margin: 0 0 22px;
+  padding: 16px;
+  border: 1px solid var(--sv-border);
+  border-radius: 8px;
+  color: var(--sv-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header h2,
+.header h3 {
+  margin: 0;
+  color: var(--sv-text-strong);
+  font-size: 16px;
+}
+
+.panel p {
+  line-height: 1.5;
+}
+
+.panel button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--sv-border);
+  border-radius: 6px;
+  background: var(--sv-bg, #fff);
+  color: var(--sv-text);
+  cursor: pointer;
+}
+
+.panel button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.panel button:focus-visible {
+  outline: 2px solid var(--sv-action);
+  outline-offset: 2px;
+}
+
+.channels {
+  display: grid;
+  gap: 12px;
+}
+
+.channel {
+  padding: 14px;
+  border: 1px solid var(--sv-border);
+  border-radius: 6px;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 14px;
+  margin-bottom: 0;
+}
+
+.metrics dt {
+  color: var(--sv-text-dim);
+}
+
+.metrics dd {
+  margin: 4px 0 0;
+  font-weight: 600;
+}

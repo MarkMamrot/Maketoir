@@ -338,4 +338,58 @@ describe('syncDailySalesBatch online payout state', () => {
     expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices/invoice-historical');
     expect(mockExecute.mock.calls.some(call => String(call[0]).includes('AUTHORISED'))).toBe(true);
   });
+
+  describe('frozen accounting recovery guard', () => {
+    const recoveryBatch = {
+      date: '2026-07-25', channel: 'online' as const, channelInstanceId: 'instance-1',
+      totalSales: 100, totalTax: 10, lineDescription: 'Online Sales',
+    };
+    const guard = () => ({
+      assertOwnership: vi.fn().mockResolvedValue(undefined),
+      beforeMutation: vi.fn().mockResolvedValue(undefined),
+      revenueAccountCode: '200', tracking: [],
+    });
+
+    it.each([
+      ['VOIDED', 110],
+      ['AUTHORISED', 55],
+      ['AUTHORISED', 220],
+      ['DELETED', 110],
+    ])('never rewrites or replaces an existing %s invoice totaling %s', async (status, total) => {
+      mockQuery.mockImplementation(async (sql: string) => sql.includes('FROM xero_online_batches') ? [{ xero_invoice_id: 'existing' }] : []);
+      mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'existing', Status: status, Total: total }] });
+      await expect(syncDailySalesBatchExact('biz-1', recoveryBatch, guard())).rejects.toThrow('automatic correction or replacement is forbidden');
+      expect(mockXeroApiFetch).toHaveBeenCalledTimes(1);
+      expect(mockXeroApiFetch.mock.calls[0][1]).toBe('/Invoices/existing');
+    });
+
+    it('checks the lease before provider writes and uses the existing invoice identity/key', async () => {
+      const fence = guard();
+      mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'new', Status: 'AUTHORISED' }] });
+      expect(await syncDailySalesBatchExact('biz-1', recoveryBatch, fence)).toBe('new');
+      expect(fence.beforeMutation).toHaveBeenCalledWith('invoice');
+      expect(fence.beforeMutation.mock.invocationCallOrder[0]).toBeLessThan(mockXeroApiFetch.mock.invocationCallOrder[0]);
+      expect(mockXeroApiFetch.mock.calls[0][2].idempotencyKey).toMatch(/^[a-f0-9]{64}$/);
+      expect(mockXeroApiFetch.mock.calls[0][2].body.Invoices[0]).toMatchObject({
+        Reference: 'ONLINE-2026-07-25-instance', LineAmountTypes: 'Exclusive',
+        LineItems: [expect.objectContaining({ AccountCode: '200', UnitAmount: 100, TaxAmount: 10 })],
+      });
+    });
+
+    it('cannot reach Xero after losing the batch lease', async () => {
+      const fence = guard();
+      fence.assertOwnership.mockRejectedValue(new Error('lease lost'));
+      await expect(syncDailySalesBatchExact('biz-1', recoveryBatch, fence)).rejects.toThrow('lease lost');
+      expect(mockXeroApiFetch).not.toHaveBeenCalled();
+    });
+
+    it('does not accept a payment response without a provider payment ID', async () => {
+      mockXeroApiFetch.mockResolvedValueOnce({ Invoices: [{ InvoiceID: 'new', Status: 'AUTHORISED' }] })
+        .mockResolvedValueOnce({ Payments: [{}] });
+      await expect(syncDailySalesBatchExact('biz-1', {
+        ...recoveryBatch, clearingPayments: [{ accountCode: '091', amount: 110, paymentKey: 'payment-1' }],
+      }, guard())).rejects.toThrow('payment result is unconfirmed');
+      expect(mockExecute.mock.calls.filter(([sql]) => sql.includes("SET status = 'completed'"))).toHaveLength(0);
+    });
+  });
 });

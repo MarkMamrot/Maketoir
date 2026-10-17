@@ -15,6 +15,7 @@ import { FeatureToggleSettings } from './views/settings/FeatureToggleSettings';
 import { XeroSyncPreferences, XERO_PREFERENCES_UPDATED_EVENT } from './views/settings/XeroSyncPreferences';
 import { featureForView, isFeatureViewEnabled } from '@/lib/ims/featureToggles';
 import { DashboardSalesComparison } from './components/DashboardSalesComparison';
+import { OnlineDailySalesSyncButton, shopifyOrderImportMessage } from './components/OnlineSalesRequestFeedback';
 import { DashboardProductInsights } from './components/DashboardProductInsights';
 import type { DashboardProductInsight } from '@/lib/ims/dashboardProductInsights';
 import { buildStockTimeline } from '@/lib/ims/stockHistoryTimeline';
@@ -17873,7 +17874,6 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
   const [osStockModal, setOsStockModal] = useState<{ productId: string; productName: string } | null>(null);
   const [importing,      setImporting]      = useState(false);
   const [importResult,   setImportResult]   = useState<string | null>(null);
-  const [xeroSyncing,    setXeroSyncing]    = useState<string | null>(null); // date being synced
   const [xeroResults,    setXeroResults]    = useState<Record<string, 'ok' | 'err' | 'none'>>({});
 
   useEffect(() => {
@@ -18048,8 +18048,8 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ channelInstanceId }),
               });
-              setImportResult(r.error ? `✗ ${r.error}` : `✓ Imported ${r.imported} order${r.imported !== 1 ? 's' : ''}${r.confirmed_drafts > 0 ? `, fixed ${r.confirmed_drafts} stuck draft${r.confirmed_drafts !== 1 ? 's' : ''}` : ''} (${r.skipped_existing} already existed)`);
-              if (r.imported > 0 || r.confirmed_drafts > 0) loadDays();
+              setImportResult(shopifyOrderImportMessage(r));
+              if (!r.queued && (r.imported > 0 || r.confirmed_drafts > 0)) loadDays();
             } catch (e: any) { setImportResult(`✗ ${e.message}`); }
             setImporting(false);
           }}
@@ -18143,24 +18143,8 @@ function OnlineSalesView({ businessId, xeroAccountingEnabled, onReturnOrder }: {
               <span style={{ fontSize: 12, color: 'var(--sv-text-dim)', minWidth: 66, textAlign: 'right', flexShrink: 0 }}>{Number(day.count)} order{Number(day.count) !== 1 ? 's' : ''}</span>
               <span title={Number(day.shopify_refunds ?? 0) > 0 ? `Gross sales ${fmtMoney(dayTotal)} less Shopify refunds ${fmtMoney(day.shopify_refunds)}` : 'Gross sales including GST'} style={{ fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)', minWidth: 96, textAlign: 'right', flexShrink: 0 }}>{fmtMoney(Number(day.net_total ?? dayTotal))}</span>
               {xeroAccountingEnabled && (Number(day.syncable_count ?? 0) > 0 ? (
-                  <button
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      setXeroSyncing(day.day);
-                      try {
-                        const r = await apiFetch('/api/xero/sync/daily-sales', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ databaseId: businessId, date: day.day, channel: 'online', channelInstanceId }),
-                        });
-                        setXeroResults(prev => ({ ...prev, [day.day]: r.success ? 'ok' : 'none' }));
-                      } catch { setXeroResults(prev => ({ ...prev, [day.day]: 'err' })); }
-                      setXeroSyncing(null);
-                    }}
-                    disabled={xeroSyncing === day.day}
-                    title="Post this day's online orders to Xero as a daily sales invoice."
-                    style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--sv-etch)', background: xeroResults[day.day] === 'ok' ? 'rgba(16,185,129,.1)' : 'none', color: xeroResults[day.day] === 'ok' ? 'var(--sv-mint)' : xeroResults[day.day] === 'err' ? 'var(--sv-red)' : 'var(--sv-text-muted)', fontSize: 11, fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-                  >{xeroSyncing === day.day ? 'Syncing…' : xeroResults[day.day] === 'ok' ? '✓ Xero' : xeroResults[day.day] === 'err' ? '✗ Xero' : 'Sync Xero'}</button>
+                  <OnlineDailySalesSyncButton key={`${channelInstanceId}:${day.day}`} businessId={businessId}
+                    date={day.day} channelInstanceId={channelInstanceId} initialStatus={xeroResults[day.day]} />
                 ) : (
                   <span title="Historical Cin7 orders — already in Xero, cannot be re-synced" style={{ padding: '3px 10px', fontSize: 11, fontWeight: 600, color: 'var(--sv-text-dim)', flexShrink: 0, whiteSpace: 'nowrap' }}>Historical</span>
                 ))}
@@ -21612,19 +21596,6 @@ function XeroSyncTab({
     setPushAll(false);
   };
 
-  const syncOnlineBatch = async (date: string, channelInstanceId: string, key: string) => {
-    setRetrying(r => ({ ...r, [key]: true }));
-    try {
-      await fetch('/api/xero/sync/daily-sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: getBusinessId(), date, channel: 'online', channelInstanceId }),
-      });
-      await loadData();
-    } catch {}
-    setRetrying(r => ({ ...r, [key]: false }));
-  };
-
   const toggleExpand = (id: number) => setExpanded(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const typeLabel = (t: string) => ({ po_bill: 'Purchase Order', so_invoice: 'Wholesale SO', cn_credit_note: 'Customer Credit Note', cn_credit_note_void: 'Customer Credit Note Void', scn_credit_note: 'Supplier Credit Note', scn_credit_note_void: 'Supplier Credit Note Void', pos_batch: 'POS Sales (Batch)', online_batch: 'Online Sales (Batch)', shopify_payout: 'Shopify Payout', cogs_journal: 'COGS Journal', eod_reconciliation: 'POS End-of-Day', stocktake_journal: 'Stocktake Journal', gift_card_issue: 'Gift Card Issue', gift_card_liability: 'Gift Card Liability', gift_card_redeem: 'Gift Card Redemption', store_credit_issue: 'Store Credit Issue', store_credit_redeem: 'Store Credit Redemption' }[t] ?? t);
@@ -21941,13 +21912,9 @@ function XeroSyncTab({
                           </button>
                         )}
                         {entry.sync_type === 'online_batch' && !entry.last_sync_status && entry.item_date && (
-                          <button
-                            onClick={() => syncOnlineBatch(String(entry.item_date).slice(0, 10), String(entry.channel_instance_id ?? ''), retryKey)}
-                            disabled={!entry.channel_instance_id || retrying[retryKey]}
-                            style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', borderRadius: 5, cursor: 'pointer', padding: '3px 9px', fontSize: 11, color: '#38bdf8', fontWeight: 600 }}
-                          >
-                            {retrying[retryKey] ? '…' : '↑ Sync Now'}
-                          </button>
+                          <OnlineDailySalesSyncButton businessId={getBusinessId()} date={String(entry.item_date).slice(0, 10)}
+                            channelInstanceId={String(entry.channel_instance_id ?? '')} label="↑ Sync Now" onRefresh={loadData}
+                            style={{ background: 'rgba(56,189,248,.12)', border: '1px solid rgba(56,189,248,.3)', padding: '3px 9px' }} />
                         )}
                       </td>
                     </tr>
@@ -23198,7 +23165,7 @@ export default function ImsPage() {
         setUser(d);
         // Auto-sync unsynced online batch days — once per browser session, non-blocking.
         const sessionKey = `online_auto_sync_${d.businessId ?? 'x'}`;
-        if (!sessionStorage.getItem(sessionKey)) {
+        if (d.onlineSalesStartupEnabled !== false && !sessionStorage.getItem(sessionKey)) {
           sessionStorage.setItem(sessionKey, '1');
           fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
         }

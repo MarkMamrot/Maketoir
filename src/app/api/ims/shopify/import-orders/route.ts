@@ -9,6 +9,11 @@ import { applyShopifyOrderRefund } from '@/lib/channels/shopifyOrderRefund';
 import { updateShopifyOrder } from '@/lib/channels/shopifyOrderUpdate';
 import { shopifyDisabledResponse } from '@/lib/shopifyCapability';
 import { ShopifyService } from '@/services/ShopifyService';
+import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
+import { requestOnlineRecovery } from '@/lib/channels/onlineRecoveryWorker';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { OnlineSyncLeaseLostError } from '@/lib/channels/onlineSyncPolicy';
 
 export async function POST(request: Request) {
   const session = await getImsSession();
@@ -28,6 +33,27 @@ export async function POST(request: Request) {
     }
     if (!settings.orders.syncFrom || !settings.orders.locationId) {
       return NextResponse.json({ error: 'Configure the order start date and location for this storefront.' }, { status: 400 });
+    }
+
+    try {
+      const control = await runImsForBusiness(businessId, () => getOnlineSyncControl(businessId));
+      if (control.mode !== 'legacy') {
+        if (control.paused) {
+          return NextResponse.json({ error: 'Resume scheduled recovery before requesting an import.' }, { status: 409 });
+        }
+        await runImsForBusiness(businessId, () => requestOnlineRecovery(businessId, channelInstanceId));
+        return NextResponse.json({ success: true, queued: true, channelInstanceId }, { status: 202 });
+      }
+    } catch (error) {
+      if (error instanceof OnlineSyncLeaseLostError) {
+        return NextResponse.json({ error: 'Background recovery is paused or unavailable for this business.' }, { status: 409 });
+      }
+      await reportRuntimeIssue({
+        businessId, source: 'online_recovery', operation: 'manual_import_handoff',
+        title: 'Manual Shopify recovery could not be queued', error: new Error('Recovery handoff failed.'),
+        context: { channelInstanceId },
+      });
+      return NextResponse.json({ error: 'Shopify recovery could not be queued.' }, { status: 503 });
     }
 
     const orders = await new ShopifyService(context.credentials.shopDomain, context.credentials.token)

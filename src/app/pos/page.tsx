@@ -1602,6 +1602,7 @@ function MainPos({
   const [daybookReminderPulse, setDaybookReminderPulse] = useState(false);
   const [xeroAccountingEnabled, setXeroAccountingEnabled] = useState(false);
   const [posCapabilitiesLoaded, setPosCapabilitiesLoaded] = useState(false);
+  const [onlineSalesStartupEnabled, setOnlineSalesStartupEnabled] = useState(true);
   // Pending drain prompt: shown on reconnect when queue has recent items but no open session.
   const [pendingDrain, setPendingDrain] = useState<{ count: number; total: number } | null>(null);
   // Forces EodScreen to open in a specific tab (used when navigating from the pending-drain prompt).
@@ -1642,6 +1643,7 @@ function MainPos({
       .then(d => {
         if (d.bt_access) setBtAccess(d.bt_access);
         setXeroAccountingEnabled(Boolean(d.xeroAccountingEnabled));
+        setOnlineSalesStartupEnabled(d.onlineSalesStartupEnabled !== false);
       })
       .catch(() => {})
       .finally(() => setPosCapabilitiesLoaded(true));
@@ -1674,13 +1676,13 @@ function MainPos({
   // Auto-sync unsynced online sales batches to Xero — once per browser session,
   // non-blocking. Works from POS login too (endpoint accepts any valid session).
   useEffect(() => {
-    if (!posCapabilitiesLoaded || !xeroAccountingEnabled) return;
+    if (!posCapabilitiesLoaded || !xeroAccountingEnabled || !onlineSalesStartupEnabled) return;
     const sessionKey = `online_auto_sync_pos_${session.location_id ?? 'x'}`;
     if (!sessionStorage.getItem(sessionKey)) {
       sessionStorage.setItem(sessionKey, '1');
       fetch('/api/ims/online-sales/auto-sync', { method: 'POST' }).catch(() => {});
     }
-  }, [posCapabilitiesLoaded, session.location_id, xeroAccountingEnabled]);
+  }, [posCapabilitiesLoaded, session.location_id, xeroAccountingEnabled, onlineSalesStartupEnabled]);
 
   // Load register config (Zeller terminal settings) — requires authenticated session
   useEffect(() => {

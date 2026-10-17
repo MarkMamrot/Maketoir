@@ -641,10 +641,12 @@
       "format": "overview",
       "parentId": "ims-xero-shopify",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "contextSections": {
-        "sales-channels": "Review channel instances"
+        "sales-channels": "Review channel instances",
+        "online-sales-recovery": "Online sales recovery"
       },
       "relatedTopics": [
         "ims-shopify-sync",
@@ -653,8 +655,8 @@
         "ims-business-operations-pos-settings"
       ],
       "order": 91,
-      "summary": "Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.",
-      "lastReviewed": "2026-10-14",
+      "summary": "Review Point of Sale, the B2B Wholesale Portal, each online storefront and available online order recovery status.",
+      "lastReviewed": "2026-10-17",
       "owner": "integrations",
       "quickSections": [
         "Main operations"
@@ -697,7 +699,7 @@
       ],
       "order": 92,
       "summary": "Configure one Shopify store, safely onboard its catalogue and mapped opening stock, and maintain synchronization.",
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -762,12 +764,14 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "contextSections": {
         "xero": "Step-by-step",
         "settings-xero": "Connection and sync preferences",
-        "activity-cogs": "Review and recover COGS postings"
+        "activity-cogs": "Review and recover COGS postings",
+        "online-sales-daily-accounting": "Online daily posting and order readiness"
       },
       "relatedTopics": [
         "ims-xero-shopify",
@@ -777,7 +781,7 @@
       ],
       "order": 91,
       "summary": "Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.",
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "owner": "integrations",
       "quickSections": [
         "Main operations",
@@ -1520,7 +1524,7 @@
       },
       "order": 30,
       "summary": "Choose the right Sales workspace for orders, incoming-stock allocation, returns, credits, and source sales activity.",
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "owner": "sales",
       "quickSections": [
         "Main operations",
@@ -7036,10 +7040,11 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Sales Channels brings together Point of Sale, the B2B Wholesale Portal and each online storefront. Point of Sale appears once for the business, with its active POS location count. A business can connect multiple Amazon Seller Central accounts, while each Shopify store and the Solvantis Online Store also appears as its own channel.\n\nOpen **Sales > Sales Channels** from the sidebar. The storefront icon identifies physical POS, the office-building icon identifies B2B wholesale, and the globe identifies online channels. **Add Sales Channel** uses the aqua-teal action colour.",
       "sectionId": "ims-sales-channels:1"
     },
@@ -7055,15 +7060,36 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
-      "content": "- Confirm that every expected storefront appears as a separate channel.\n- Review whether Point of Sale and the B2B Wholesale Portal are enabled in Business Operations.\n- Choose **Configure** on either built-in channel to open its existing settings. Use **Manage locations** for POS locations or **Preview portal** for the enabled B2B portal.\n- Check whether a channel is active, paused, waiting for setup, or needs attention.\n- Review the external account identity and last successful synchronization time.\n- Compare the operations supported by each provider.\n- Choose **Configure** on a channel row to open that exact storefront or seller account. Shopify and Amazon open dedicated channel details; the Solvantis Online Store opens its existing setup area.",
+      "lastReviewed": "2026-10-17",
+      "content": "- Confirm that every expected storefront appears as a separate channel.\n- Review whether Point of Sale and the B2B Wholesale Portal are enabled in Business Operations.\n- Choose **Configure** on either built-in channel to open its existing settings. Use **Manage locations** for POS locations or **Preview portal** for the enabled B2B portal.\n- Check whether a channel is active, paused, waiting for setup, or needs attention.\n- Review the external account identity and last successful synchronization time.\n- Compare the operations supported by each provider.\n- Choose **Configure** on a channel row to open that exact storefront or seller account. Shopify and Amazon open dedicated channel details; the Solvantis Online Store opens its existing setup area.\n- Check **Online sales recovery** for baseline completion, incremental coverage, queued or failed work and orders needing review. Admins and SuperAdmins can use the recovery controls when available.",
       "sectionId": "ims-sales-channels:2"
     },
     {
       "id": "ims-sales-channels:3",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Online sales recovery",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Sales > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels",
+        "online-sales-recovery"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-17",
+      "content": "Open **Sales > Sales Channels > Online sales recovery**. Use **Refresh recovery status** to read current status; this does not import orders or post accounting.\n\nAvailability is shown explicitly:\n\n- **Unavailable until rollout:** current order synchronization continues unchanged. This status does not activate recovery or grant access to it.\n- **Validation:** recovery is being checked while existing catch-up behaviour remains in place. Do not assume that opening POS or IMS has stopped triggering catch-up.\n- **Cutover:** bounded scheduled order reconciliation is active. Only after verified cutover does opening POS or IMS no longer trigger order catch-up.\n\nWebhooks prompt order updates. Scheduled reconciliation checks bounded periods for missed changes; daily accounting runs independently. A complete baseline confirms initial order coverage only: it does not confirm that later changes, gift card work or accounting work are complete, including for the Solvantis Online Store.\n\nEach exact storefront shows:\n\n| Status | Meaning |\n|---|---|\n| Baseline | Whether the initial order coverage is complete |\n| Incremental coverage through | The latest confirmed recovery coverage, not the time a page was opened |\n| Next scheduled check | When the next recovery check is expected; it is not a completion guarantee |\n| Queued work / Failed work | Work still waiting or needing a recovery retry |\n| Orders needing review | The total number needing investigation; the displayed references may be a limited selection |\n\nWhen the review list is limited, **Showing** states how many references are displayed out of the total. This is not the full review list; do not assume that orders absent from the displayed selection need no review.\n\nAdmins and SuperAdmins can choose **Retry recovery for** the affected storefront. A retry requests unfinished work; it does not mean processing is already complete. Refresh status afterwards to inspect the result. Other users, including Advisors with accounting-sync access, can review status but cannot retry, pause or resume order recovery.\n\nWhen scheduled recovery is active, **Import Orders from Shopify** reports **queued for scheduled recovery**, not a completed import or an imported-order count. Check recovery progress before assuming that the order is ready. Before rollout, the existing direct import still reports its completed counts.\n\nMissing gift card permissions or genuine gift card discrepancies remain failed until an explicit retry. Correct the provider permissions or investigate the discrepancy first, then ask an Admin or SuperAdmin to retry. Retrying creates recovery work but never clears an order's review requirement.\n\n**Pause recovery** and **Resume recovery** apply to scheduled order recovery across channels. Pausing does not restore old historical scans and is not an accounting posting switch. Resume recovery before requesting a retry.\n\nManual daily posting remains blocked until baseline and catch-up readiness checks pass. There is no posting override, force-ready action or clear-review bypass. Retry does not clear review for a previously posted day. Investigate non-refund late changes to an already posted day in **Online Sales** before treating the accounting as reconciled.\n\nRecovered refunds repair local orders and linked credit notes and automatically use the existing Xero flow when eligible. They never charge or refund the customer again. Do not repeat the original customer refund to repair local or accounting records.",
+      "sectionId": "ims-sales-channels:3"
+    },
+    {
+      "id": "ims-sales-channels:4",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Publishing and provider operations",
@@ -7074,15 +7100,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "- Rename a channel so staff can distinguish its purpose.\n- Use **Add Sales Channel** to choose the provider-specific connection setup.\n- Define ordered product rules for each exact storefront and preview their recommendations.\n- Keep **Automatic assignment** off for Manual mode, or explicitly turn it on for one exact channel.\n- Filter **All Products** by a saved rule, select matching products, then include or exclude them explicitly.\n- Enable automatic publication for a prepared channel and reconcile confirmed assignment differences.\n- Connect and configure multiple Shopify stores with separate credentials.\n- Test a Shopify instance against its exact saved store and credentials.\n- Connect an Amazon Australia Seller Central account through Amazon's authorization page.\n- Test the saved authorization for one Amazon seller account.\n- Synchronize Amazon Australia listings and review the linked, unmatched, and conflicting SKU totals.\n- Enable inventory for selected one-to-one Amazon listing mappings and synchronize current online availability.\n- Choose a dispatch location for each Amazon seller account and synchronize seller-fulfilled orders.\n- Dispatch prepared Amazon orders with parcel tracking and monitor any channel confirmation retry.\n- Synchronize Amazon returns and externally settled refunds, then review any generated credit-note drafts.\n- Check Amazon activation readiness and resolve every reported blocker without activating the channel.\n- Activate or deactivate a ready Amazon seller account's automatic synchronization.\n- Open the provider's integration area when catalogue, order, mapping, or synchronization work is required.",
-      "sectionId": "ims-sales-channels:3"
+      "sectionId": "ims-sales-channels:4"
     },
     {
-      "id": "ims-sales-channels:4",
+      "id": "ims-sales-channels:5",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances",
@@ -7093,15 +7120,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "The **Point of Sale** and **B2B Wholesale Portal** rows use existing Business Operations settings. Administrators choose **Configure** to open **Settings > Point of Sale** or **Settings > Sales & Customers > Wholesale portal**. POS shows **Setup pending** when enabled without active POS locations. Its count includes active locations marked for POS or with a POS location code; inactive and non-POS locations are excluded. **Manage locations** opens the existing Locations workspace. **Preview portal** opens the enabled wholesale portal's staff preview in a new tab.\n\nThese built-in rows are navigation summaries, not new online integrations. They do not change stock, pricing, order attribution, accounting or product publishing. They do not have external connection tests or synchronization timestamps. Staff without administrator access can use the location and preview links but do not receive a Configure action.\n\nOpen **Sales > Sales Channels**. Each compact row identifies the storefront, provider, operating state, account identity, last successful synchronization time, and number of supported features. A current safe error appears beneath the affected channel when it needs attention.\n\nRows use aligned identity, status, summary and action columns with alternating backgrounds to help track each channel across the list. On smaller screens, the same information stacks within each channel row.\n\nAdministrators choose **Configure** to open the provider details where connection settings and channel workflows belong. Use the three-dot menu for the quick **Test connection** and **Activate** or **Deactivate** commands. Other IMS users choose **View details** and can review the same information without changing it.\n\n### Assign products with channel rules\n\nChoose **Configure**, then open **Products** and choose **Product rules** to define recommendations for that exact storefront. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product or include it in every channel.\n\nRules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.\n\nUse **Save and preview** to store the rules and inspect the result without changing inclusions. Saving a rule never changes a product's channel inclusion. The preview shows the matched rule, recommendation, current control and provider state.\n\nUse the **Automatic assignment** toggle under the exact channel's **Products** section:\n\n- **Off (Manual)** is the default. Rules are filters and recommendations only; staff choose every inclusion or exclusion.\n- **On (Automatic)** checks rules hourly and includes new matching products that are not protected by an explicit choice. It never removes an existing inclusion when a product stops matching.\n\nAutomatic assignment runs only for an enabled, active and ready channel that has been explicitly switched on. It updates Solvantis destination intent only; provider publication remains controlled separately.\n\nAn explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Follow channel mode** to remove that protection while preserving the current inclusion unless the channel is Automatic and the product matches an Include rule.\n\nFor one saved product, open **Products > All Products > Channels and Publishing**, choose **Include in Channels**, review configured destinations and recommendations, then choose **Apply**. **Apply Rules** fills the channel checkboxes from eligible rule recommendations; it does not save or publish those selections. Solvantis sends applied selections to each active, ready channel and shows a provider link after success. For several products, open **Products > All Products**, choose the exact sales channel and one of its saved Include rules, then select some products or use **Select all matching**. Choose **Include in Sales Channels**, confirm the exact channel, and use **Always include**. Filtering, previewing, selecting and saving rules do not change inclusion by themselves.\n\nIf you change channel checkboxes and then cancel, dismiss the dialog, or navigate away without applying, Solvantis warns that the selections have not been applied. Choose **Return** to keep reviewing, or **Leave without applying** to discard those checkbox changes. Reloading or closing the browser also warns about unapplied selections.\n\n### Publish assigned products\n\nBefore publishing to any online channel, the saved product must be active and have a **Title**, a non-empty **Description**, and at least one active variant. Every active variant needs a **SKU** and a positive **RRP** (GST-inclusive). The website title is used when populated; otherwise the product name supplies the title. Inactive variants are not checked. Save product edits before opening the channel picker. Missing fields are listed in the Apply dialog and block publication; bulk inclusion also checks all selected products before saving any inclusions. Background publication checks these same requirements again. Removing a product from a channel does not require those fields.\n\nExplicit **Apply** actions run immediately for an active, ready channel. **Automatic publication** is off by default and controls later background reconciliation of assignment differences; enabling it does not immediately change provider products.\n\nChoose **Reconcile products** to review how many assignments differ from their observed provider state. Confirm that count to queue and process the current differences. Solvantis rechecks each product's latest assignment before contacting the provider, so a queued item whose intent has changed is skipped. Blocked products retain their assignment and show an issue that must be corrected before reconciliation is retried. Automatic scheduled reconciliation uses the same safeguards and does not run for disabled, paused, unready, or opted-out channels.\n\nProvider behavior differs:\n\n- The Solvantis Online Store publishes or unpublishes the local online product after confirming the product is active and has an active variant with a positive price.\n- Shopify changes an exactly linked product between Active and Draft. When an explicitly included product has no link, Solvantis creates it as a Draft in the selected Shopify store, saves the exact product and variant links, sends its images and inventory, then makes it Active. Existing ambiguous or conflicting links remain blocked rather than guessed.\n- Amazon creates or removes seller-fulfilled offers only for variants mapped to an existing ASIN and seller SKU in that exact seller account. The product must be active, have a positive tax-inclusive AUD price, and use tracked inventory. Full Amazon parent/child catalogue creation is not supported by this workflow.\n\nAssignment intent and provider state are separate. After **Apply**, confirm the Provider column says **Published** and use **View listing** or **Manage listing**. Missing required fields prevent new inclusion from being saved. A later provider blocker or failure can retain inclusion without making the product live; correct the issue, save the product and reopen **Include in Channels**, leave the intended channel checked, then choose **Apply** to retry.\n\nAdministrators can choose **Test connection** from a Shopify row's three-dot menu or from its **Connection** details. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.\n\n### Add a sales channel\n\nChoose **Add Sales Channel**, then choose a provider. Amazon continues to Seller Central authorization for a new seller account. Shopify opens an exact-store configuration form. Enable the single Solvantis Online Store channel in Online Channels settings.\n\n### Connect Shopify\n\n1. Choose **Add Sales Channel**, then **Shopify**.\n2. Enter a staff-facing channel name and the permanent domain ending in `.myshopify.com`.\n3. Choose client credentials or a legacy Admin API token, then enter the credentials for that exact store.\n4. Save the channel, choose **Test connection**, and correct any reported credential or domain mismatch.\n5. After the test succeeds, choose **Activate**.\n\nRepeat these steps for another Shopify store. Use **Configure** on a Shopify row to change that instance. A blank secret field keeps the saved secret only while the authentication mode and permanent store domain remain unchanged; stored secrets are never displayed. Changing the store domain, authentication mode, client ID, token, or secret deactivates the instance. Test the changed connection successfully, then choose **Activate** explicitly. Changing only the channel name or saving unchanged credentials preserves the current state.\n\nThe Shopify configuration is divided by task. **Connection** contains credentials, connection testing, activation and webhooks. **Products** contains assignment rules, publication controls, the exact-store product list and product import. **Orders** contains order settings and manual import, while **Inventory** contains stock synchronization. Customer synchronization is under **Customers**, and gift card mode and reconciliation are under **Gift Cards**. Store-specific Xero options are under **Accounting**, and synchronization history is under **Activity**.\n\nIn **Products**, review or filter the current product list before starting a catalogue import. **Import Products from Shopify** appears below that list. An import creates missing products and variants and refreshes linked catalogue details; it does not change stock quantities. Opening stock is handled separately by **Import Shopify Opening Stock**.\n\nExact-instance Shopify credentials control connection testing, channel product publication, inventory synchronization, price synchronization, and linked variant updates. Choose the intended Shopify storefront before previewing or manually pushing inventory or prices. Stock changes fan out only to stores with an exact linked variant mapping; each store uses its own Shopify inventory location, IMS stock locations, and safety buffer. A failure in one store remains queued for retry without preventing another linked store from updating.\n\nInventory writes set Shopify's absolute available quantity rather than adding or subtracting a delta. Products with **Tracks inventory** off do not receive quantity updates. Price and variant updates use only the selected or mapped storefront identity and do not publish, activate, draft, or otherwise change product publication state.\n\nUnder **Sales > Sales Channels**, choose **Configure** for the intended store. Open **Orders** to change order settings or import orders, and open **Connection** to check or register webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. For a legacy Admin API token connection, enter the **API secret key** of the same Shopify app that issued that token as the webhook signing secret. Do not use the Admin API access token or the separate signing secret for webhooks created manually under Shopify's Notifications settings. The secret is encrypted and is not displayed later.\n\nThe same storefront choice owns its order start date, online-orders location, order-sync switch, and automatic daily Xero batch switch. When only one active Shopify store exists it is selected automatically; when more than one exists, choose the store before changing settings or running an action. Each store creates separate daily Xero batches, gateway mappings and payout records.\n\nWebhook registration is tracked separately for every storefront and topic. A Registered status confirms the saved subscription, not that Shopify deliveries are being received and verified. Compare a new Shopify order with its IMS order and review **Activity** when checking delivery health. A missing or failed topic does not fall back to another Shopify connection. Every Shopify webhook uses the exact storefront callback shown under **Connection**; business-level callback URLs are not supported. Registering webhooks or importing orders does not change product publication state.\n\n### Connect Amazon Australia\n\n1. Choose **Add Sales Channel**, then **Amazon Australia**.\n2. Enter a channel name that identifies the seller account for staff.\n3. Continue to Amazon and sign in to the intended Seller Central account.\n4. Review Amazon's permissions and authorize Solvantis.\n5. Return to Sales Channels and confirm the Amazon seller ID and **Setup pending** status.\n\nSolvantis verifies that the account actively participates in Amazon Australia and that its listings are not suspended. Each Seller Central account becomes a separate channel, so repeat these steps for another seller account. Authorization alone does not start catalogue, inventory, order, fulfilment, or return synchronization; the channel remains setup pending until every required operation is configured.\n\nChoose **Configure** on an Amazon row to open its dedicated details. **Connection & readiness** contains connection testing, readiness checks, and activation. **Products**, **Listings**, **Orders & inventory**, and **Returns** contain the corresponding exact-seller workflows described below.\n\nChoose **Test connection** from the row's three-dot menu or from **Connection & readiness** to refresh that account's saved authorization and recheck its Amazon Australia participation.\n\nChoose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. After the final page, listings no longer returned by Amazon are archived and stop receiving inventory updates. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.\n\nOpen **Manage listings**, choose linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. To prepare a new seller offer for a product already present in Amazon's catalogue, search for one active IMS variant under **Add existing-ASIN offer**, enter its 10-character ASIN and the seller SKU for this account, then save the mapping. Saving enables offer price and inventory controls but does not contact Amazon; the offer changes only during a later confirmed product reconciliation. A variant or seller SKU can be linked only once in the same Amazon account.\n\n**Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Amazon's seller-fulfilled quantity becomes the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.\n\nAfter an Amazon channel completes final activation, Solvantis checks for stock movements every 15 minutes and sends changed enabled listings to that exact seller account. A paused, setup-pending, disabled, or automation-paused channel is not processed automatically. Use **Sync inventory** during setup or when an administrator needs an immediate full reconciliation.\n\nChoose **Order setup** and assign the active IMS location that will dispatch orders for that seller account. Each Amazon account can use a different location. Solvantis cannot import an order until its seller account has a dispatch location.\n\nChoose **Sync orders** to import recent Amazon Australia seller-fulfilled orders. The first successful synchronization checks the preceding 24 hours; later synchronizations overlap the saved update time by five minutes so boundary updates are not missed. When a large window needs more than one pass, Solvantis resumes the same window on the next pass and advances the cursor only after every page completes. Repeated updates cannot create a second sales order for the same Amazon account and order ID.\n\nAmazon orders use the standard Online Customer and are shown as paid through Amazon without creating an IMS payment transaction. Amazon settlement accounting remains separate. Exact seller-SKU links use their IMS variants. An order line without a linked seller SKU uses the non-stock online fallback product, preserving the complete order value without changing stock for an unidentified product.\n\nAn unshipped order becomes a confirmed IMS sales order and commits stock at the configured dispatch location. Quantities Amazon reports as shipped pass through the normal sales-order fulfilment process, including partial shipments. A cancellation releases remaining committed stock. Pending and Amazon-fulfilled orders are not imported.\n\nWhen staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the assigned quantities locally and then confirms each tracked parcel to the exact Seller Central account that supplied the order. Each parcel sends its carrier, service, tracking number, dispatch time, and Amazon order-item quantities separately. Multiple parcels can therefore carry different tracking numbers.\n\nIf Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again. Automatic retries start only after final activation and stop after five failed attempts; an administrator can retry manually after correcting the cause. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.\n\nChoose **Sync returns** to request or poll the seller return report and read released Amazon refund transactions for that account. Amazon prepares return reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report and finance windows plus Amazon return/refund identities prevent a boundary update from creating a duplicate observation. Large Finance windows resume from the saved page on the next run. Return and refund evidence is retained even when its local order arrives later. After final activation, Solvantis performs the same checks automatically.\n\nAn Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. When one unreconciled Amazon RMA and one released refund match the order unambiguously, Solvantis creates an Amazon Draft in **Customer Credit Notes**. Its settlement is already external and every line starts with **Restock** cleared. Review the draft and choose **Restock** only for sellable goods physically received before completion. Completing it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.\n\nIf an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Choose **Resolve refunds**, choose the order, one RMA, and one released refund, then create the review draft. Solvantis verifies that both records belong to the same Amazon order and are still unlinked. The return report amount supplies the customer refund value; the Finance seller-net amount is shown only to identify the settlement.\n\n### Check Amazon activation readiness\n\nChoose **Check readiness** after completing the setup operations for one Amazon seller account. Solvantis rechecks that account's Amazon Australia authorization and reports each requirement separately:\n\n- An active IMS dispatch location is assigned.\n- A complete listing synchronization has succeeded in the last 24 hours, at least one listing was observed, and no current listing mapping remains unmatched or conflicting.\n- Inventory is enabled for at least one linked listing and synchronized after the latest listing sync within the last hour.\n- The order cursor is no more than 30 minutes old, return and refund cursors are no more than 26 hours old, and no order or Finance page window remains incomplete.\n- No Amazon inventory, report, or shipment-confirmation job is pending or failed.\n- No ambiguous refund match or unreviewed Amazon credit-note draft remains.\n\nA passing result records that the seller account is operationally ready but does not activate it. A later setup change resets the result so administrators must run **Check readiness** again.\n\nInventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final readiness check must still be completed before the channel can become active.\n\n### Activate or deactivate Amazon\n\nAfter every readiness check passes, choose **Activate** and confirm the exact seller account. Solvantis repeats the complete readiness assessment immediately before changing the state. Activation succeeds only if the persisted channel is still ready after that assessment.\n\nActivation starts automatic inventory, seller-fulfilled order, shipment-confirmation retry, return-report, and released-refund synchronization for that seller account. The business-wide automation pause still prevents scheduled processing while it is on.\n\nChoose **Deactivate** to stop that channel from entering any automatic Amazon synchronization. Deactivation retains its authorization, seller identity, mappings, settings, synchronization cursors, observations, orders, and credit notes. Manual setup controls remain available, and a later activation repeats the complete readiness assessment.\n\n> **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.\n\n| Status | Meaning | Next step |\n|---|---|---|\n| Active | The instance is enabled and passed its latest readiness check | Continue normal monitoring |\n| Paused | New provider synchronization is paused for this instance | Review the provider setup before resuming it |\n| Setup pending | The instance has not completed readiness checks | Complete the provider connection setup |\n| Needs attention | The latest readiness or runtime state contains an operational problem | Read the safe error summary and inspect the provider integration |\n\n> **Important:** Read the confirmation carefully. Activating one Amazon row starts automation only for the seller ID displayed on that row.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.1",
+      "id": "ims-sales-channels:5.1",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Assign products with channel rules",
@@ -7112,15 +7140,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Choose **Configure**, then open **Products** and choose **Product rules** to define recommendations for that exact storefront. A product's **Online candidate** setting means its online content should be prepared and makes it available to rule conditions; it does not publish the product or include it in every channel.\n\nRules run in their displayed order and the first matching enabled rule decides whether to include or exclude the product. A rule can require all of its conditions or any one condition. Conditions can use catalogue facts such as active status, online candidate, product type, category, brand, tags, content, images and variant count. A product that matches no rule is excluded by default.\n\nUse **Save and preview** to store the rules and inspect the result without changing inclusions. Saving a rule never changes a product's channel inclusion. The preview shows the matched rule, recommendation, current control and provider state.\n\nUse the **Automatic assignment** toggle under the exact channel's **Products** section:\n\n- **Off (Manual)** is the default. Rules are filters and recommendations only; staff choose every inclusion or exclusion.\n- **On (Automatic)** checks rules hourly and includes new matching products that are not protected by an explicit choice. It never removes an existing inclusion when a product stops matching.\n\nAutomatic assignment runs only for an enabled, active and ready channel that has been explicitly switched on. It updates Solvantis destination intent only; provider publication remains controlled separately.\n\nAn explicit **Always include** or **Always exclude** choice is protected from later automation. Choose **Follow channel mode** to remove that protection while preserving the current inclusion unless the channel is Automatic and the product matches an Include rule.\n\nFor one saved product, open **Products > All Products > Channels and Publishing**, choose **Include in Channels**, review configured destinations and recommendations, then choose **Apply**. **Apply Rules** fills the channel checkboxes from eligible rule recommendations; it does not save or publish those selections. Solvantis sends applied selections to each active, ready channel and shows a provider link after success. For several products, open **Products > All Products**, choose the exact sales channel and one of its saved Include rules, then select some products or use **Select all matching**. Choose **Include in Sales Channels**, confirm the exact channel, and use **Always include**. Filtering, previewing, selecting and saving rules do not change inclusion by themselves.\n\nIf you change channel checkboxes and then cancel, dismiss the dialog, or navigate away without applying, Solvantis warns that the selections have not been applied. Choose **Return** to keep reviewing, or **Leave without applying** to discard those checkbox changes. Reloading or closing the browser also warns about unapplied selections.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.2",
+      "id": "ims-sales-channels:5.2",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Publish assigned products",
@@ -7131,15 +7160,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Before publishing to any online channel, the saved product must be active and have a **Title**, a non-empty **Description**, and at least one active variant. Every active variant needs a **SKU** and a positive **RRP** (GST-inclusive). The website title is used when populated; otherwise the product name supplies the title. Inactive variants are not checked. Save product edits before opening the channel picker. Missing fields are listed in the Apply dialog and block publication; bulk inclusion also checks all selected products before saving any inclusions. Background publication checks these same requirements again. Removing a product from a channel does not require those fields.\n\nExplicit **Apply** actions run immediately for an active, ready channel. **Automatic publication** is off by default and controls later background reconciliation of assignment differences; enabling it does not immediately change provider products.\n\nChoose **Reconcile products** to review how many assignments differ from their observed provider state. Confirm that count to queue and process the current differences. Solvantis rechecks each product's latest assignment before contacting the provider, so a queued item whose intent has changed is skipped. Blocked products retain their assignment and show an issue that must be corrected before reconciliation is retried. Automatic scheduled reconciliation uses the same safeguards and does not run for disabled, paused, unready, or opted-out channels.\n\nProvider behavior differs:\n\n- The Solvantis Online Store publishes or unpublishes the local online product after confirming the product is active and has an active variant with a positive price.\n- Shopify changes an exactly linked product between Active and Draft. When an explicitly included product has no link, Solvantis creates it as a Draft in the selected Shopify store, saves the exact product and variant links, sends its images and inventory, then makes it Active. Existing ambiguous or conflicting links remain blocked rather than guessed.\n- Amazon creates or removes seller-fulfilled offers only for variants mapped to an existing ASIN and seller SKU in that exact seller account. The product must be active, have a positive tax-inclusive AUD price, and use tracked inventory. Full Amazon parent/child catalogue creation is not supported by this workflow.\n\nAssignment intent and provider state are separate. After **Apply**, confirm the Provider column says **Published** and use **View listing** or **Manage listing**. Missing required fields prevent new inclusion from being saved. A later provider blocker or failure can retain inclusion without making the product live; correct the issue, save the product and reopen **Include in Channels**, leave the intended channel checked, then choose **Apply** to retry.\n\nAdministrators can choose **Test connection** from a Shopify row's three-dot menu or from its **Connection** details. Solvantis authenticates with that instance's saved credentials and confirms Shopify returns the same permanent store domain. The result updates the readiness status but does not synchronize products, orders, customers, inventory, or payments. After a successful test, choose **Activate** to make that exact store eligible for its enabled channel workflows. Choose **Deactivate** to pause it while retaining credentials, mappings, assignments, and history.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.3",
+      "id": "ims-sales-channels:5.3",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Add a sales channel",
@@ -7150,15 +7180,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Choose **Add Sales Channel**, then choose a provider. Amazon continues to Seller Central authorization for a new seller account. Shopify opens an exact-store configuration form. Enable the single Solvantis Online Store channel in Online Channels settings.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.4",
+      "id": "ims-sales-channels:5.4",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Connect Shopify",
@@ -7169,15 +7200,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "1. Choose **Add Sales Channel**, then **Shopify**.\n2. Enter a staff-facing channel name and the permanent domain ending in `.myshopify.com`.\n3. Choose client credentials or a legacy Admin API token, then enter the credentials for that exact store.\n4. Save the channel, choose **Test connection**, and correct any reported credential or domain mismatch.\n5. After the test succeeds, choose **Activate**.\n\nRepeat these steps for another Shopify store. Use **Configure** on a Shopify row to change that instance. A blank secret field keeps the saved secret only while the authentication mode and permanent store domain remain unchanged; stored secrets are never displayed. Changing the store domain, authentication mode, client ID, token, or secret deactivates the instance. Test the changed connection successfully, then choose **Activate** explicitly. Changing only the channel name or saving unchanged credentials preserves the current state.\n\nThe Shopify configuration is divided by task. **Connection** contains credentials, connection testing, activation and webhooks. **Products** contains assignment rules, publication controls, the exact-store product list and product import. **Orders** contains order settings and manual import, while **Inventory** contains stock synchronization. Customer synchronization is under **Customers**, and gift card mode and reconciliation are under **Gift Cards**. Store-specific Xero options are under **Accounting**, and synchronization history is under **Activity**.\n\nIn **Products**, review or filter the current product list before starting a catalogue import. **Import Products from Shopify** appears below that list. An import creates missing products and variants and refreshes linked catalogue details; it does not change stock quantities. Opening stock is handled separately by **Import Shopify Opening Stock**.\n\nExact-instance Shopify credentials control connection testing, channel product publication, inventory synchronization, price synchronization, and linked variant updates. Choose the intended Shopify storefront before previewing or manually pushing inventory or prices. Stock changes fan out only to stores with an exact linked variant mapping; each store uses its own Shopify inventory location, IMS stock locations, and safety buffer. A failure in one store remains queued for retry without preventing another linked store from updating.\n\nInventory writes set Shopify's absolute available quantity rather than adding or subtracting a delta. Products with **Tracks inventory** off do not receive quantity updates. Price and variant updates use only the selected or mapped storefront identity and do not publish, activate, draft, or otherwise change product publication state.\n\nUnder **Sales > Sales Channels**, choose **Configure** for the intended store. Open **Orders** to change order settings or import orders, and open **Connection** to check or register webhooks. **Register webhooks via API** creates or repairs that store's supported order, fulfilment, refund, return-observation, and Shopify Payments payout subscriptions using its exact callback URL. Client-credential connections use the saved app secret for delivery verification. For a legacy Admin API token connection, enter the **API secret key** of the same Shopify app that issued that token as the webhook signing secret. Do not use the Admin API access token or the separate signing secret for webhooks created manually under Shopify's Notifications settings. The secret is encrypted and is not displayed later.\n\nThe same storefront choice owns its order start date, online-orders location, order-sync switch, and automatic daily Xero batch switch. When only one active Shopify store exists it is selected automatically; when more than one exists, choose the store before changing settings or running an action. Each store creates separate daily Xero batches, gateway mappings and payout records.\n\nWebhook registration is tracked separately for every storefront and topic. A Registered status confirms the saved subscription, not that Shopify deliveries are being received and verified. Compare a new Shopify order with its IMS order and review **Activity** when checking delivery health. A missing or failed topic does not fall back to another Shopify connection. Every Shopify webhook uses the exact storefront callback shown under **Connection**; business-level callback URLs are not supported. Registering webhooks or importing orders does not change product publication state.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.5",
+      "id": "ims-sales-channels:5.5",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Connect Amazon Australia",
@@ -7188,15 +7220,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "1. Choose **Add Sales Channel**, then **Amazon Australia**.\n2. Enter a channel name that identifies the seller account for staff.\n3. Continue to Amazon and sign in to the intended Seller Central account.\n4. Review Amazon's permissions and authorize Solvantis.\n5. Return to Sales Channels and confirm the Amazon seller ID and **Setup pending** status.\n\nSolvantis verifies that the account actively participates in Amazon Australia and that its listings are not suspended. Each Seller Central account becomes a separate channel, so repeat these steps for another seller account. Authorization alone does not start catalogue, inventory, order, fulfilment, or return synchronization; the channel remains setup pending until every required operation is configured.\n\nChoose **Configure** on an Amazon row to open its dedicated details. **Connection & readiness** contains connection testing, readiness checks, and activation. **Products**, **Listings**, **Orders & inventory**, and **Returns** contain the corresponding exact-seller workflows described below.\n\nChoose **Test connection** from the row's three-dot menu or from **Connection & readiness** to refresh that account's saved authorization and recheck its Amazon Australia participation.\n\nChoose **Sync listings** to read that seller account's Amazon Australia listings. Solvantis keeps existing valid links and automatically links a listing only when its seller SKU has one exact IMS variant match. A missing SKU remains unmatched, and a SKU used by multiple IMS variants is reported as a conflict. After the final page, listings no longer returned by Amazon are archived and stop receiving inventory updates. Listing sync does not create products, publish listings, change prices, push inventory, import orders, or activate the channel.\n\nOpen **Manage listings**, choose linked listings, and choose **Inventory on** to permit stock synchronization for those mappings. To prepare a new seller offer for a product already present in Amazon's catalogue, search for one active IMS variant under **Add existing-ASIN offer**, enter its 10-character ASIN and the seller SKU for this account, then save the mapping. Saving enables offer price and inventory controls but does not contact Amazon; the offer changes only during a later confirmed product reconciliation. A variant or seller SKU can be linked only once in the same Amazon account.\n\n**Inventory off** stops later inventory pushes without removing the listing link. Choose **Sync inventory** on the Amazon channel to send the current available quantity for every enabled mapping. Availability is the whole-number stock on hand minus committed stock across the configured online stock locations, never less than zero. Amazon's seller-fulfilled quantity becomes the current Solvantis value, so retrying a synchronization does not add stock twice. Failed updates remain queued for a later retry and are included in the result summary.\n\nAfter an Amazon channel completes final activation, Solvantis checks for stock movements every 15 minutes and sends changed enabled listings to that exact seller account. A paused, setup-pending, disabled, or automation-paused channel is not processed automatically. Use **Sync inventory** during setup or when an administrator needs an immediate full reconciliation.\n\nChoose **Order setup** and assign the active IMS location that will dispatch orders for that seller account. Each Amazon account can use a different location. Solvantis cannot import an order until its seller account has a dispatch location.\n\nChoose **Sync orders** to import recent Amazon Australia seller-fulfilled orders. The first successful synchronization checks the preceding 24 hours; later synchronizations overlap the saved update time by five minutes so boundary updates are not missed. When a large window needs more than one pass, Solvantis resumes the same window on the next pass and advances the cursor only after every page completes. Repeated updates cannot create a second sales order for the same Amazon account and order ID.\n\nAmazon orders use the standard Online Customer and are shown as paid through Amazon without creating an IMS payment transaction. Amazon settlement accounting remains separate. Exact seller-SKU links use their IMS variants. An order line without a linked seller SKU uses the non-stock online fallback product, preserving the complete order value without changing stock for an unidentified product.\n\nAn unshipped order becomes a confirmed IMS sales order and commits stock at the configured dispatch location. Quantities Amazon reports as shipped pass through the normal sales-order fulfilment process, including partial shipments. A cancellation releases remaining committed stock. Pending and Amazon-fulfilled orders are not imported.\n\nWhen staff mark a prepared Amazon shipment dispatched, Solvantis fulfils the assigned quantities locally and then confirms each tracked parcel to the exact Seller Central account that supplied the order. Each parcel sends its carrier, service, tracking number, dispatch time, and Amazon order-item quantities separately. Multiple parcels can therefore carry different tracking numbers.\n\nIf Amazon does not accept a confirmation, the local stock movement remains complete and the shipment shows **Channel sync pending**. Choose **Mark dispatched** again to retry only the outstanding Amazon package confirmations. Completed packages are not sent again. Automatic retries start only after final activation and stop after five failed attempts; an administrator can retry manually after correcting the cause. Amazon Buy Shipping and Ship+ orders do not use this manual confirmation workflow.\n\nChoose **Sync returns** to request or poll the seller return report and read released Amazon refund transactions for that account. Amazon prepares return reports asynchronously, so one synchronization may request or wait for a report and a later synchronization imports it. Overlapping report and finance windows plus Amazon return/refund identities prevent a boundary update from creating a duplicate observation. Large Finance windows resume from the saved page on the next run. Return and refund evidence is retained even when its local order arrives later. After final activation, Solvantis performs the same checks automatically.\n\nAn Amazon return observation records the return request, quantity, reason, resolution, delivery date, and Amazon-reported refunded amount against an order from that exact seller account. When one unreconciled Amazon RMA and one released refund match the order unambiguously, Solvantis creates an Amazon Draft in **Customer Credit Notes**. Its settlement is already external and every line starts with **Restock** cleared. Review the draft and choose **Restock** only for sellable goods physically received before completion. Completing it does not issue store credit, send another Amazon refund, or create a separate Xero credit note.\n\nIf an order has multiple unmatched RMAs or refunds, Solvantis reports the evidence as ambiguous and does not guess which records belong together. Choose **Resolve refunds**, choose the order, one RMA, and one released refund, then create the review draft. Solvantis verifies that both records belong to the same Amazon order and are still unlinked. The return report amount supplies the customer refund value; the Finance seller-net amount is shown only to identify the settlement.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.6",
+      "id": "ims-sales-channels:5.6",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Check Amazon activation readiness",
@@ -7207,15 +7240,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "Choose **Check readiness** after completing the setup operations for one Amazon seller account. Solvantis rechecks that account's Amazon Australia authorization and reports each requirement separately:\n\n- An active IMS dispatch location is assigned.\n- A complete listing synchronization has succeeded in the last 24 hours, at least one listing was observed, and no current listing mapping remains unmatched or conflicting.\n- Inventory is enabled for at least one linked listing and synchronized after the latest listing sync within the last hour.\n- The order cursor is no more than 30 minutes old, return and refund cursors are no more than 26 hours old, and no order or Finance page window remains incomplete.\n- No Amazon inventory, report, or shipment-confirmation job is pending or failed.\n- No ambiguous refund match or unreviewed Amazon credit-note draft remains.\n\nA passing result records that the seller account is operationally ready but does not activate it. A later setup change resets the result so administrators must run **Check readiness** again.\n\nInventory synchronization does not itself activate the Amazon channel. Orders, fulfilments, returns, refunds, and the final readiness check must still be completed before the channel can become active.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:4.7",
+      "id": "ims-sales-channels:5.7",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Review channel instances > Activate or deactivate Amazon",
@@ -7226,15 +7260,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "After every readiness check passes, choose **Activate** and confirm the exact seller account. Solvantis repeats the complete readiness assessment immediately before changing the state. Activation succeeds only if the persisted channel is still ready after that assessment.\n\nActivation starts automatic inventory, seller-fulfilled order, shipment-confirmation retry, return-report, and released-refund synchronization for that seller account. The business-wide automation pause still prevents scheduled processing while it is on.\n\nChoose **Deactivate** to stop that channel from entering any automatic Amazon synchronization. Deactivation retains its authorization, seller identity, mappings, settings, synchronization cursors, observations, orders, and credit notes. Manual setup controls remain available, and a later activation repeats the complete readiness assessment.\n\n> **Important:** Confirm the intended Seller Central account before authorizing. An Amazon seller ID can belong to only one Solvantis business.\n\n| Status | Meaning | Next step |\n|---|---|---|\n| Active | The instance is enabled and passed its latest readiness check | Continue normal monitoring |\n| Paused | New provider synchronization is paused for this instance | Review the provider setup before resuming it |\n| Setup pending | The instance has not completed readiness checks | Complete the provider connection setup |\n| Needs attention | The latest readiness or runtime state contains an operational problem | Read the safe error summary and inspect the provider integration |\n\n> **Important:** Read the confirmation carefully. Activating one Amazon row starts automation only for the seller ID displayed on that row.",
-      "sectionId": "ims-sales-channels:4"
+      "sectionId": "ims-sales-channels:5"
     },
     {
-      "id": "ims-sales-channels:5",
+      "id": "ims-sales-channels:6",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Troubleshooting",
@@ -7245,15 +7280,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | What to check |\n|---|---|\n| An expected store is missing | Confirm the business has that provider enabled, then review its connection setup |\n| Two stores look similar | Compare the external account identity; channel names are labels and may be changed later |\n| A row needs attention | Use its error summary, then open the matching provider integration for detailed history |\n| Products or orders are stale | Check the exact channel instance before retrying provider synchronization |\n| Amazon listings are unmatched | Add or correct the IMS variant SKU, then run **Sync listings** again |\n| Amazon listings have conflicts | Find the duplicated IMS variant SKU and resolve the intended mapping before enabling later synchronization |\n| An Amazon product cannot be published | Confirm one active IMS variant is mapped to an existing ASIN and unique seller SKU, has a positive price, and uses tracked inventory |\n| Reconcile products is unavailable | Complete readiness, activate the exact channel, and enable Automatic publication |\n| A product remains blocked after reconciliation | Review its provider link and required product data, correct the issue, then reconcile again |\n| An Amazon inventory item is skipped | Confirm the listing is linked one-to-one, included, inventory-enabled, and belongs to a stock-tracked IMS product |\n| Amazon inventory is queued for retry | Test the exact seller connection, review the mapping, and run **Sync inventory** again after the provider issue is resolved |\n| Automatic Amazon inventory updates do not run | Confirm the channel has completed activation, is not paused, and the business's automation is not paused |\n| Amazon orders cannot synchronize | Open **Order setup** and choose an active dispatch location for that seller account |\n| An Amazon order shows the fallback product | Link that seller SKU to one IMS variant, then review the imported order before fulfilment |\n| More Amazon order updates remain | Run **Sync orders** again; Solvantis resumes the saved window until every page completes |\n| An Amazon shipment shows Channel sync pending | Check parcel tracking and the exact seller connection, then choose **Mark dispatched** to retry the outstanding confirmation |\n| An Amazon return is not yet observed | Amazon may still be preparing the seller return report; check the exact seller account and allow the next synchronization to poll it |\n| An Amazon return shows as ambiguous | Choose **Resolve refunds**, select one RMA and one released refund for the same order, then create the review draft |\n| An Amazon Draft did not add stock or customer credit | This is intentional; verify the externally settled amount and select Restock only for goods physically received before completing the draft |\n| Amazon readiness does not pass | Expand the readiness results and complete each failed item for that exact seller account; pending jobs and unreviewed Amazon drafts must be resolved first |\n| Amazon activation is rejected after readiness passed | Setup changed or new unresolved work appeared before activation; run **Check readiness** again and resolve the new blocker |",
-      "sectionId": "ims-sales-channels:5"
+      "sectionId": "ims-sales-channels:6"
     },
     {
-      "id": "ims-sales-channels:6",
+      "id": "ims-sales-channels:7",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Worked examples",
@@ -7264,15 +7300,16 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-14",
-      "content": "### Review two Shopify stores\n\nA retailer operates separate Australian retail and wholesale Shopify stores. **Sales Channels** shows two Shopify rows with different store domains. Staff use the domain to choose the correct instance before investigating a stale order or product mapping.",
-      "sectionId": "ims-sales-channels:6"
+      "lastReviewed": "2026-10-17",
+      "content": "### Review two Shopify stores\n\nA retailer operates separate Australian retail and wholesale Shopify stores. **Sales Channels** shows two Shopify rows with different store domains. Staff use the domain to choose the correct instance before investigating a stale order or product mapping.\n\n### A retry does not clear posted-day review\n\nThe retail store has a complete baseline, two failed recovery items and one order needing review because a non-refund change arrived after the day was posted. An Admin chooses **Retry recovery for** that store and refreshes status. The failed work can recover, but the order still needs review; the retry is not permission to repost that day.\n\n### Recover an already settled refund\n\nA customer refund completed at the online provider while order updates were interrupted. Recovery repairs the local order and linked credit note and automatically follows the existing Xero flow when eligible. Staff check the recovered records and accounting status rather than issuing the customer another refund.",
+      "sectionId": "ims-sales-channels:7"
     },
     {
-      "id": "ims-sales-channels:6.1",
+      "id": "ims-sales-channels:7.1",
       "documentId": "ims-sales-channels",
       "title": "Sales Channels",
       "heading": "Worked examples > Review two Shopify stores",
@@ -7283,12 +7320,53 @@
       "screen": "Sales > Sales Channels",
       "topicId": "ims-sales-channels",
       "contexts": [
-        "sales-channels"
+        "sales-channels",
+        "online-sales-recovery"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-14",
+      "lastReviewed": "2026-10-17",
       "content": "A retailer operates separate Australian retail and wholesale Shopify stores. **Sales Channels** shows two Shopify rows with different store domains. Staff use the domain to choose the correct instance before investigating a stale order or product mapping.",
-      "sectionId": "ims-sales-channels:6"
+      "sectionId": "ims-sales-channels:7"
+    },
+    {
+      "id": "ims-sales-channels:7.2",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Worked examples > A retry does not clear posted-day review",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Sales > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels",
+        "online-sales-recovery"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-17",
+      "content": "The retail store has a complete baseline, two failed recovery items and one order needing review because a non-refund change arrived after the day was posted. An Admin chooses **Retry recovery for** that store and refreshes status. The failed work can recover, but the order still needs review; the retry is not permission to repost that day.",
+      "sectionId": "ims-sales-channels:7"
+    },
+    {
+      "id": "ims-sales-channels:7.3",
+      "documentId": "ims-sales-channels",
+      "title": "Sales Channels",
+      "heading": "Worked examples > Recover an already settled refund",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Sales > Sales Channels",
+      "topicId": "ims-sales-channels",
+      "contexts": [
+        "sales-channels",
+        "online-sales-recovery"
+      ],
+      "sourcePriority": 0,
+      "lastReviewed": "2026-10-17",
+      "content": "A customer refund completed at the online provider while order updates were interrupted. Recovery repairs the local order and linked credit note and automatically follows the existing Xero flow when eligible. Staff check the recovered records and accounting status rather than issuing the customer another refund.",
+      "sectionId": "ims-sales-channels:7"
     },
     {
       "id": "ims-shopify-sync:1",
@@ -7310,7 +7388,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Use Shopify integration status and history to keep supported catalogue and order information linked without creating duplicate products or incorrect stock movements.",
       "sectionId": "ims-shopify-sync:1"
     },
@@ -7334,7 +7412,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "- Confirm Shopify connection health and required access before syncing.\n- Normally create products in Solvantis and sync them to Shopify. Product upload and resync send each variant's nonblank SKU and check that Shopify saved it. Import a Shopify catalogue in paced batches for onboarding.\n- For onboarding only, explicitly map Shopify locations to Solvantis locations, preview inventory, and type the safety phrase before replacing mapped stock.\n- Follow the separate **Step 1 · Catalogue** and **Step 2 · Opening stock** panels; watch confirmed batch progress while stock is applied.\n- Pull Shopify customers into IMS and choose how long customers without recent orders remain active.\n- Review products that are linked, not linked, or waiting for synchronization.\n- Trace customer, order, inventory, fulfilment, and webhook activity in sync history.\n- Ask Assistant for a bounded local summary of connection readiness, catalogue linkage and recent sync outcomes.\n- Repair variant linkage before retrying affected Shopify data.\n- Use Xero's Shopify Payouts area for payout accounting, not product sync.",
       "sectionId": "ims-shopify-sync:2"
     },
@@ -7358,7 +7436,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Need | Check | Safe action |\n|---|---|---|\n| Bring an existing Shopify catalogue into Solvantis | Shopify connection and existing SKU or barcode records | Use **Products > Import from Shopify** and review any warnings |\n| Establish opening stock after catalogue import | Explicit, one-to-one active location mappings and paused trading | Preview, review, type **REPLACE SOLVANTIS STOCK**, then replace mapped stock |\n| Product is missing from Shopify sync | Product eligibility and sync status | Sync or retry where offered |\n| Shopify variant has no SKU | The Solvantis variant SKU and exact storefront mapping | Resync the linked product; if the Solvantis SKU is blank, enter the correct code first |\n| A simple product shows Size or Colour as Default in Shopify | Whether Solvantis has real option values or just its internal default row | New uploads omit placeholder-only options; existing Shopify options need a separately reviewed correction |\n| Shopify customer is missing from active lists | Customer Sync result and recent Shopify order activity | Pull customers again; a new identified order reactivates its linked customer automatically |\n| Inventory looks stale | Variant and inventory-item linkage, location mapping, and recent sync or webhook | Fix the cause, then wait for the queued update to retry |\n| Order line shows Shopify Misc Charge | Original Shopify title and variant linkage | Repair the intended product mapping |\n| Fulfilment or tracking is stale | Fulfilment webhook and sync history | Process the supported update again after fixing the cause |\n| Payout needs accounting review | **Xero > Shopify Payouts** | Reconcile and post the balanced payout plan |",
       "sectionId": "ims-shopify-sync:3"
     },
@@ -7382,7 +7460,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Solvantis keeps one internal default row for a product without size, colour or other real options. New Shopify uploads represent that as a simple product, using Shopify's hidden default variant rather than visible **Size: Default** or **Colour: Default** selectors. Its SKU, barcode, price and inventory tracking still belong to the same sellable item.\n\nAn option with a real value, such as **One Size** or **Colour: Red**, remains an option even when there is only one sellable variant. Placeholder-only option axes are omitted, and real axes keep the corresponding values. Multiple rows without real options must be corrected before upload; they are not silently merged.\n\nThis upload correction does not automatically remove options from products already in Shopify. Review existing artificial options separately and preserve the mapped variant, SKU and inventory item. Do not delete and recreate the variant to hide the options, because that can break stock and order linkage. Products with multiple Shopify variants or genuine option values require manual review rather than automatic collapse.",
       "sectionId": "ims-shopify-sync:4"
     },
@@ -7406,7 +7484,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "- [ ] Confirm the Shopify connection is active.\n- [ ] Identify the Shopify product, variant, order, or webhook involved.\n- [ ] Search IMS for an existing product before creating another one.\n- [ ] Compare the Shopify variant with the intended IMS variant.\n- [ ] Review sync history before making a manual stock change.\n\n> **Important:** Product-level similarity is not enough for order-line stock. The Shopify variant must retain its linkage to the correct IMS variant.\n\nProduct resync sends the Solvantis variant SKU to the linked Shopify variant; it can replace a different Shopify SKU. Blank Solvantis SKUs are not sent as replacements. If Shopify cannot save or verify a SKU, the sync reports a failure rather than treating the SKU update as successful. Publication retries also resend mapped nonblank SKUs before publishing.\n\nFor a missing-SKU repair, only blank Shopify SKUs with an unambiguous variant mapping and a nonblank Solvantis SKU can be filled safely. Existing Shopify SKUs are left unchanged. Products without a reliable mapping or source SKU require review rather than a guessed code. This repair does not change prices, barcodes or stock.\n\n### Ask Assistant about Shopify sync health\n\nAssistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.\n\nThis check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Sales > Sales Channels**, configure the exact Shopify store, and use its **Connection**, **Orders**, and **Activity** tabs for saved webhook status, order settings, and operational history.\n\nFor products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.\n\nBranch-transfer reservations also queue inventory updates. Sending, editing or cancelling a Sent reservation, removing a Sent transfer line, receiving a short shipment, or undoing a receipt refreshes the linked items on the next scheduled inventory run. Shopify availability uses the configured Solvantis stock-counting locations, subtracts committed stock and the stock buffer, and is never negative. A transfer can therefore change online availability before the destination receives any physical stock.\n\nFailed Shopify quantity updates remain queued and are retried by the next scheduled inventory run. The failed run does not advance the last-successful inventory sync time. Review the inventory notification or **Sync History**, repair an invalid Shopify product, variant, inventory-item, location, or connection link, then allow the queued update to retry. Do not make a compensating stock adjustment unless the Solvantis quantity itself is wrong.\n\nShopify fulfilment webhooks remain the primary source for customer-order completion. Each night, Solvantis also reviews Shopify orders updated during the previous 36 hours. When Shopify reports an order fully fulfilled but the matching Solvantis Sales Order is still Confirmed or In Progress, Solvantis applies the same stock-safe fulfilment workflow used by the webhook. The overlapping window covers delayed nightly runs, and completed orders are not fulfilled twice. Whenever this fallback repairs an order, Solvantis records an operational warning for administrators because the usual webhook pathway did not bring the order up to date. Partial Shopify fulfilments are not inferred by this nightly check.\n\nAn administrator can run the same check immediately for one storefront. Open **Sales > Sales Channels**, configure the Shopify store, open **Orders**, and find **Fulfilment reconciliation**. Enter a whole-number lookback period from 1 to 168 hours, then choose **Check last [number] hours**. Review the scanned, fully fulfilled, repaired, already current, missing locally, and needs review counts. A repair changes stock and allocations through the normal fulfilment workflow, so confirm that the selected storefront and its online-orders location are correct before running it. Missing local orders and unsupported Sales Order statuses are reported but are not created or forced through fulfilment.",
       "sectionId": "ims-shopify-sync:5"
     },
@@ -7430,7 +7508,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Assistant can check whether the local Shopify connection appears configured, whether order sync and a webhook secret are configured, how many active products are linked or unlinked, and up to 30 recent catalogue sync outcomes. Failed outcomes are grouped into safe categories and their short summaries redact URLs, email addresses and credential-like values.\n\nThis check reads Solvantis records only. It does not contact Shopify, inspect live webhook registration, test access scopes, retry a sync or change a mapping. Open **Sales > Sales Channels**, configure the exact Shopify store, and use its **Connection**, **Orders**, and **Activity** tabs for saved webhook status, order settings, and operational history.\n\nFor products uploaded or resynchronised from Solvantis, **Tracks Inventory** also controls Shopify inventory tracking. Tracked products use Shopify's deny-when-out-of-stock policy and receive quantity updates from mapped Solvantis locations. Untracked products are marked as not inventory-tracked in Shopify, continue selling without a stock limit, and are excluded from quantity synchronization.\n\nBranch-transfer reservations also queue inventory updates. Sending, editing or cancelling a Sent reservation, removing a Sent transfer line, receiving a short shipment, or undoing a receipt refreshes the linked items on the next scheduled inventory run. Shopify availability uses the configured Solvantis stock-counting locations, subtracts committed stock and the stock buffer, and is never negative. A transfer can therefore change online availability before the destination receives any physical stock.\n\nFailed Shopify quantity updates remain queued and are retried by the next scheduled inventory run. The failed run does not advance the last-successful inventory sync time. Review the inventory notification or **Sync History**, repair an invalid Shopify product, variant, inventory-item, location, or connection link, then allow the queued update to retry. Do not make a compensating stock adjustment unless the Solvantis quantity itself is wrong.\n\nShopify fulfilment webhooks remain the primary source for customer-order completion. Each night, Solvantis also reviews Shopify orders updated during the previous 36 hours. When Shopify reports an order fully fulfilled but the matching Solvantis Sales Order is still Confirmed or In Progress, Solvantis applies the same stock-safe fulfilment workflow used by the webhook. The overlapping window covers delayed nightly runs, and completed orders are not fulfilled twice. Whenever this fallback repairs an order, Solvantis records an operational warning for administrators because the usual webhook pathway did not bring the order up to date. Partial Shopify fulfilments are not inferred by this nightly check.\n\nAn administrator can run the same check immediately for one storefront. Open **Sales > Sales Channels**, configure the Shopify store, open **Orders**, and find **Fulfilment reconciliation**. Enter a whole-number lookback period from 1 to 168 hours, then choose **Check last [number] hours**. Review the scanned, fully fulfilled, repaired, already current, missing locally, and needs review counts. A repair changes stock and allocations through the normal fulfilment workflow, so confirm that the selected storefront and its online-orders location are correct before running it. Missing local orders and unsupported Sales Order statuses are reported but are not created or forced through fulfilment.",
       "sectionId": "ims-shopify-sync:5"
     },
@@ -7454,7 +7532,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Initiate Shopify refunds in Shopify Admin. Solvantis records the refund as an externally settled customer credit note; it does not issue IMS store credit. Returnable lines restore stock, while **no restock** lines record value only.\n\nReturned stock stays linked to the original fulfilled sales-order line. Under FIFO, its cost comes from the original stock allocations, not today's product cost. Under Average Cost, the return uses the original line's captured cost. Missing or inconsistent source history blocks the stock return rather than inventing a cost.\n\nIf Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.",
       "sectionId": "ims-shopify-sync:6"
     },
@@ -7478,8 +7556,8 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "1. Open **Sales > Sales Channels**, choose **Configure** on the intended Shopify store, then open **Connection**.\n2. Confirm the connection is active and the supported order webhooks are registered against that store's displayed callback.\n3. For a legacy Admin API token connection, use the **API secret key** from the same Shopify app's API credentials as the webhook signing secret. The access token and the separate signing secret for manually created Shopify Notifications webhooks are not substitutes. Client-credential connections use their saved app secret.\n4. Open **Orders** and confirm order sync is enabled, the start date includes the affected order, and an online-orders location is configured.\n5. Compare a new Shopify order with its IMS Sales Order and review **Activity**. Successful registration alone does not prove that real deliveries pass signature verification.\n6. After correcting the configuration, use the store's order import to recover missing orders. Existing orders are reused and interrupted Drafts resume through the normal confirmation workflow; do not create a second order or make a compensating stock adjustment.\n\nIf an order update arrives before its matching order has been imported from that same storefront, Solvantis leaves the update pending and asks Shopify to retry delivery. Waiting does not consume the processing retry allowance, import an order, or create stock commitments. A later delivery can apply the update after the normal order import completes. Shopify's redelivery window is limited; if the order or update remains missing, review the store's import settings and Activity with support rather than creating a duplicate order.\n\nWith automatic daily Xero batch sync enabled, opening IMS also attempts a catch-up order import once per browser session. This is not continuous polling and does not replace real-time webhooks. An earlier order appearing after opening IMS does not prove that later Shopify orders will arrive automatically.",
+      "lastReviewed": "2026-10-17",
+      "content": "1. Open **Sales > Sales Channels**, choose **Configure** on the intended Shopify store, then open **Connection**.\n2. Confirm the connection is active and the supported order webhooks are registered against that store's displayed callback.\n3. For a legacy Admin API token connection, use the **API secret key** from the same Shopify app's API credentials as the webhook signing secret. The access token and the separate signing secret for manually created Shopify Notifications webhooks are not substitutes. Client-credential connections use their saved app secret.\n4. Open **Orders** and confirm order sync is enabled, the start date includes the affected order, and an online-orders location is configured.\n5. Compare a new Shopify order with its IMS Sales Order and review **Activity**. Successful registration alone does not prove that real deliveries pass signature verification.\n6. After correcting the configuration, use the store's order import to recover missing orders. Existing orders are reused and interrupted Drafts resume through the normal confirmation workflow; do not create a second order or make a compensating stock adjustment.\n\nIf an order update arrives before its matching order has been imported from that same storefront, Solvantis leaves the update pending and asks Shopify to retry delivery. Waiting does not consume the processing retry allowance, import an order, or create stock commitments. A later delivery can apply the update after the normal order import completes. Shopify's redelivery window is limited; if the order or update remains missing, review the store's import settings and Activity with support rather than creating a duplicate order.\n\nBefore verified recovery cutover, automatic daily Xero batch sync can still attempt a catch-up order import when IMS opens, once per browser session. Validation alone does not change that behaviour. Only after verified cutover does bounded scheduled reconciliation replace catch-up triggered by opening POS or IMS; webhooks still prompt order updates.\n\nWhen scheduled recovery is active, **Import Orders from Shopify** reports **queued for scheduled recovery**. It requests unfinished recovery work rather than returning completed import counts. Check **Sales > Sales Channels > Online sales recovery** for progress; acceptance does not confirm that orders, gift card work or accounting have finished. Before rollout, direct imports retain their completed counts. Do not create duplicate orders or repeat customer charges or refunds while waiting.",
       "sectionId": "ims-shopify-sync:7"
     },
     {
@@ -7502,7 +7580,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Import products from Shopify\n\n> **Onboarding only:** The usual workflow is to create items in Solvantis and sync them to Shopify. Importing in the opposite direction refreshes linked catalogue details from Shopify. Confirm the onboarding warning before continuing.\n\n1. Open **Sales > Sales Channels**, choose **Configure** on the intended Shopify store, then choose **Products**.\n2. Turn on **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.\n3. Turn on **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.\n4. Choose whether to keep **Auto-create missing Product SKUs** enabled, then choose **Import from Shopify** and confirm the onboarding warning.\n5. Keep the page open while Solvantis imports the catalogue in small batches.\n6. Review the running totals for Shopify products, image links, brands, and suppliers.\n7. Open **items need review** when warnings appear and resolve ambiguous matches.\n8. Confirm the imported products, variants, prices, images, brands, and suppliers in IMS before using them in normal operations.\n\nThe import creates active Shopify products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Draft and archived Shopify products are not imported. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. When an imported SKU or barcode is already used in Solvantis, the later value receives the next available numeric suffix, such as `-2` or `-3`, so identifiers remain unique without moving an existing Shopify link.\n\nEach Shopify variant and inventory item can belong to only one Solvantis variant in that storefront. If an import, publication, or manual link finds that identity on another local variant, Solvantis stops the link and leaves the existing owner unchanged. Resolve the conflicting local records before retrying; Solvantis does not guess which record should own stock synchronization.\n\nShopify supplies one standard **vendor** value rather than separate brand and supplier values. The two import options use that vendor independently: the brand option maintains the brand list, while the supplier option creates or reuses an active supplier contact and fills a missing default supplier. Existing default suppliers are preserved. Both vendor options are off by default, and blank vendor values are ignored.\n\n**Auto-create missing Product SKUs** is on by default. For a blank Product SKU, Solvantis recognises consistent variant option suffixes: `Erin/L` and `Erin-M` become `Erin` when L and M are the variant sizes. Colour and size suffixes may appear in either order. Every variant must support the same base; incomplete, inconsistent, or already-used bases fall back to the bulk creator's format, such as `SYL-261015-120001`. Existing Product SKUs are never replaced. Turning the checkbox off leaves blank Product SKUs unchanged. Variant SKUs retain their normal import handling.\n\n> **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.\n\n> **Tip:** During onboarding, the import can be repeated to refresh catalogue details or image links. The batches are deliberately paced, so large catalogues take longer and place less pressure on Shopify.\n\n### Synchronize Shopify customers\n\n1. Open **Sales > Sales Channels**, configure the intended Shopify store, then open **Customers & Gift Cards**.\n2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active (default **60**), or leave it blank for no activity cutoff.\n3. Choose **Pull Customers From Shopify** and keep the page open while all batches complete.\n4. Review the created, linked, updated, skipped, and error totals.\n5. Search **Contacts** for the customer and confirm the Shopify customer link and active status.\n\nPull always downloads all Shopify customers; **Inactive after** controls their active status, not which customers are downloaded. A blank value or **0** disables the activity cutoff: imported customers become active, including previously inactive linked contacts, unless disabled in Shopify. This is useful for manually added in-store customers without Shopify order history.\n\nPull matches the Shopify customer ID first and then uses an exact email match when no Shopify link exists. Existing nonblank IMS contact details are preserved. With a month limit, customers older than the selected period with no Shopify order in that period are marked inactive; recently created Shopify customers remain active unless disabled in Shopify. In-store purchases recorded only in Solvantis do not count as Shopify order activity. Contacts not matched to an imported Shopify customer are unchanged. When a later identified Shopify order arrives, its linked IMS customer is reactivated automatically and blank profile details are filled from the order.\n\n> **Warning:** **Push IMS Retail Customers** sends IMS status and details to Shopify. Review unexpectedly inactive customers before running a push, because an inactive linked IMS customer is disabled in Shopify.\n\n### Download inventory from Shopify for onboarding\n\n1. Complete the Shopify product import so variants retain their Shopify inventory links.\n2. Pause trading and stock changes while previewing and applying. Solvantis is the stock source of truth: normal stock updates go to Shopify, while Shopify sales and returns use the normal order workflow.\n3. In the store's **Products** tab, find **Download Inventory from Shopify (Onboarding)** beside the catalogue import and choose **Load Shopify and Solvantis Locations**.\n4. Select a Solvantis destination for each Shopify location to import, then choose **Preview Inventory Download**. Each source and destination can be mapped once. Leave other locations as **Do not import this location**. Keep the page open while linked, active, inventory-tracked products are read in paced batches.\n5. Review the target unit totals, number of adjustments, and any negative quantities for each location.\n6. Type **REPLACE SOLVANTIS STOCK** exactly, choose **Replace Solvantis Stock**, and confirm the change. Keep the page open and follow the batch progress bar and confirmed variant count.\n7. Note the completed stocktake numbers shown when the import finishes. Each import creates one stocktake per selected location, with all its variant adjustments in that single document.\n8. Review those stocktakes and the resulting stock at each previewed location before continuing onboarding.\n\nEach Shopify location's quantities are applied only to its selected Solvantis location, not to other locations. Names need not match. These selections apply to this onboarding download and do not change normal outbound inventory settings. Preview prepares short-lived, protected quantity snapshots for the selected storefront. Changing locations requires another preview. Apply validates snapshots and links and processes small database-only batches, replacing on-hand quantities with previewed Shopify available quantities and recording differences through completed stocktakes. Negative quantities become zero. Missing, untracked, or invalid inventory levels are reported as skipped and remain untouched; an explicit Shopify zero is imported as zero. Committed and incoming quantities are not imported.\n\nSolvantis prepares all counted lines before applying quantities in small batches. The same stocktake stays **In Progress** until every batch for its location has finished, then becomes **Completed**. Use the Shopify import to finish a prepared stocktake; its counted lines must not be manually edited.\n\nEach inventory request has a one-minute timeout. A timeout does not prove that its batch failed: the server may still complete it. If an import is interrupted, the preview and stocktake numbers remain visible. Review the stocktake, enter the safety phrase again, and retry the same prepared import. Confirmed batches are safely recognized without repeating their stock adjustments. Do not enter a compensating manual stock adjustment. A missing or untracked inventory-level warning means that quantity was left untouched, not set to zero; it does not mean the other batches failed.\n\n> **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at the locations shown in the preview. It does not add Shopify stock on top of the Solvantis balance.\n\n> **Note:** If a completed opening-stock import must be undone, open its stocktake and use the supported reversal workflow. This reverses the location's complete import, not an individual request batch.\n\n> **Tip:** Keep the page open until completion. A new preview starts a new import; it does not finish an earlier In Progress stocktake. If the preview expires before you can resume, review the unfinished stocktake before starting another import.\n\n### Check or repair product linkage\n\n1. Open **Sales > Sales Channels**, configure the intended Shopify store, and choose **Products**.\n2. Filter for products not in Shopify, linked products, or all products as required.\n3. Search IMS for the intended product and inspect its variants.\n4. Confirm the Shopify product and variant identifiers are linked to the matching IMS variants.\n5. Run the supported product sync or retry after correcting the cause.\n6. Confirm the item moves to the expected sync state.\n7. Review inventory and a later order line to verify the mapping before making any manual stock correction.\n\n### Resolve Shopify Misc Charge\n\n1. Open the affected order in **Online Sales**.\n2. Read the **Shopify item** title shown beneath **Shopify Misc Charge**.\n3. Use that original title to identify what the customer actually bought in Shopify.\n4. Find the intended IMS product and variant.\n5. Check whether the Shopify line lacked a variant ID or its variant was not linked to that IMS variant.\n6. Repair and synchronize the mapping.\n7. Process the Shopify update again where supported for an already imported order, then verify the result.\n\n| Symptom | Cause | Fix |\n|---|---|---|\n| **Shopify Misc Charge** appears on an order line | The Shopify line has no variant ID, or that Shopify variant is not linked to an IMS variant | Link and sync the intended variant, then reprocess the affected update where supported |\n| The product name below it differs from **Shopify Misc Charge** | The lower **Shopify item** text preserves the original Shopify line title | Use that title to find the real Shopify product; it is not an added Solvantis fee |\n| No stock moved for the line | The fallback is a protected non-stock item | Repair mapping before future orders; do not assign stock to the fallback |\n\nThe protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shopify line and value without moving stock against the wrong IMS product. The original title is shown so staff can identify the purchased item even though no safe variant match was available.\n\n> **Warning:** Do not edit or delete Shopify Misc Charge. Do not use a manual stock adjustment to imitate the missing order-line movement until the product mapping and imported order state have been traced.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7526,7 +7604,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "> **Onboarding only:** The usual workflow is to create items in Solvantis and sync them to Shopify. Importing in the opposite direction refreshes linked catalogue details from Shopify. Confirm the onboarding warning before continuing.\n\n1. Open **Sales > Sales Channels**, choose **Configure** on the intended Shopify store, then choose **Products**.\n2. Turn on **Create missing brands from Shopify vendor** when new Shopify vendor names should be added to the Solvantis brand list.\n3. Turn on **Create and assign missing suppliers from Shopify vendor** when new Shopify vendor names should be created as supplier contacts and assigned as each product's default supplier.\n4. Choose whether to keep **Auto-create missing Product SKUs** enabled, then choose **Import from Shopify** and confirm the onboarding warning.\n5. Keep the page open while Solvantis imports the catalogue in small batches.\n6. Review the running totals for Shopify products, image links, brands, and suppliers.\n7. Open **items need review** when warnings appear and resolve ambiguous matches.\n8. Confirm the imported products, variants, prices, images, brands, and suppliers in IMS before using them in normal operations.\n\nThe import creates active Shopify products and variants that are not already present. It refreshes Shopify-linked catalogue details and stores up to five Shopify image URLs per product. Draft and archived Shopify products are not imported. Repeating the import updates linked records instead of creating another copy. A Shopify product ID is used first; otherwise, Solvantis adopts an existing product only when its variant identifiers point to one clear, unlinked product. When an imported SKU or barcode is already used in Solvantis, the later value receives the next available numeric suffix, such as `-2` or `-3`, so identifiers remain unique without moving an existing Shopify link.\n\nEach Shopify variant and inventory item can belong to only one Solvantis variant in that storefront. If an import, publication, or manual link finds that identity on another local variant, Solvantis stops the link and leaves the existing owner unchanged. Resolve the conflicting local records before retrying; Solvantis does not guess which record should own stock synchronization.\n\nShopify supplies one standard **vendor** value rather than separate brand and supplier values. The two import options use that vendor independently: the brand option maintains the brand list, while the supplier option creates or reuses an active supplier contact and fills a missing default supplier. Existing default suppliers are preserved. Both vendor options are off by default, and blank vendor values are ignored.\n\n**Auto-create missing Product SKUs** is on by default. For a blank Product SKU, Solvantis recognises consistent variant option suffixes: `Erin/L` and `Erin-M` become `Erin` when L and M are the variant sizes. Colour and size suffixes may appear in either order. Every variant must support the same base; incomplete, inconsistent, or already-used bases fall back to the bulk creator's format, such as `SYL-261015-120001`. Existing Product SKUs are never replaced. Turning the checkbox off leaves blank Product SKUs unchanged. Variant SKUs retain their normal import handling.\n\n> **Important:** Catalogue import does not change stock on hand, committed stock, incoming stock, or location quantities. Review and establish opening stock through the normal stock onboarding process.\n\n> **Tip:** During onboarding, the import can be repeated to refresh catalogue details or image links. The batches are deliberately paced, so large catalogues take longer and place less pressure on Shopify.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7550,7 +7628,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Open **Sales > Sales Channels**, configure the intended Shopify store, then open **Customers & Gift Cards**.\n2. Set **Inactive after** to the number of months of Shopify order history that should keep a customer active (default **60**), or leave it blank for no activity cutoff.\n3. Choose **Pull Customers From Shopify** and keep the page open while all batches complete.\n4. Review the created, linked, updated, skipped, and error totals.\n5. Search **Contacts** for the customer and confirm the Shopify customer link and active status.\n\nPull always downloads all Shopify customers; **Inactive after** controls their active status, not which customers are downloaded. A blank value or **0** disables the activity cutoff: imported customers become active, including previously inactive linked contacts, unless disabled in Shopify. This is useful for manually added in-store customers without Shopify order history.\n\nPull matches the Shopify customer ID first and then uses an exact email match when no Shopify link exists. Existing nonblank IMS contact details are preserved. With a month limit, customers older than the selected period with no Shopify order in that period are marked inactive; recently created Shopify customers remain active unless disabled in Shopify. In-store purchases recorded only in Solvantis do not count as Shopify order activity. Contacts not matched to an imported Shopify customer are unchanged. When a later identified Shopify order arrives, its linked IMS customer is reactivated automatically and blank profile details are filled from the order.\n\n> **Warning:** **Push IMS Retail Customers** sends IMS status and details to Shopify. Review unexpectedly inactive customers before running a push, because an inactive linked IMS customer is disabled in Shopify.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7574,7 +7652,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Complete the Shopify product import so variants retain their Shopify inventory links.\n2. Pause trading and stock changes while previewing and applying. Solvantis is the stock source of truth: normal stock updates go to Shopify, while Shopify sales and returns use the normal order workflow.\n3. In the store's **Products** tab, find **Download Inventory from Shopify (Onboarding)** beside the catalogue import and choose **Load Shopify and Solvantis Locations**.\n4. Select a Solvantis destination for each Shopify location to import, then choose **Preview Inventory Download**. Each source and destination can be mapped once. Leave other locations as **Do not import this location**. Keep the page open while linked, active, inventory-tracked products are read in paced batches.\n5. Review the target unit totals, number of adjustments, and any negative quantities for each location.\n6. Type **REPLACE SOLVANTIS STOCK** exactly, choose **Replace Solvantis Stock**, and confirm the change. Keep the page open and follow the batch progress bar and confirmed variant count.\n7. Note the completed stocktake numbers shown when the import finishes. Each import creates one stocktake per selected location, with all its variant adjustments in that single document.\n8. Review those stocktakes and the resulting stock at each previewed location before continuing onboarding.\n\nEach Shopify location's quantities are applied only to its selected Solvantis location, not to other locations. Names need not match. These selections apply to this onboarding download and do not change normal outbound inventory settings. Preview prepares short-lived, protected quantity snapshots for the selected storefront. Changing locations requires another preview. Apply validates snapshots and links and processes small database-only batches, replacing on-hand quantities with previewed Shopify available quantities and recording differences through completed stocktakes. Negative quantities become zero. Missing, untracked, or invalid inventory levels are reported as skipped and remain untouched; an explicit Shopify zero is imported as zero. Committed and incoming quantities are not imported.\n\nSolvantis prepares all counted lines before applying quantities in small batches. The same stocktake stays **In Progress** until every batch for its location has finished, then becomes **Completed**. Use the Shopify import to finish a prepared stocktake; its counted lines must not be manually edited.\n\nEach inventory request has a one-minute timeout. A timeout does not prove that its batch failed: the server may still complete it. If an import is interrupted, the preview and stocktake numbers remain visible. Review the stocktake, enter the safety phrase again, and retry the same prepared import. Confirmed batches are safely recognized without repeating their stock adjustments. Do not enter a compensating manual stock adjustment. A missing or untracked inventory-level warning means that quantity was left untouched, not set to zero; it does not mean the other batches failed.\n\n> **Warning:** Applying opening stock replaces the current on-hand quantity for each linked variant at the locations shown in the preview. It does not add Shopify stock on top of the Solvantis balance.\n\n> **Note:** If a completed opening-stock import must be undone, open its stocktake and use the supported reversal workflow. This reverses the location's complete import, not an individual request batch.\n\n> **Tip:** Keep the page open until completion. A new preview starts a new import; it does not finish an earlier In Progress stocktake. If the preview expires before you can resume, review the unfinished stocktake before starting another import.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7598,7 +7676,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Open **Sales > Sales Channels**, configure the intended Shopify store, and choose **Products**.\n2. Filter for products not in Shopify, linked products, or all products as required.\n3. Search IMS for the intended product and inspect its variants.\n4. Confirm the Shopify product and variant identifiers are linked to the matching IMS variants.\n5. Run the supported product sync or retry after correcting the cause.\n6. Confirm the item moves to the expected sync state.\n7. Review inventory and a later order line to verify the mapping before making any manual stock correction.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7622,7 +7700,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Open the affected order in **Online Sales**.\n2. Read the **Shopify item** title shown beneath **Shopify Misc Charge**.\n3. Use that original title to identify what the customer actually bought in Shopify.\n4. Find the intended IMS product and variant.\n5. Check whether the Shopify line lacked a variant ID or its variant was not linked to that IMS variant.\n6. Repair and synchronize the mapping.\n7. Process the Shopify update again where supported for an already imported order, then verify the result.\n\n| Symptom | Cause | Fix |\n|---|---|---|\n| **Shopify Misc Charge** appears on an order line | The Shopify line has no variant ID, or that Shopify variant is not linked to an IMS variant | Link and sync the intended variant, then reprocess the affected update where supported |\n| The product name below it differs from **Shopify Misc Charge** | The lower **Shopify item** text preserves the original Shopify line title | Use that title to find the real Shopify product; it is not an added Solvantis fee |\n| No stock moved for the line | The fallback is a protected non-stock item | Repair mapping before future orders; do not assign stock to the fallback |\n\nThe protected fallback uses SKU **SHOPIFY-MISC**. It preserves the original Shopify line and value without moving stock against the wrong IMS product. The original title is shown so staff can identify the purchased item even though no safe variant match was available.\n\n> **Warning:** Do not edit or delete Shopify Misc Charge. Do not use a manual stock adjustment to imitate the missing order-line movement until the product mapping and imported order state have been traced.",
       "sectionId": "ims-shopify-sync:8"
     },
@@ -7646,7 +7724,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Import reports items needing review | A SKU or barcode matches variants on more than one Solvantis product | Inspect the listed products, correct the duplicate identifier, then run the import again |\n| Imported product has no stock | Catalogue import intentionally leaves stock unchanged | Preview and apply Shopify opening stock after confirming location mappings |\n| Opening-stock preview cannot map a location | A required location is missing, inactive, or duplicated in either system | Read the location identified by the error and confirm it has exactly one active matching location in each system |\n| A Shopify quantity is negative | Shopify available stock is below zero | Review the warning; the opening-stock import applies zero |\n| Opening-stock apply stops partway through | A request or connection failed between batches | Preview again and retry; completed batches are protected from duplicate application |\n| Import stops partway through | The browser closed, the connection failed, or Shopify rejected a request | Correct the connection issue and run the import again; completed records will be updated rather than duplicated |\n| Several sync actions fail | Authorization or required Shopify access changed | Reconnect or correct access before retrying individual items |\n| A returning Shopify customer is inactive in IMS | An earlier customer pull placed their previous order outside the selected activity window | Process or re-import the identified Shopify order, or pull customers again; the linked contact becomes active without creating a duplicate |\n| One product remains unlinked | Variant linkage is absent or points to another item | Inspect every variant and repair the intended match |\n| Inventory differs between systems | Queued update, location mapping, webhook failure, or manual change | Trace sync history and source stock before correcting anything |\n| A Shopify order is missing or remains Draft after a sync interruption | The order event was not received, or processing stopped before confirmation | Correct the connection or reported configuration issue, then retry the Shopify order sync; existing Drafts resume without creating a duplicate order |\n| Shopify is fully fulfilled but the Sales Order remains Confirmed | The dedicated fulfilment event was missed or could not be processed | Review Runtime Issues and stock readiness; the nightly 36-hour reconciliation retries eligible fully fulfilled orders automatically |\n| An old order still shows the fallback after mapping is fixed | Existing import has not been reprocessed | Use the supported Shopify update or retry and verify the order |\n| Payout status is missing here | Payout accounting is handled in Xero activity | Open **Xero > Shopify Payouts** |",
       "sectionId": "ims-shopify-sync:9"
     },
@@ -7670,7 +7748,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Onboard an existing Shopify catalogue\n\nA retailer connects a store with 620 products and starts **Import from Shopify**. Solvantis requests 25 products at a time, pauses between batches, creates missing products and variants, and records their Shopify image URLs. An existing SKU matches one clear IMS product, so that product is linked and refreshed. Two duplicate barcodes point to different IMS products, so those Shopify items are left for review instead of being guessed. No stock quantity changes during the import.\n\n### Establish opening stock at matched locations\n\nStaff map Shopify Main Store to Solvantis Retail and Shopify Storage to Solvantis Warehouse. The preview finds 600 linked variants with 2,400 available units at one location and 850 at the other. Staff review 570 differing balances, type **REPLACE SOLVANTIS STOCK**, and confirm. Solvantis creates completed stocktakes for each paced batch. A Shopify quantity of -1 becomes zero and is highlighted; a missing level is skipped. Unmapped locations remain unchanged, and the download sets final balances rather than adding stock.\n\n### Identify an unmatched size variant\n\nOnline Sales shows **Shopify Misc Charge**, with **Shopify item: Harbour Tee - Black / Medium** beneath it. The title explains the real item ordered. Staff find that the Medium Shopify variant is not linked to the IMS Medium variant, repair and sync that mapping, then reprocess the order update where supported. The fallback itself remains unchanged.\n\n### Investigate stale inventory\n\nShopify shows 4 units while IMS shows 2 available. Check the exact variant linkage, mapped location, and recent inventory sync or webhook. Correct the failed mapping or event and retry that sync; do not simply set both systems to a guessed quantity.\n\n### Reactivate a returning customer\n\nA Shopify customer was marked inactive because their last order fell outside the selected activity period. They later place a new order using the same Shopify customer account. Solvantis links the order to the existing contact, reactivates that contact, and fills blank profile details from the order without replacing staff-maintained values.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7694,7 +7772,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "A retailer connects a store with 620 products and starts **Import from Shopify**. Solvantis requests 25 products at a time, pauses between batches, creates missing products and variants, and records their Shopify image URLs. An existing SKU matches one clear IMS product, so that product is linked and refreshed. Two duplicate barcodes point to different IMS products, so those Shopify items are left for review instead of being guessed. No stock quantity changes during the import.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7718,7 +7796,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Staff map Shopify Main Store to Solvantis Retail and Shopify Storage to Solvantis Warehouse. The preview finds 600 linked variants with 2,400 available units at one location and 850 at the other. Staff review 570 differing balances, type **REPLACE SOLVANTIS STOCK**, and confirm. Solvantis creates completed stocktakes for each paced batch. A Shopify quantity of -1 becomes zero and is highlighted; a missing level is skipped. Unmapped locations remain unchanged, and the download sets final balances rather than adding stock.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7742,7 +7820,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Online Sales shows **Shopify Misc Charge**, with **Shopify item: Harbour Tee - Black / Medium** beneath it. The title explains the real item ordered. Staff find that the Medium Shopify variant is not linked to the IMS Medium variant, repair and sync that mapping, then reprocess the order update where supported. The fallback itself remains unchanged.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7766,7 +7844,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Shopify shows 4 units while IMS shows 2 available. Check the exact variant linkage, mapped location, and recent inventory sync or webhook. Correct the failed mapping or event and retry that sync; do not simply set both systems to a guessed quantity.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7790,7 +7868,7 @@
         "shopify-refund"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "A Shopify customer was marked inactive because their last order fell outside the selected activity period. They later place a new order using the same Shopify customer account. Solvantis links the order to the existing contact, reactivates that contact, and fills blank profile details from the order without replacing staff-maintained values.",
       "sectionId": "ims-shopify-sync:10"
     },
@@ -7941,10 +8019,11 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Use Xero setup and activity views to configure supported accounting work, investigate failures, and retry without repeating successful IMS operations.",
       "sectionId": "ims-xero-reconciliation:1"
     },
@@ -7962,10 +8041,11 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "- Save posting and Sales COGS preferences in **Settings > Integrations > Xero**, even before connecting.\n- Maintain sync rules, account and tracking mappings, and payment routing.\n- For foreign order payments, verify the saved payment rate and AUD account mapping, then compare the posted bank amount; do not replay an already posted payment with an incorrect conversion.\n- Review Sync History for pending, successful, blocked, partial, or dismissed work.\n- Ask Assistant for a bounded local summary of queued documents and categorized recent failures.\n- Use COGS Reconciliation to investigate cost posting coverage.\n- Future COGS manual journals are requested as Posted and separate each location-accounting-channel amount into balanced COGS and Inventory Asset lines. Inspect the saved line-item snapshot and live Xero status under **Reports > Sales & COGS Traceability > Xero Postings**.\n- **Approved zero cost** counts FIFO movements whose source layer has an explicit no-charge reason. They are valid $0 COGS; unexplained zero costs still block posting.\n- Review and post balanced Shopify payout plans when enabled.\n- Retry only the accounting action that remains unfinished.\n- PO bill approval checks the live Xero status first. Already authorised or paid bills retain their status; syncing does not reopen a paid bill.\n- Administrators can separately grant Advisor mapping access, read-only payout access, and permission to trigger Xero syncs from **Settings > Xero > Advisor Access**.",
       "sectionId": "ims-xero-reconciliation:2"
     },
@@ -7983,15 +8063,38 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
-      "content": "**Allow Advisors to trigger Xero syncs** is off by default and can only be changed by an administrator. When enabled, Advisors can post or retry existing documents and payments, completed online-sales days, POS End of Day accounting, stocktake journals, COGS journals, existing payout plans, and confirmed cash deposits. Existing posting rules, completed-period checks, mapping requirements, and duplicate-posting protections still apply.\n\nSync access does not permit editing sales or inventory, completing operational records, issuing refunds, voiding documents, dismissing queued work, changing sync policies, renaming invoices, overriding valuation checks, or planning and repairing payouts. Account mapping access remains a separate permission.\n\nAdvisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an authorised operator to refresh Shopify orders before syncing when the saved orders may be incomplete.\n\nWith sync access disabled, Advisors cannot trigger these posting or retry actions. Read-only payout access alone does not permit posting payouts.",
+      "lastReviewed": "2026-10-17",
+      "content": "**Allow Advisors to trigger Xero syncs** is off by default and can only be changed by an administrator. When enabled, Advisors can post or retry existing documents and payments, completed online-sales days, POS End of Day accounting, stocktake journals, COGS journals, existing payout plans, and confirmed cash deposits. Existing posting rules, completed-period checks, mapping requirements, and duplicate-posting protections still apply.\n\nSync access does not permit editing sales or inventory, completing operational records, issuing refunds, voiding documents, dismissing queued work, changing sync policies, renaming invoices, overriding valuation checks, or planning and repairing payouts. Account mapping access remains a separate permission.\n\nAdvisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an Admin or SuperAdmin to check **Sales > Sales Channels > Online sales recovery** or the existing store synchronization controls when saved orders may be incomplete. Accounting-sync permission never grants order recovery retry, pause or resume access.\n\nWith sync access disabled, Advisors cannot trigger these posting or retry actions. Read-only payout access alone does not permit posting payouts.",
       "sectionId": "ims-xero-reconciliation:3"
     },
     {
       "id": "ims-xero-reconciliation:4",
+      "documentId": "ims-xero-reconciliation",
+      "title": "Xero Sync and Reconciliation",
+      "heading": "Online daily posting and order readiness",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "integrations",
+      "screen": "Settings > Integrations > Xero / Finances > Xero Integration",
+      "topicId": "ims-xero-reconciliation",
+      "contexts": [
+        "xero",
+        "settings-xero",
+        "activity-cogs",
+        "online-sales-daily-accounting"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-17",
+      "content": "Online order reconciliation and daily accounting are independent. Webhooks prompt order updates; after verified cutover, bounded scheduled reconciliation handles missed changes without opening POS or IMS to trigger catch-up. Before rollout, current runtime behaviour remains unchanged; validation alone does not mean catch-up has switched over.\n\nReview **Sales > Sales Channels > Online sales recovery** for the initial baseline, incremental coverage, queued or failed work and order references needing review. Manual posting stays blocked until baseline and catch-up readiness checks pass, even for Advisors allowed to trigger Xero syncs. There is no posting override or force-ready action. Retrying recovery does not clear review of non-refund late changes to an already posted day.\n\nWhen scheduled recovery is active, manual daily-sales requests in **Online Sales** and **Sync History** can show **Xero queued**. This means scheduled accounting work was accepted, not that posting finished. Refresh the owning view later to check the final result. **Xero blocked** shows the readiness reason, such as incomplete baseline, ongoing catch-up or an order requiring review; resolve that cause rather than bypassing the check. Before rollout, confirmed direct posting retains its existing completed result.\n\nRecovered refunds repair the local order and linked credit note, then automatically use the existing Xero flow when eligible. They never charge or refund the customer again. Do not issue a second customer refund or repeat the operational transaction to resolve an accounting delay. Pausing order recovery does not restore old historical scans and does not change the accounting posting preference.",
+      "sectionId": "ims-xero-reconciliation:4"
+    },
+    {
+      "id": "ims-xero-reconciliation:5",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Connection and sync preferences",
@@ -8004,15 +8107,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "**Settings > Integrations > Xero** separates the connection from **Sync preferences**. Admins and SuperAdmins can save these preferences while disconnected, including while the integration is off. The disconnected Xero workspace also shows these controls.\n\n- **Allow posting to Xero** is the master posting switch. Pausing it retains the individual workflow choices, including the Sales COGS schedule.\n- **Stocktake adjustments** controls inventory adjustment journals from completed stocktakes. It is independent of Sales COGS.\n- **Automatic Sales COGS** controls scheduled sales-cost journals, with its own frequency and first reliable COGS date. Both this switch and the master posting switch must be on for scheduled posting.\n\nNew, unconfigured businesses start with posting paused and automatic Sales COGS off. Existing saved choices are retained. Disconnecting or reconnecting does not reset saved preferences. Enabling the master switch can resume other enabled workflows in Sync Rules, so review those choices before allowing posting.\n\nUse **Save posting preferences** and **Save Sales COGS schedule** separately. Saving does not connect Xero, post historical stocktakes, or replace required account mappings. Held Sales COGS periods remain held until reviewed through COGS Reconciliation and the offered recovery controls.\n\nStocktakes complete in Solvantis regardless of Xero posting:\n\n| Posting intent | Completion result |\n|---|---|\n| Integration off, posting paused, or Stocktake adjustments off | Completes locally without an automatic Xero attempt or Xero warning |\n| Stocktake adjustments and posting on, but Xero disconnected or posting fails | Completes locally and warns that Xero posting needs attention |\n| Stocktake adjustments and posting on, with valid connection and mappings | Posts the separate stocktake journal, or reports that there is no variance value to post |\n\nThe stocktake accounting panel retains outstanding and failed posting status. Reconnect or fix mappings, then use **Sync to Xero** or **Retry Xero Sync** when posting is enabled. Do not complete the stocktake again. A network interruption can leave the posting result unconfirmed; check the accounting status before retrying.",
-      "sectionId": "ims-xero-reconciliation:4"
+      "sectionId": "ims-xero-reconciliation:5"
     },
     {
-      "id": "ims-xero-reconciliation:5",
+      "id": "ims-xero-reconciliation:6",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "At a glance",
@@ -8025,15 +8129,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Area | Use it for | Typical question |\n|---|---|---|\n| Sync Rules | Choose which supported workflows create Xero documents and when | Should this workflow post automatically? |\n| Accounts & Tracking | Map IMS activity to Xero accounts and reporting dimensions | Which account or branch option should this use? |\n| Payment Methods | Route tender and gateway settlement | Where should this payment clear? |\n| Sync History | Inspect and retry accounting work | Did Xero accept this source? |\n| COGS Reconciliation | Compare eligible source cost with Xero journals | Is cost of goods sold fully posted? |\n| Shopify Payouts | Plan and post balanced payout settlement | Do sales, fees, refunds, and payout total balance? |",
-      "sectionId": "ims-xero-reconciliation:5"
+      "sectionId": "ims-xero-reconciliation:6"
     },
     {
-      "id": "ims-xero-reconciliation:6",
+      "id": "ims-xero-reconciliation:7",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Before you begin",
@@ -8046,15 +8151,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "- Enable **Accounting software** and choose **Xero** in **Settings > Business & Team > Business operations > Business Operations**. When this operation is off, Xero navigation, setup, statuses, automation, Help guidance, and posting requests are unavailable.\n- [ ] Confirm Xero is connected and authorized.\n- [ ] Identify the exact IMS source and whether its operational action already succeeded.\n- [ ] Read the safe error shown in Sync History.\n- [ ] Check the required account, tax, tracking, and payment mappings.\n- [ ] Confirm whether the workflow is manual or automatic under Sync Rules.\n- [ ] For a bookkeeper Advisor, ask an administrator to enable **Advisor access to Shopify Payouts** under **Settings > Xero > Advisor Access**.\n\n> **Warning:** A completed IMS sale, receipt, fulfilment, return, or credit stays completed when its Xero posting fails. Do not repeat the IMS action to make Xero retry.\n\n### Ask Assistant about Xero sync health\n\nAssistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.\n\nThis check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting.",
-      "sectionId": "ims-xero-reconciliation:6"
+      "sectionId": "ims-xero-reconciliation:7"
     },
     {
-      "id": "ims-xero-reconciliation:6.1",
+      "id": "ims-xero-reconciliation:7.1",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Before you begin > Ask Assistant about Xero sync health",
@@ -8067,15 +8173,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Assistant can check whether the local Xero connection appears configured, list up to 30 source documents currently queued for posting, and categorize failed or skipped sync events from the last 1 to 365 days. Categories include authentication, account, tax, tracking or payment mapping, validation, rate limiting and service availability.\n\nThis check reads Solvantis records only. It does not contact Xero, refresh live Xero document states, retry or dismiss work, or expose raw error details, contact identities, tokens or request payloads. A historical failure may already have a later successful retry, so confirm the current source status in **Sync History** before acting.",
-      "sectionId": "ims-xero-reconciliation:6"
+      "sectionId": "ims-xero-reconciliation:7"
     },
     {
-      "id": "ims-xero-reconciliation:7",
+      "id": "ims-xero-reconciliation:8",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Step-by-step",
@@ -8088,15 +8195,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Configuration notifications\n\nNew recognised Xero setup problems appear in your business notification stream: missing account mappings, an inventory-type account rejected for a transaction, or a linked invoice missing from the connected Xero organisation. The notification identifies the affected accounting action and the setup or document-link check required. Sync History continues to retain the failed or blocked action.\n\nCorrect the configuration and retry only the unfinished accounting action. Do not repeat a completed sale, stock receipt, payment or fulfilment. Unexpected service, network and other operational failures remain Runtime Issues. Existing historical Runtime Issues are not moved into notifications automatically.\n\n### Configure a posting path\n\n**Settings > Integrations > Xero** contains the connection and sync preferences; Advisor permissions remain separate. Open the Xero integration workspace to change Accounts & Tracking mappings. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n\nBank accounts do not need a Chart of Accounts code to receive order payments. Select the account by name; accounts without a code are linked using their Xero account identity. A mapping is retained on screen only after the save succeeds. If saving fails, review the visible error and retry rather than assuming the selection was saved.\n\nChanging a payment method's account mapping does not change the payment method already recorded on an existing payment. Check both the saved method and its account before posting. Previously posted payments need verified provider reversal and coordinated local retry reconciliation before their destination can be changed.\n\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment or layby receipt posting succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\nOnline Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.\n\nForeign-currency Purchase Order and ordinary Sales Order payments use the payment's saved exchange rate when posting to an AUD Xero account in an AUD-base organisation. Xero's rate display is the reciprocal of **AUD per foreign currency unit**; changing display direction does not change the value. Missing or invalid saved rates and unsupported payment-account currencies block posting rather than silently using a one-to-one conversion.\n\nCheck the resulting foreign amount and AUD bank amount against the actual payment. Previously posted payments are not automatically rewritten after a posting correction. If an existing payment has the wrong conversion, ask your bookkeeper to review its reversal and replacement and the Solvantis link before retrying; do not delete the Solvantis payment or create a second settlement to work around it.\n\nFor POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.\n\n### Recover a failed accounting action\n\nPO sync may approve a Draft or Submitted Xero bill when the configured document rules require approval. An already Authorised or Paid bill does not receive another approval request. Voided, deleted or unverified bill states block approval. This status check does not reverse settlements or create local payments to mirror Xero.\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.\n\n### Decide what to repeat\n\n| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.\n\nCOGS journals use the configured COGS and Inventory Asset accounts. Each positive location-channel bucket debits COGS and credits Inventory Asset; negative adjustment buckets reverse those signs. Location and channel tracking mappings are applied where configured. Later runs post only the saved bucket differences, while legacy journals without a line-item snapshot remain explicitly unsplit rather than being assigned to a branch retrospectively.",
-      "sectionId": "ims-xero-reconciliation:7"
+      "sectionId": "ims-xero-reconciliation:8"
     },
     {
-      "id": "ims-xero-reconciliation:7.1",
+      "id": "ims-xero-reconciliation:8.1",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Step-by-step > Configuration notifications",
@@ -8109,15 +8217,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "New recognised Xero setup problems appear in your business notification stream: missing account mappings, an inventory-type account rejected for a transaction, or a linked invoice missing from the connected Xero organisation. The notification identifies the affected accounting action and the setup or document-link check required. Sync History continues to retain the failed or blocked action.\n\nCorrect the configuration and retry only the unfinished accounting action. Do not repeat a completed sale, stock receipt, payment or fulfilment. Unexpected service, network and other operational failures remain Runtime Issues. Existing historical Runtime Issues are not moved into notifications automatically.",
-      "sectionId": "ims-xero-reconciliation:7"
+      "sectionId": "ims-xero-reconciliation:8"
     },
     {
-      "id": "ims-xero-reconciliation:7.2",
+      "id": "ims-xero-reconciliation:8.2",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Step-by-step > Configure a posting path",
@@ -8130,15 +8239,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "**Settings > Integrations > Xero** contains the connection and sync preferences; Advisor permissions remain separate. Open the Xero integration workspace to change Accounts & Tracking mappings. Mapping access, read-only Shopify payout access, and permission to trigger Xero syncs are separate advisor permissions.\n\n1. Open **Xero > Setup > Sync Rules** and enable only the supported workflows your business intends to post.\n2. Open **Accounts & Tracking** and map the required sales, purchasing, inventory, cost, tax, and branch or channel choices.\n3. Open **Payment Methods** and map each enabled tender or gateway to the appropriate Xero account.\n\nBank accounts do not need a Chart of Accounts code to receive order payments. Select the account by name; accounts without a code are linked using their Xero account identity. A mapping is retained on screen only after the save succeeds. If saving fails, review the visible error and retry rather than assuming the selection was saved.\n\nChanging a payment method's account mapping does not change the payment method already recorded on an existing payment. Check both the saved method and its account before posting. Previously posted payments need verified provider reversal and coordinated local retry reconciliation before their destination can be changed.\n\n4. Under **POS Clearing Accounts**, keep each location's Card clearing account mapped, then select **Add fee** below it when that location has a percentage processing fee.\n5. Choose the fee expense account, select **GST on Expenses** or **BAS Excluded**, enter the percentage, and save the fee.\n6. The calculated fee posts from that location's Card clearing account after its EOD invoice payment or layby receipt posting succeeds. Use **Edit** or **Remove** beside the saved fee without changing the clearing account.\n7. Save the mappings and run a normal source workflow.\n8. Open **Sync History** and confirm the resulting status before enabling broader automation.\n\nOnline Sales Orders use the configured daily batch for their exact store. Solvantis does not also post those orders as individual Sales Order invoices or individual Sales Order payments. Ordinary manual and wholesale Sales Orders continue to follow the Sales Order document and payment rules.\n\nForeign-currency Purchase Order and ordinary Sales Order payments use the payment's saved exchange rate when posting to an AUD Xero account in an AUD-base organisation. Xero's rate display is the reciprocal of **AUD per foreign currency unit**; changing display direction does not change the value. Missing or invalid saved rates and unsupported payment-account currencies block posting rather than silently using a one-to-one conversion.\n\nCheck the resulting foreign amount and AUD bank amount against the actual payment. Previously posted payments are not automatically rewritten after a posting correction. If an existing payment has the wrong conversion, ask your bookkeeper to review its reversal and replacement and the Solvantis link before retrying; do not delete the Solvantis payment or create a second settlement to work around it.\n\nFor POS laybys, map **Layby Deposits** to a liability account, each branch's revenue to an income account, and every cash/card method to that branch's clearing account. POS clearing payments must be enabled. Deposits and refunds post to liability rather than ordinary sales invoices. Final payment recognises GST; collection recognises GST-exclusive merchandise revenue. Cancellation reverses final-payment GST when necessary and posts any retained fee as taxable revenue. These events use POS End of Day and its retry, including deposit-only days. Missing mappings block posting, and earlier layby accounting must finish before later events. Historical deposit sales invoices need explicit bookkeeper reconciliation rather than an automatic rewrite.",
-      "sectionId": "ims-xero-reconciliation:7"
+      "sectionId": "ims-xero-reconciliation:8"
     },
     {
-      "id": "ims-xero-reconciliation:7.3",
+      "id": "ims-xero-reconciliation:8.3",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Step-by-step > Recover a failed accounting action",
@@ -8151,15 +8261,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "PO sync may approve a Draft or Submitted Xero bill when the configured document rules require approval. An already Authorised or Paid bill does not receive another approval request. Voided, deleted or unverified bill states block approval. This status check does not reverse settlements or create local payments to mirror Xero.\n\n1. Confirm the IMS source is complete and note its reference.\n2. Open **Xero > Sync History** and find that reference.\n3. Read the status and error detail.\n4. Repair the named cause, such as expired authorization, missing account, payment route, tax choice, tracking option, or an unbalanced payout plan.\n5. Choose the supported retry or replan action for that entry.\n6. Refresh and confirm success in Sync History and Xero.\n7. Reconcile the resulting Xero document to the original IMS source.",
-      "sectionId": "ims-xero-reconciliation:7"
+      "sectionId": "ims-xero-reconciliation:8"
     },
     {
-      "id": "ims-xero-reconciliation:7.4",
+      "id": "ims-xero-reconciliation:8.4",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Step-by-step > Decide what to repeat",
@@ -8172,15 +8283,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| IMS operation | Operational result | Xero result | Correct recovery |\n|---|---|---|---|\n| Purchase receipt completed | Stock increased once | Bill posting failed | Fix Xero setup and retry the bill posting |\n| Sales Order fulfilled | Stock and order status changed once | Invoice action failed | Retry the invoice action only |\n| Customer credit completed | Return and customer value recorded once | Credit posting failed | Retry the credit posting only |\n| POS End of Day completed | Register day closed and summarized | Xero batch failed | Retry the EOD accounting entry |\n| Shopify payout captured | Payout plan available | Posting blocked or partial | Fix the named plan item, then replan or post as offered |\n\n> **Tip:** Tracking is optional for supported postings, but missing tracking means the result will not appear under that Xero reporting dimension. Missing a required account or payment route can block posting.\n\nCOGS journals use the configured COGS and Inventory Asset accounts. Each positive location-channel bucket debits COGS and credits Inventory Asset; negative adjustment buckets reverse those signs. Location and channel tracking mappings are applied where configured. Later runs post only the saved bucket differences, while legacy journals without a line-item snapshot remain explicitly unsplit rather than being assigned to a branch retrospectively.",
-      "sectionId": "ims-xero-reconciliation:7"
+      "sectionId": "ims-xero-reconciliation:8"
     },
     {
-      "id": "ims-xero-reconciliation:8",
+      "id": "ims-xero-reconciliation:9",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Review and recover COGS postings",
@@ -8193,15 +8305,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Open **Xero > Activity > COGS** and think of it as your COGS month-end checklist. Each row answers three simple questions: what COGS should be posted, what Xero already has, and what still needs attention. The screen starts with the last 12 months; widen the date range when you need older periods.\n\nCompleted configured periods remain visible even when no journal run was created. An unresolved period does not stop later completed periods from posting. Solvantis keeps the earlier month visible in Accounting Audit and creates an IMS notification so it is not silently skipped.\n\n### See how the posting is split\n\nSolvantis does not drop the whole period into one anonymous COGS line. It splits the amount by **stock location and accounting channel**, then creates a balanced COGS and Inventory Asset pair for each split. Journal labels use your business's actual location names; the following examples use generic location roles:\n\n| Stock activity | Journal line label |\n|---|---|\n| Shopify stock shipped from a dispatch location | Dispatch location - Shopify / Online |\n| Wholesale stock shipped from a dispatch location | Dispatch location - B2B |\n| POS sales from one store | Store A - POS |\n| POS sales from another store | Store B - POS |\n| Returned stock | The location plus Returns channel |\n\nPositive COGS debits the configured COGS account and credits Inventory Asset. A negative adjustment flips those signs. Xero tracking is added when a matching location or channel mapping is available. Open the period and expand **Journal line-item snapshot** to see the exact split saved for that run; **View journal** opens the matching manual journal in Xero.\n\n### Fix missing COGS quickly\n\n1. Find a row marked **Costs incomplete** and choose **Fix Unknown COGS**.\n2. For a quick first pass, use **Fill blanks with Average Cost** or **Fill blanks with Cost AUD**. These fill only empty reviewed-cost fields where that suggestion is available; they do not overwrite your choices or save anything yet.\n3. Check the suggestions against the historical evidence. Today's Average Cost or Cost AUD is a handy clue, but it is not automatic proof of what the item cost when it moved.\n4. Fill any remaining gaps with a reviewed tax-exclusive AUD amount, add the evidence you checked, then save the selected repairs together.\n5. FIFO repairs ask for one extra acknowledgement. They correct the movement cost without rewriting the existing FIFO layers or allocations.\n6. Refresh the period. Once the unknown costs are cleared, **Post COGS** replaces the incomplete-cost actions.\n\n> **Tip:** **Post Known COGS** is the exception path. It posts only the known subtotal with an administrator's reason and deliberately leaves the missing costs unresolved.\n\n### Finish the period\n\n1. Compare **Calculated COGS**, **Posted in Xero**, and **Difference**.\n2. Open the period to see every original or adjustment run, its saved split, cost checks, status, failure detail and journal link.\n3. For a confirmed failed run with no journal, fix the named mapping or connection problem, then choose **Retry failed posting**.\n4. If the underlying costs changed, use the newly calculated difference rather than replaying an old amount.\n5. For a linked Draft or Posted journal in an unlocked period, choose **Update & post journal**. Solvantis checks Xero's lock dates, replaces that journal's lines and submits it as Posted.\n6. If Xero confirms the journal is gone, use **Create replacement & post**. A failed live check never creates a replacement by itself.\n7. If the result is uncertain, stop and check Xero before retrying. Finish by opening **View journal** and confirming the amount and status.\n\nAdministrators and Advisors with **Allow Advisors to trigger Xero syncs** can retry confirmed failures and post offered differences. Only an administrator can enter a required reason to post when missing or unexplained zero costs block the period. Draft, pending, successful, uncertain and live-unverified runs are not offered as ordinary retries.\n\n**Costs incomplete** means the calculated COGS is only the known subtotal: one or more included stock movements has no cost or an unexplained zero cost. **Fix Unknown COGS** opens the reviewed movement repair workflow. **Post Known COGS** is the only posting choice shown while costs remain incomplete; it is an exceptional administrator action that records the reason and does not invent or repair missing costs. Once costs are complete, the row shows **Post COGS** instead.\n\nCOGS journals are requested from Xero as **Posted**, not saved as Draft by the normal workflow. A legacy or provider-retained Draft is shown in **Status** and can be reviewed from the period details; there is no separate Draft amount column. When live Xero verification succeeds, its current status overrides an older locally recorded state. **No posted journal recorded** means no Posted journal is currently confirmed for the period. **Xero check unavailable** means the live provider request failed, not that the recorded amount is verified as zero. **View journal** opens the exact manual journal in the connected Xero organisation. If Xero cannot provide the organisation identity, Solvantis withholds the link rather than opening an ambiguous Xero homepage.\n\n> **Warning:** Retrying COGS accounting does not repeat a sale, return, fulfilment or stock movement. Do not repeat an inventory operation to repair a journal failure.",
-      "sectionId": "ims-xero-reconciliation:8"
+      "sectionId": "ims-xero-reconciliation:9"
     },
     {
-      "id": "ims-xero-reconciliation:8.1",
+      "id": "ims-xero-reconciliation:9.1",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Review and recover COGS postings > See how the posting is split",
@@ -8214,15 +8327,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Solvantis does not drop the whole period into one anonymous COGS line. It splits the amount by **stock location and accounting channel**, then creates a balanced COGS and Inventory Asset pair for each split. Journal labels use your business's actual location names; the following examples use generic location roles:\n\n| Stock activity | Journal line label |\n|---|---|\n| Shopify stock shipped from a dispatch location | Dispatch location - Shopify / Online |\n| Wholesale stock shipped from a dispatch location | Dispatch location - B2B |\n| POS sales from one store | Store A - POS |\n| POS sales from another store | Store B - POS |\n| Returned stock | The location plus Returns channel |\n\nPositive COGS debits the configured COGS account and credits Inventory Asset. A negative adjustment flips those signs. Xero tracking is added when a matching location or channel mapping is available. Open the period and expand **Journal line-item snapshot** to see the exact split saved for that run; **View journal** opens the matching manual journal in Xero.",
-      "sectionId": "ims-xero-reconciliation:8"
+      "sectionId": "ims-xero-reconciliation:9"
     },
     {
-      "id": "ims-xero-reconciliation:8.2",
+      "id": "ims-xero-reconciliation:9.2",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Review and recover COGS postings > Fix missing COGS quickly",
@@ -8235,15 +8349,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Find a row marked **Costs incomplete** and choose **Fix Unknown COGS**.\n2. For a quick first pass, use **Fill blanks with Average Cost** or **Fill blanks with Cost AUD**. These fill only empty reviewed-cost fields where that suggestion is available; they do not overwrite your choices or save anything yet.\n3. Check the suggestions against the historical evidence. Today's Average Cost or Cost AUD is a handy clue, but it is not automatic proof of what the item cost when it moved.\n4. Fill any remaining gaps with a reviewed tax-exclusive AUD amount, add the evidence you checked, then save the selected repairs together.\n5. FIFO repairs ask for one extra acknowledgement. They correct the movement cost without rewriting the existing FIFO layers or allocations.\n6. Refresh the period. Once the unknown costs are cleared, **Post COGS** replaces the incomplete-cost actions.\n\n> **Tip:** **Post Known COGS** is the exception path. It posts only the known subtotal with an administrator's reason and deliberately leaves the missing costs unresolved.",
-      "sectionId": "ims-xero-reconciliation:8"
+      "sectionId": "ims-xero-reconciliation:9"
     },
     {
-      "id": "ims-xero-reconciliation:8.3",
+      "id": "ims-xero-reconciliation:9.3",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Review and recover COGS postings > Finish the period",
@@ -8256,15 +8371,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "1. Compare **Calculated COGS**, **Posted in Xero**, and **Difference**.\n2. Open the period to see every original or adjustment run, its saved split, cost checks, status, failure detail and journal link.\n3. For a confirmed failed run with no journal, fix the named mapping or connection problem, then choose **Retry failed posting**.\n4. If the underlying costs changed, use the newly calculated difference rather than replaying an old amount.\n5. For a linked Draft or Posted journal in an unlocked period, choose **Update & post journal**. Solvantis checks Xero's lock dates, replaces that journal's lines and submits it as Posted.\n6. If Xero confirms the journal is gone, use **Create replacement & post**. A failed live check never creates a replacement by itself.\n7. If the result is uncertain, stop and check Xero before retrying. Finish by opening **View journal** and confirming the amount and status.\n\nAdministrators and Advisors with **Allow Advisors to trigger Xero syncs** can retry confirmed failures and post offered differences. Only an administrator can enter a required reason to post when missing or unexplained zero costs block the period. Draft, pending, successful, uncertain and live-unverified runs are not offered as ordinary retries.\n\n**Costs incomplete** means the calculated COGS is only the known subtotal: one or more included stock movements has no cost or an unexplained zero cost. **Fix Unknown COGS** opens the reviewed movement repair workflow. **Post Known COGS** is the only posting choice shown while costs remain incomplete; it is an exceptional administrator action that records the reason and does not invent or repair missing costs. Once costs are complete, the row shows **Post COGS** instead.\n\nCOGS journals are requested from Xero as **Posted**, not saved as Draft by the normal workflow. A legacy or provider-retained Draft is shown in **Status** and can be reviewed from the period details; there is no separate Draft amount column. When live Xero verification succeeds, its current status overrides an older locally recorded state. **No posted journal recorded** means no Posted journal is currently confirmed for the period. **Xero check unavailable** means the live provider request failed, not that the recorded amount is verified as zero. **View journal** opens the exact manual journal in the connected Xero organisation. If Xero cannot provide the organisation identity, Solvantis withholds the link rather than opening an ambiguous Xero homepage.\n\n> **Warning:** Retrying COGS accounting does not repeat a sale, return, fulfilment or stock movement. Do not repeat an inventory operation to repair a journal failure.",
-      "sectionId": "ims-xero-reconciliation:8"
+      "sectionId": "ims-xero-reconciliation:9"
     },
     {
-      "id": "ims-xero-reconciliation:9",
+      "id": "ims-xero-reconciliation:10",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Troubleshooting",
@@ -8277,15 +8393,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | Likely cause | What to do |\n|---|---|---|\n| Many entries fail together | Connection expired or Xero unavailable | Reauthorize and retry affected entries |\n| One source is blocked | A required mapping or source condition is missing | Correct the named item and retry that entry |\n| COGS does not reconcile | Missing or incomplete historical cost coverage, or journal not posted | Review COGS Reconciliation and source movement cost |\n| COGS changes after a return or manager correction | The completed return or correction changed the period's captured movement cost | Review the revised period total and post the offered adjustment journal rather than repeating the source transaction |\n| Shopify payout will not post | Invoice, credit, clearing account, fee account, tax, currency, or total does not balance | Fix the named difference and replan |\n| Entry was dismissed | It was removed from the active queue, not synced | Find it in history and use the available manual retry if still required |",
-      "sectionId": "ims-xero-reconciliation:9"
+      "sectionId": "ims-xero-reconciliation:10"
     },
     {
-      "id": "ims-xero-reconciliation:10",
+      "id": "ims-xero-reconciliation:11",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Worked examples",
@@ -8298,15 +8415,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "### Operational success with accounting failure\n\nStaff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.\n\n### Reconcile a Shopify payout\n\nA paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.\n\n\n### Calculate a POS card fee\n\nA store's Card payment method is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from that store's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.",
-      "sectionId": "ims-xero-reconciliation:10"
+      "sectionId": "ims-xero-reconciliation:11"
     },
     {
-      "id": "ims-xero-reconciliation:10.1",
+      "id": "ims-xero-reconciliation:11.1",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Worked examples > Operational success with accounting failure",
@@ -8319,15 +8437,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "Staff receive 10 units on a Purchase Order. Stock correctly rises by 10, but Xero rejects the bill because the purchasing account mapping is missing. Add the mapping and retry the Xero entry. Receiving another 10 would incorrectly double stock.",
-      "sectionId": "ims-xero-reconciliation:10"
+      "sectionId": "ims-xero-reconciliation:11"
     },
     {
-      "id": "ims-xero-reconciliation:10.2",
+      "id": "ims-xero-reconciliation:11.2",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Worked examples > Reconcile a Shopify payout",
@@ -8340,15 +8459,16 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "A paid payout contains sales, a refund, fees, and the net bank settlement. Review the payout plan, fix any blocked invoice, credit, account, tax, currency, or total mismatch, then replan. Post only when the package balances to the actual payout.",
-      "sectionId": "ims-xero-reconciliation:10"
+      "sectionId": "ims-xero-reconciliation:11"
     },
     {
-      "id": "ims-xero-reconciliation:10.3",
+      "id": "ims-xero-reconciliation:11.3",
       "documentId": "ims-xero-reconciliation",
       "title": "Xero Sync and Reconciliation",
       "heading": "Worked examples > Calculate a POS card fee",
@@ -8361,12 +8481,13 @@
       "contexts": [
         "xero",
         "settings-xero",
-        "activity-cogs"
+        "activity-cogs",
+        "online-sales-daily-accounting"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-16",
+      "lastReviewed": "2026-10-17",
       "content": "A store's Card payment method is configured for 1.75%. Successful card payments total $110.00 during the register session, so the EOD fee is $110.00 × 1.75% = $1.93 after currency rounding. After the card clearing payment succeeds, Solvantis posts a $1.93 Spend Money transaction from that store's Card clearing account to the selected fee expense account. A failed fee posting can be retried without repeating the invoice payment.",
-      "sectionId": "ims-xero-reconciliation:10"
+      "sectionId": "ims-xero-reconciliation:11"
     },
     {
       "id": "ims-catalogue-stock:1",
@@ -13052,7 +13173,7 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "Use this page to choose where to start. Each related task guide explains what changes in stock and customer value.",
       "sectionId": "ims-customer-orders:1"
     },
@@ -13073,7 +13194,7 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "| What you need to do | Start here | What it changes |\n|---|---|---|\n| Create, confirm, ship, or finish a customer order | **Sales Orders** | Customer demand and stock when goods are shipped |\n| Protect incoming purchase-order stock for a customer | **Stock Allocation** | Which customer demand is protected by incoming supply |\n| Record a return, store credit, or original-payment refund | **Customer Credit Notes** | Returned stock and customer value when the credit note completes |\n| Investigate a register or online transaction | **POS Sales** or **Online Sales** | Nothing until you use the return or correction action offered for that source |",
       "sectionId": "ims-customer-orders:2"
     },
@@ -13094,7 +13215,7 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "Review the applicant, company relationship, intended customer account, and requested access before approval. Approval gives the linked business customer access to the wholesale portal; it does not replace missing customer or catalogue setup.",
       "sectionId": "ims-customer-orders:3"
     },
@@ -13115,8 +13236,8 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
-      "content": "Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Daily POS payment badges show only methods with a non-zero total, so zero-dollar methods such as **No Charge $0.00** do not clutter the summary. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.\n\nWhen the business has Shopify stores, **Online Sales** requires a storefront choice. With one active store, Solvantis selects it automatically. Sales Orders show **Store / Channel** by default and can be filtered to an exact storefront. Customer Credit Notes and Gift Cards also show and filter by the owning store, so identical Shopify order, refund, customer or gift-card identifiers in different stores remain distinct.\n\nOnline Sales labels each amount by its GST basis. **Sales ex GST** excludes GST from the complete order total. Shopify merchandise, shipping and order totals are shown as **inc GST**, while **GST included** is the GST already contained in those amounts rather than an extra charge.\n\nBy default, Shopify refunds are recorded as separate customer credit notes. A day with refunds shows the gross order sales, the separate refund amount, and the resulting net total. The Xero daily invoice remains the gross sales document; its Shopify credit note records the refund, so do not also reduce the gross invoice by the same refund. If **Include Shopify refund credit notes** is disabled in Xero settings, those credit notes remain in IMS and are not posted to Xero; use only a separately reviewed accounting treatment for those refunds.\n\nWhen Xero accounting is enabled for the business, **Online Sales** also shows daily Xero posting guidance and a sync action for eligible trading days. Each sales channel produces its own daily invoice, gateway payments, fees and payout reconciliation. These accounting controls are hidden when Xero accounting is disabled; the underlying online sales history remains available.\n\nShopify lines that cannot be matched to an IMS variant appear as **Shopify Misc Charge** with SKU **SHOPIFY-MISC**. The Shopify item title remains visible underneath. This preserves the order value without moving stock for the wrong product; it is not an added fee.\n\nIf a normal product appears this way, check that its Shopify product and variant link is current. Repairing the link prevents later orders from using the fallback, but an existing import may need to be processed again.",
+      "lastReviewed": "2026-10-17",
+      "content": "Use **POS Sales** and **Online Sales** to inspect items, payments, returns, references, and processing status. Daily POS payment badges show only methods with a non-zero total, so zero-dollar methods such as **No Charge $0.00** do not clutter the summary. Start a correction from the source sale when an action is offered, then follow the linked credit note rather than entering the stock movement again.\n\nWhen the business has Shopify stores, **Online Sales** requires a storefront choice. With one active store, Solvantis selects it automatically. Sales Orders show **Store / Channel** by default and can be filtered to an exact storefront. Customer Credit Notes and Gift Cards also show and filter by the owning store, so identical Shopify order, refund, customer or gift-card identifiers in different stores remain distinct.\n\nOnline Sales labels each amount by its GST basis. **Sales ex GST** excludes GST from the complete order total. Shopify merchandise, shipping and order totals are shown as **inc GST**, while **GST included** is the GST already contained in those amounts rather than an extra charge.\n\nBy default, Shopify refunds are recorded as separate customer credit notes. A day with refunds shows the gross order sales, the separate refund amount, and the resulting net total. The Xero daily invoice remains the gross sales document; its Shopify credit note records the refund, so do not also reduce the gross invoice by the same refund. If **Include Shopify refund credit notes** is disabled in Xero settings, those credit notes remain in IMS and are not posted to Xero; use only a separately reviewed accounting treatment for those refunds.\n\nWhen Xero accounting is enabled for the business, **Online Sales** also shows daily Xero posting guidance and a sync action for eligible trading days. Each sales channel produces its own daily invoice, gateway payments, fees and payout reconciliation. These accounting controls are hidden when Xero accounting is disabled; the underlying online sales history remains available.\n\nShopify lines that cannot be matched to an IMS variant appear as **Shopify Misc Charge** with SKU **SHOPIFY-MISC**. The Shopify item title remains visible underneath. This preserves the order value without moving stock for the wrong product; it is not an added fee.\n\nIf a normal product appears this way, check that its Shopify product and variant link is current. Repairing the link prevents later orders from using the fallback, but an existing import may need to be processed again.\n\nOpen **Sales > Sales Channels > Online sales recovery** to distinguish the initial baseline from incremental coverage and inspect queued work, failed work and order references needing review. Admins and SuperAdmins can retry an exact storefront or pause and resume scheduled recovery when the controls are available. Advisor accounting-sync access does not grant order recovery controls.\n\nBefore rollout, the panel shows that controls are unavailable and current runtime behaviour is unchanged. During validation, existing catch-up behaviour remains in place. Only after verified cutover does bounded scheduled reconciliation replace catch-up triggered by opening POS or IMS. Webhooks prompt updates, while daily accounting runs independently. Pausing recovery does not restore the old historical scans.\n\nManual daily posting is blocked until baseline and catch-up readiness checks pass, with no override. A retry does not approve or clear non-refund late changes to an already posted day; these require review. A recovered refund repairs the local order and linked credit note and automatically follows the existing Xero flow when eligible, without charging or refunding the customer again.",
       "sectionId": "ims-customer-orders:4"
     },
     {
@@ -13136,7 +13257,7 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | Likely reason | What to do |\n|---|---|---|\n| An order cannot be fulfilled | It is not confirmed, has no remaining quantity, or your access is read-only | Review its status, remaining quantity, location, and available actions |\n| Stock looks reserved | A confirmed order or allocation is protecting it | Open Stock Allocation before changing stock |\n| A return already shows a credit-note number | The return record already exists | Open that credit note; do not create another return |\n| Shopify Misc Charge appears | The Shopify line did not match an IMS variant | Compare the shown Shopify title, repair the variant link, and reprocess only if required |",
       "sectionId": "ims-customer-orders:5"
     },
@@ -13157,7 +13278,7 @@
         "online-sales"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "### Choose the correct workflow\n\nA customer ordered 12 jackets, 8 shipped, and 4 are waiting on a purchase order. Use **Sales Orders** to review the shipment, **Stock Allocation** to protect 4 incoming jackets, and **Customer Credit Notes** only if the customer later returns shipped goods.\n\n### Investigate an online line\n\nAn online order contains a $44.95 item shown as Shopify Misc Charge. Read the original Shopify title under the line, repair the intended variant link, and avoid making a stock adjustment for the fallback item.",
       "sectionId": "ims-customer-orders:6"
     },
@@ -13178,7 +13299,7 @@
         "online-sales"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "A customer ordered 12 jackets, 8 shipped, and 4 are waiting on a purchase order. Use **Sales Orders** to review the shipment, **Stock Allocation** to protect 4 incoming jackets, and **Customer Credit Notes** only if the customer later returns shipped goods.",
       "sectionId": "ims-customer-orders:6"
     },
@@ -13199,7 +13320,7 @@
         "online-sales"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-08-23",
+      "lastReviewed": "2026-10-17",
       "content": "An online order contains a $44.95 item shown as Shopify Misc Charge. Read the original Shopify title under the line, repair the intended variant link, and avoid making a stock adjustment for the fallback item.",
       "sectionId": "ims-customer-orders:6"
     },

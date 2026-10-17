@@ -1149,12 +1149,66 @@ CREATE TABLE IF NOT EXISTS ims_sales_channel_jobs (
   attempts            INT NOT NULL DEFAULT 0,
   available_at        DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   locked_at           DATETIME(3) NULL,
+  lease_token         CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  lease_expires_at    DATETIME(3) NULL,
   completed_at        DATETIME(3) NULL,
   safe_error          VARCHAR(500) NULL,
   created_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
   UNIQUE KEY uq_channel_job_operation (business_id, channel_instance_id, operation_key),
   INDEX idx_channel_job_work (provider, status, available_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_online_sync_control (
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
+  rollout_state       ENUM('legacy','validation','cutover') NOT NULL DEFAULT 'legacy',
+  paused              TINYINT(1) NOT NULL DEFAULT 0,
+  last_run_at         DATETIME(3) NULL,
+  lease_token         CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  lease_expires_at    DATETIME(3) NULL,
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_shopify_reconciliation (
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  baseline_from       DATETIME(3) NOT NULL,
+  baseline_complete  TINYINT(1) NOT NULL DEFAULT 0,
+  covered_through     DATETIME(3) NULL,
+  continuation_json   JSON NULL,
+  next_check_at       DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  last_success_at     DATETIME(3) NULL,
+  safe_error_code     VARCHAR(64) NULL,
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, channel_instance_id),
+  INDEX idx_shopify_reconciliation_due (business_id, next_check_at, channel_instance_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_shopify_order_recovery (
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  external_order_id   VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  lease_token         CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  lease_expires_at    DATETIME(3) NULL,
+  provider_updated_at DATETIME(3) NULL,
+  applied_hash        CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  effects_json        JSON NULL,
+  review_reason       VARCHAR(64) NULL,
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, channel_instance_id, external_order_id),
+  INDEX idx_shopify_order_recovery_review (business_id, channel_instance_id, review_reason)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ims_online_day_changes (
+  business_id         VARCHAR(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  channel_instance_id CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  business_date       DATE NOT NULL,
+  generation          CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  propagated_generation CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  review_reason       VARCHAR(64) NULL,
+  updated_at          DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (business_id, channel_instance_id, business_date),
+  INDEX idx_online_day_change_work (business_id, updated_at, channel_instance_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ── Product Images ───────────────────────────────────────────

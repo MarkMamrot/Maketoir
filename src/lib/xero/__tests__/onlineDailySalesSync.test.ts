@@ -41,7 +41,7 @@ vi.mock('@/lib/ims/businessOperations', () => ({
 import { DEFAULT_XERO_DOCUMENT_POLICY } from '@/lib/xero/documentPolicies';
 
 import { calculateGatewayFee, syncOnlineDailySalesDay as syncOnlineDailySalesDayExact } from '../onlineDailySalesSync';
-import { getOnlineBatchOrderIdentity } from '../onlineDailySalesSync';
+import { getOnlineBatchOrderIdentity, prepareOnlineDailySalesDay } from '../onlineDailySalesSync';
 
 function syncOnlineDailySalesDay(businessId: string, date: string) {
   return syncOnlineDailySalesDayExact(businessId, date, 'instance-1');
@@ -247,6 +247,50 @@ describe('syncOnlineDailySalesDay', () => {
     const result = await syncOnlineDailySalesDay('biz-1', '2026-07-25');
 
     expect(result.xeroId).toBeNull();
+    expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
+  });
+
+  it('prepares immutable accounting evidence without invoking a provider', async () => {
+    const result = await prepareOnlineDailySalesDay('biz-1', '2026-07-25', 'instance-1', { strictRecovery: true });
+    expect(result.batch).toMatchObject({ totalSales: 150, totalTax: 15, invoiceStatus: 'AUTHORISED' });
+    expect(result.orderEvidence).toHaveLength(2);
+    expect(result.policy.postingEnabled).toBe(true);
+    expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
+    expect(mockSyncGiftCardLiabilityReclass).not.toHaveBeenCalled();
+  });
+  it('blocks recovery with missing gateway mappings even when none exist', async () => {
+    mockQuery.mockResolvedValueOnce([]);
+    await expect(prepareOnlineDailySalesDay('biz-1', '2026-07-25', 'instance-1', { strictRecovery: true }))
+      .rejects.toMatchObject({ reason: 'gateway_mapping_missing' });
+    expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
+  });
+  it('does not hide operational mapping-read failures behind a validation outcome', async () => {
+    mockQuery.mockRejectedValueOnce(new Error('mapping database unavailable'));
+    await expect(prepareOnlineDailySalesDay('biz-1', '2026-07-25', 'instance-1', { strictRecovery: true }))
+      .rejects.toThrow('mapping database unavailable');
+  });
+  it('checks native receipt completeness per order, not only the daily total', async () => {
+    mockQuery.mockResolvedValueOnce([{ gateway_name: 'stripe', clearing_account_code: '091' }]);
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ total_sales: '110', total_tax: '10', gift_card_amount: '0', order_count: '1' }])
+      .mockResolvedValueOnce([{ gateway: 'stripe', total_sales: '110', total_tax: '0' }])
+      .mockResolvedValueOnce([{ sales_channel: 'native_shop', native_checkout_id: 'checkout-1-so-1', shopify_order_id: null, shopify_order_name: null, payment_gateway: 'stripe', total_amount: '110', tax_amount: '0' }])
+      .mockResolvedValueOnce([{ id: 1 }]);
+    await expect(prepareOnlineDailySalesDay('biz-1', '2026-07-25', 'native-1', { strictRecovery: true }))
+      .rejects.toMatchObject({ reason: 'payment_evidence_incomplete' });
+    expect(mockImsQuery.mock.calls[3][0]).toContain('GROUP BY so.id');
+  });
+
+  it('blocks incomplete native receipt evidence instead of increasing the last payment', async () => {
+    mockQuery.mockResolvedValueOnce([{ gateway_name: 'stripe', clearing_account_code: '091' }]);
+    mockImsQuery.mockReset();
+    mockImsQuery
+      .mockResolvedValueOnce([{ total_sales: '110', total_tax: '10', gift_card_amount: '0', order_count: '1' }])
+      .mockResolvedValueOnce([{ gateway: 'stripe', total_sales: '55', total_tax: '0' }])
+      .mockResolvedValueOnce([{ sales_channel: 'native_shop', native_checkout_id: 'checkout-1-so-1', shopify_order_id: null, shopify_order_name: null, payment_gateway: 'stripe', total_amount: '55', tax_amount: '0' }]);
+    await expect(prepareOnlineDailySalesDay('biz-1', '2026-07-25', 'native-1', { strictRecovery: true }))
+      .rejects.toMatchObject({ reason: 'payment_evidence_incomplete' });
     expect(mockSyncDailySalesBatch).not.toHaveBeenCalled();
   });
 });

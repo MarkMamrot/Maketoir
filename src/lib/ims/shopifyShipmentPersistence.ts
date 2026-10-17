@@ -1,16 +1,33 @@
 import { getIMSPool } from '@/services/IMSMySQLService';
 import type { ShopifyShipment } from './shopifyFulfilment';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
-export async function persistShopifyShipment(input: {
+type ShopifyShipmentInput = {
   businessId: string;
   channelInstanceId?: string;
   soId: number;
   shipment: ShopifyShipment;
-}): Promise<void> {
+};
+
+export async function persistShopifyShipment(input: ShopifyShipmentInput): Promise<void> {
   const conn = await getIMSPool().getConnection();
   try {
     await conn.beginTransaction();
-    const [[order]] = await conn.execute<any[]>(
+    await persistShopifyShipmentInTransaction(conn, input);
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
+export async function persistShopifyShipmentInTransaction(
+  conn: PoolConnection,
+  input: ShopifyShipmentInput,
+): Promise<void> {
+    const [[order]] = await conn.execute<(RowDataPacket & { channel_instance_id: string | null })[]>(
       `SELECT channel_instance_id FROM ims_sales_orders
         WHERE business_id = ? AND id = ? FOR UPDATE`,
       [input.businessId, input.soId],
@@ -30,11 +47,12 @@ export async function persistShopifyShipment(input: {
       [input.businessId, channelInstanceId, input.soId, input.shipment.shopifyFulfilmentId, input.shipment.status,
         input.shipment.createdAt, input.shipment.updatedAt],
     );
-    const [[row]] = await conn.execute<any[]>(
+    const [[row]] = await conn.execute<(RowDataPacket & { id: number })[]>(
       `SELECT id FROM ims_so_shipments
         WHERE business_id = ? AND channel_instance_id = ? AND shopify_fulfilment_id = ? FOR UPDATE`,
       [input.businessId, channelInstanceId, input.shipment.shopifyFulfilmentId],
     );
+    if (!row) throw new Error('Shopify shipment could not be reloaded after persistence.');
     const shipmentId = Number(row.id);
     await conn.execute('DELETE FROM ims_so_shipment_items WHERE business_id = ? AND shipment_id = ?', [input.businessId, shipmentId]);
     await conn.execute('DELETE FROM ims_so_shipment_tracking WHERE business_id = ? AND shipment_id = ?', [input.businessId, shipmentId]);
@@ -52,11 +70,4 @@ export async function persistShopifyShipment(input: {
         [input.businessId, shipmentId, tracking.company, tracking.number, tracking.url],
       );
     }
-    await conn.commit();
-  } catch (error) {
-    await conn.rollback();
-    throw error;
-  } finally {
-    conn.release();
-  }
 }

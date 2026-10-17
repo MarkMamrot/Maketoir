@@ -1,3 +1,4 @@
+import type { PoolConnection } from 'mysql2/promise';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockGetIMSPool, mockLockInventoryCostState, mockCreateFifoPosReturnLayers, mockCreateFifoSalesOrderReturnLayers } = vi.hoisted(() => ({
@@ -389,6 +390,33 @@ describe('ImsSORepo.processShopifyRefund provenance', () => {
     expect(await ImsSORepo.processShopifyRefund('biz-1', refund)).toEqual({ processed: false, restocked: 0, creditNoteId: 12 });
     expect(mockCreateFifoSalesOrderReturnLayers).not.toHaveBeenCalled();
     expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).toHaveBeenCalledOnce();
+    expect(connection.release).toHaveBeenCalledOnce();
+  });
+
+  it('performs refund and FIFO restoration without taking ownership of the caller transaction', async () => {
+    const connection = refundConnection();
+    const transaction: Pick<PoolConnection, 'beginTransaction' | 'commit' | 'rollback' | 'release'> = connection;
+    mockGetIMSPool.mockClear();
+    await expect(ImsSORepo.processShopifyRefundInTransaction(transaction as PoolConnection, 'biz-1', refund))
+      .resolves.toEqual({ processed: true, restocked: 1, creditNoteId: 12 });
+    expect(mockLockInventoryCostState).toHaveBeenCalledWith(connection, 'biz-1');
+    expect(mockCreateFifoSalesOrderReturnLayers).toHaveBeenCalledWith(connection, expect.objectContaining({ creditNoteId: 12 }));
+    expect(mockGetIMSPool).not.toHaveBeenCalled();
+    expect(connection.beginTransaction).not.toHaveBeenCalled();
+    expect(connection.commit).not.toHaveBeenCalled();
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).not.toHaveBeenCalled();
+  });
+
+  it('leaves domain failure rollback to the outer transaction owner', async () => {
+    const connection = refundConnection();
+    const transaction: Pick<PoolConnection, 'beginTransaction' | 'commit' | 'rollback' | 'release'> = connection;
+    mockCreateFifoSalesOrderReturnLayers.mockRejectedValueOnce(new Error('Original allocation missing'));
+    await expect(ImsSORepo.processShopifyRefundInTransaction(transaction as PoolConnection, 'biz-1', refund))
+      .rejects.toThrow('Original allocation missing');
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).not.toHaveBeenCalled();
   });
 
   it('keeps no-restock refunds value-only', async () => {

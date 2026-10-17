@@ -1,6 +1,8 @@
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
 import { buildQuantity } from './domain';
+import type { PoolConnection } from 'mysql2/promise';
+import { localTransactionQueries } from '../localTransactionQueries';
 
 interface RequirementSourceLine {
   itemId: number;
@@ -59,7 +61,8 @@ export async function recomputeBuildRequirementsForSalesOrder(input: {
   businessId: string;
   salesOrderId: number;
   sourceChannel?: string | null;
-}): Promise<PlannedBuildRequirement[]> {
+}, connection?: PoolConnection): Promise<PlannedBuildRequirement[]> {
+  const { query: imsQuery, execute: imsExecute } = localTransactionQueries(connection);
   const orderRows = await imsQuery<{
     id: number; location_id: number; status: string; sales_channel: string | null;
     shopify_order_id: string | null; wholesale_company_id: number | null;
@@ -92,7 +95,7 @@ export async function recomputeBuildRequirementsForSalesOrder(input: {
       WHERE business_id = ? AND location_id = ? AND variant_id IN (${variantIds.map(() => '?').join(',')})`,
     [input.businessId, order.location_id, ...variantIds],
   ) : [];
-  const requirements = planOrderBuildRequirements({
+  const requirements = connection && order.status === 'cancelled' ? [] : planOrderBuildRequirements({
     status: String(order.status),
     lines: lines.map(line => ({
       itemId: Number(line.id),

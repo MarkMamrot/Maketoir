@@ -561,26 +561,39 @@ export async function triggerSOXeroVoid(businessId: string, soId: number): Promi
  * Fire-and-forget — called after CN.complete().
  */
 export async function triggerCNXeroSync(businessId: string, cnId: number): Promise<void> {
+  await syncCNXeroWithOutcome(businessId, cnId);
+}
+
+export type CNXeroSyncOutcome =
+  | { status: 'not_required'; reason: 'excluded_source' | 'policy_disabled' }
+  | { status: 'blocked'; reason: 'credit_note_not_complete' | 'not_connected' | 'policy_unavailable' | 'approval_pending' }
+  | { status: 'queued' }
+  | { status: 'linked'; xeroId: string };
+
+// A linked document is identity evidence, not proof that all accounting stages finished.
+export async function syncCNXeroWithOutcome(businessId: string, cnId: number): Promise<CNXeroSyncOutcome> {
   const cn = await ImsCNRepo.get(cnId, businessId);
-  if (!cn || cn.status !== 'complete' || cn.source === 'pos' || cn.source === 'amazon') return;
-  if (!(await isXeroConnected(businessId))) return;
+  if (!cn || cn.status !== 'complete') return { status: 'blocked', reason: 'credit_note_not_complete' };
+  if (cn.source === 'pos' || cn.source === 'amazon') return { status: 'not_required', reason: 'excluded_source' };
+  if (!(await isXeroConnected(businessId))) return { status: 'blocked', reason: 'not_connected' };
 
   const policy = await loadDocumentPolicy(businessId);
-  if (!policy) return;
+  if (!policy) return { status: 'blocked', reason: 'policy_unavailable' };
   const action = cn.source === 'shopify'
     ? (policy.shopifyRefundCreditNoteEnabled ? 'authorised' : 'none')
     : policy.manualCustomerCreditNoteAction;
-  if (action === 'none') return;
+  if (action === 'none') return { status: 'not_required', reason: 'policy_disabled' };
 
-  const existingXeroId = (cn as any).xero_credit_note_id ?? null;
+  const existingXeroId = cn.xero_credit_note_id ?? null;
   if (existingXeroId) {
     if (action === 'authorised') {
-      await approveCreditNote(businessId, existingXeroId, cnId, 'cn_credit_note');
+      const approved = await approveCreditNote(businessId, existingXeroId, cnId, 'cn_credit_note');
+      if (!approved) return { status: 'blocked', reason: 'approval_pending' };
     }
-    return;
+    return { status: 'linked', xeroId: existingXeroId };
   }
 
-  await withRetry(
+  const xeroId = await withRetry(
     () => syncCNAsCreditNote(businessId, {
       id: cn.id,
       cn_number: cn.cn_number,
@@ -603,6 +616,7 @@ export async function triggerCNXeroSync(businessId: string, cnId: number): Promi
     () => markCNXeroStatus(cnId, 'queued'),
     (error) => notifyXeroFinalFailure(businessId, 'Credit Note', `CN ${cn.cn_number}`, error),
   );
+  return xeroId ? { status: 'linked', xeroId } : { status: 'queued' };
 }
 /** Triggered when a supplier credit note is completed → post ACCPAY credit note. */
 export async function triggerSupplierCNXeroSync(businessId: string, scnId: number): Promise<void> {

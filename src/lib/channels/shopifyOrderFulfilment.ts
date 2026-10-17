@@ -1,6 +1,7 @@
-import { buildShopifyShipmentQuantities, parseShopifyShipment } from '@/lib/ims/shopifyFulfilment';
-import { fulfilSalesOrderPartial } from '@/lib/ims/orderResolution/customerFulfilment';
-import { persistShopifyShipment } from '@/lib/ims/shopifyShipmentPersistence';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
+import { buildShopifyShipmentQuantities, parseShopifyShipment, type ShopifyShipment } from '@/lib/ims/shopifyFulfilment';
+import { fulfilSalesOrderPartial, fulfilSalesOrderPartialInTransaction } from '@/lib/ims/orderResolution/customerFulfilment';
+import { persistShopifyShipment, persistShopifyShipmentInTransaction } from '@/lib/ims/shopifyShipmentPersistence';
 import { imsQuery } from '@/services/IMSMySQLService';
 
 type ShopifyFulfilmentTopic = 'fulfillments/create' | 'fulfillments/update' | 'orders/fulfilled';
@@ -10,17 +11,38 @@ export type ShopifyOrderFulfilmentResult = {
   salesOrderId: number;
 };
 
-export async function applyShopifyOrderFulfilment(input: {
+export type ShopifyOrderFulfilmentInput = {
   businessId: string;
   channelInstanceId: string;
   topic: ShopifyFulfilmentTopic;
-  payload: Record<string, any>;
-}): Promise<ShopifyOrderFulfilmentResult> {
+  payload: Record<string, unknown>;
+};
+
+export async function applyShopifyOrderFulfilment(input: ShopifyOrderFulfilmentInput): Promise<ShopifyOrderFulfilmentResult> {
+  return processShopifyOrderFulfilment(input);
+}
+
+export async function applyShopifyOrderFulfilmentInTransaction(
+  connection: PoolConnection,
+  input: ShopifyOrderFulfilmentInput,
+): Promise<ShopifyOrderFulfilmentResult> {
+  return processShopifyOrderFulfilment(input, connection);
+}
+
+async function processShopifyOrderFulfilment(
+  input: ShopifyOrderFulfilmentInput,
+  connection?: PoolConnection,
+): Promise<ShopifyOrderFulfilmentResult> {
+  const query = async <T>(sql: string, values: Array<string | number>): Promise<T[]> => {
+    if (!connection) return imsQuery<T>(sql, values);
+    const [rows] = await connection.execute<(T & RowDataPacket)[]>(sql, values);
+    return rows;
+  };
   const externalOrderId = String(input.topic.startsWith('fulfillments/')
     ? input.payload.order_id ?? ''
     : input.payload.id ?? '').trim();
   if (!/^\d+$/.test(externalOrderId)) throw new Error('Shopify fulfilment order ID is invalid.');
-  const orders = await imsQuery<{ id: number; status: string }>(
+  const orders = await query<{ id: number; status: string }>(
     `SELECT id, status FROM ims_sales_orders
       WHERE business_id = ? AND sales_channel = 'shopify'
         AND channel_instance_id = ? AND external_order_id = ? LIMIT 1`,
@@ -28,22 +50,22 @@ export async function applyShopifyOrderFulfilment(input: {
   );
   const order = orders[0];
   if (!order) throw new Error(`Shopify order ${externalOrderId} is not available for exact-instance fulfilment.`);
+  const persist = (shipment: ShopifyShipment) => {
+    const shipmentInput = { businessId: input.businessId, channelInstanceId: input.channelInstanceId, soId: order.id, shipment };
+    return connection ? persistShopifyShipmentInTransaction(connection, shipmentInput) : persistShopifyShipment(shipmentInput);
+  };
 
   const shipment = input.topic.startsWith('fulfillments/') ? parseShopifyShipment(input.payload) : null;
   if (input.topic.startsWith('fulfillments/') && !shipment) {
     throw new Error('Shopify fulfilment payload is invalid.');
   }
   if (input.topic === 'fulfillments/update') {
-    await persistShopifyShipment({
-      businessId: input.businessId, channelInstanceId: input.channelInstanceId, soId: order.id, shipment: shipment!,
-    });
+    await persist(shipment!);
     return { outcome: 'shipment_updated', salesOrderId: order.id };
   }
   if (order.status === 'fulfilled') {
     if (shipment) {
-      await persistShopifyShipment({
-        businessId: input.businessId, channelInstanceId: input.channelInstanceId, soId: order.id, shipment,
-      });
+      await persist(shipment);
     }
     return { outcome: 'already_fulfilled', salesOrderId: order.id };
   }
@@ -51,7 +73,7 @@ export async function applyShopifyOrderFulfilment(input: {
     throw new Error(`Shopify order ${externalOrderId} cannot be fulfilled from status ${order.status}.`);
   }
 
-  const orderItems = await imsQuery<{
+  const orderItems = await query<{
     id: number; shopify_line_item_id: string | number | null; qty_ordered: number | string;
     qty_fulfilled: number | string | null;
   }>(
@@ -62,23 +84,27 @@ export async function applyShopifyOrderFulfilment(input: {
   const shipmentQuantities = buildShopifyShipmentQuantities({
     topic: input.topic,
     payloadLines: Array.isArray(input.payload.line_items)
-      ? input.payload.line_items.map((line: any) => ({ id: line.id ?? line.line_item_id, quantity: line.quantity }))
+      ? input.payload.line_items.map((line: unknown) => {
+        if (!line || typeof line !== 'object') throw new Error('Shopify fulfilment line is invalid.');
+        const value = line as Record<string, unknown>;
+        return { id: String(value.id ?? value.line_item_id ?? ''), quantity: Number(value.quantity ?? 0) };
+      })
       : [],
     orderItems,
   });
   const operationId = String(input.payload.id ?? externalOrderId);
-  await fulfilSalesOrderPartial({
+  const fulfilmentInput = {
     businessId: input.businessId,
     soId: order.id,
     operationKey: `shopify:${input.channelInstanceId}:${input.topic}:${operationId}`,
     shipmentQuantities,
     allowIncomingCoveredStockShortfall: true,
     finalizeWhenComplete: true,
-  });
+  };
+  if (connection) await fulfilSalesOrderPartialInTransaction(connection, fulfilmentInput);
+  else await fulfilSalesOrderPartial(fulfilmentInput);
   if (shipment) {
-    await persistShopifyShipment({
-      businessId: input.businessId, channelInstanceId: input.channelInstanceId, soId: order.id, shipment,
-    });
+    await persist(shipment);
   }
   return { outcome: 'fulfilled', salesOrderId: order.id };
 }

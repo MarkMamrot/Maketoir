@@ -4,6 +4,9 @@ import { getOnlineChannelCapabilities } from '@/lib/ims/businessOperations';
 import { findAccessibleBusiness, resolveActorBusinessAccess } from '@/lib/auth/businessAccess';
 import { getAdminSession } from '@/lib/sessionUtils';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
+import { query } from '@/services/MySQLService';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +38,13 @@ export async function GET() {
       onlineChannels = await getOnlineChannelCapabilities(businessId).catch(() => onlineChannels);
     }
 
+    const mappings = activeBusiness.hasIms || activeBusiness.hasPos
+      ? await query<{ ims_db_name: string | null }>(
+        'SELECT ims_db_name FROM businesses WHERE business_id = ? AND deleted_at IS NULL', [businessId],
+      ) : [];
+    const onlineSalesStartupEnabled = mappings[0]?.ims_db_name
+      ? await runImsForBusiness(businessId, async () => (await getOnlineSyncControl(businessId)).mode !== 'cutover')
+      : false;
     return NextResponse.json({
       name:         access.actor.name ?? '',
       email:        access.actor.email,
@@ -45,6 +55,7 @@ export async function GET() {
       hasForesight,
       features,
       onlineChannels,
+      onlineSalesStartupEnabled,
     });
   } catch (error) {
     await reportRuntimeIssue({
