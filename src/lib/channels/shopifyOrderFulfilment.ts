@@ -1,8 +1,10 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
-import { buildShopifyShipmentQuantities, parseShopifyShipment, type ShopifyShipment } from '@/lib/ims/shopifyFulfilment';
+import { buildShopifyShipmentQuantities, hasRecordedShopifyFulfilmentQuantities, parseShopifyShipment, type ShopifyFulfilmentOperation, type ShopifyShipment } from '@/lib/ims/shopifyFulfilment';
 import { fulfilSalesOrderPartial, fulfilSalesOrderPartialInTransaction } from '@/lib/ims/orderResolution/customerFulfilment';
 import { persistShopifyShipment, persistShopifyShipmentInTransaction } from '@/lib/ims/shopifyShipmentPersistence';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { lockInventoryCostState } from '@/lib/ims/costing/fifoCostingService';
+import { ShopifyOrderReviewRequiredError } from '@/lib/ims/shopifyOrderReview';
 
 type ShopifyFulfilmentTopic = 'fulfillments/create' | 'fulfillments/update' | 'orders/fulfilled';
 
@@ -33,6 +35,7 @@ async function processShopifyOrderFulfilment(
   input: ShopifyOrderFulfilmentInput,
   connection?: PoolConnection,
 ): Promise<ShopifyOrderFulfilmentResult> {
+  if (connection) await lockInventoryCostState(connection, input.businessId);
   const query = async <T>(sql: string, values: Array<string | number>): Promise<T[]> => {
     if (!connection) return imsQuery<T>(sql, values);
     const [rows] = await connection.execute<(T & RowDataPacket)[]>(sql, values);
@@ -72,15 +75,35 @@ async function processShopifyOrderFulfilment(
   if (!['confirmed', 'partially_fulfilled'].includes(order.status)) {
     throw new Error(`Shopify order ${externalOrderId} cannot be fulfilled from status ${order.status}.`);
   }
+  if (connection && input.topic === 'orders/fulfilled'
+    && Array.isArray(input.payload.refunds) && input.payload.refunds.length > 0) {
+    throw new ShopifyOrderReviewRequiredError(
+      'source_provenance_conflict', 'Refunded orders require explicit shipment history before additional stock can be fulfilled.',
+    );
+  }
 
   const orderItems = await query<{
     id: number; shopify_line_item_id: string | number | null; qty_ordered: number | string;
     qty_fulfilled: number | string | null;
   }>(
     `SELECT id, external_order_item_id AS shopify_line_item_id, qty_ordered, qty_fulfilled
-       FROM ims_sales_order_items WHERE business_id = ? AND so_id = ? ORDER BY id`,
+       FROM ims_sales_order_items WHERE business_id = ? AND so_id = ? ORDER BY id${connection ? ' FOR UPDATE' : ''}`,
     [input.businessId, order.id],
   );
+  if (connection && orderItems.some(item => Number(item.qty_fulfilled) > 0)) {
+    const operations = await query<ShopifyFulfilmentOperation>(
+      `SELECT operation_key,request_json FROM ims_so_fulfilment_operations
+       WHERE business_id = ? AND so_id = ? AND status = 'complete' FOR UPDATE`,
+      [input.businessId, order.id],
+    );
+    if (!hasRecordedShopifyFulfilmentQuantities({
+      channelInstanceId: input.channelInstanceId, orderItems, operations,
+    })) {
+      throw new ShopifyOrderReviewRequiredError(
+       'source_provenance_conflict', 'Existing fulfilled quantities lack exact storefront-scoped stock receipts; review their history before replay.',
+      );
+    }
+  }
   const shipmentQuantities = buildShopifyShipmentQuantities({
     topic: input.topic,
     payloadLines: Array.isArray(input.payload.line_items)

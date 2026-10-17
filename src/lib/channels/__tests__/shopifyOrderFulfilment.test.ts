@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
+vi.mock('@/lib/ims/costing/fifoCostingService', () => ({ lockInventoryCostState: vi.fn() }));
 vi.mock('@/lib/ims/orderResolution/customerFulfilment', () => ({
   fulfilSalesOrderPartial: mocks.fulfil,
   fulfilSalesOrderPartialInTransaction: mocks.fulfilTx,
@@ -44,6 +45,10 @@ describe('applyShopifyOrderFulfilment', () => {
       vi.resetAllMocks();
       execute.mockImplementation(async (sql: string) => {
         if (sql.includes('FROM ims_sales_orders')) return [[{ id: 44, status: 'confirmed' }]];
+        if (sql.includes('ims_so_fulfilment_operations')) return [[{
+          operation_key: 'shopify:instance-2:fulfillments/create:6999',
+          request_json: { shipmentQuantities: [{ itemId: 55, quantity: 1 }] },
+        }]];
         return [[{ id: 55, shopify_line_item_id: '9001', qty_ordered: 3, qty_fulfilled: 1 }]];
       });
     });
@@ -83,6 +88,29 @@ describe('applyShopifyOrderFulfilment', () => {
     it('propagates shipment failure to the outer transaction owner', async () => {
       mocks.persistTx.mockRejectedValueOnce(new Error('Shipment write failed'));
       await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toThrow('Shipment write failed');
+    });
+
+    it.each([{ operations: [] }, { operations: [{
+      operation_key: 'shopify:fulfillments/create:6999',
+      request_json: { shipmentQuantities: [{ itemId: 55, quantity: 1 }] },
+    }] }])('holds unverified historical partial stock instead of replaying it: %j', async ({ operations }) => {
+      execute.mockImplementation(async (sql: string) => {
+        if (sql.includes('FROM ims_sales_orders')) return [[{ id: 44, status: 'partially_fulfilled' }]];
+        if (sql.includes('ims_so_fulfilment_operations')) return [operations];
+        return [[{ id: 55, shopify_line_item_id: '9001', qty_ordered: 3, qty_fulfilled: 1 }]];
+      });
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, input)).rejects.toMatchObject({
+        reason: 'source_provenance_conflict',
+      });
+      expect(mocks.fulfilTx).not.toHaveBeenCalled();
+      expect(mocks.persistTx).not.toHaveBeenCalled();
+    });
+
+    it('does not infer extra shipments from a refunded full-order fallback', async () => {
+      await expect(applyShopifyOrderFulfilmentInTransaction(connection, {
+        ...input, topic: 'orders/fulfilled', payload: { id: 1001, refunds: [{ id: 8001 }] },
+      })).rejects.toMatchObject({ reason: 'source_provenance_conflict' });
+      expect(mocks.fulfilTx).not.toHaveBeenCalled();
     });
   });
 

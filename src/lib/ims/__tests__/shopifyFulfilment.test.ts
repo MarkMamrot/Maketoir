@@ -1,11 +1,63 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildShopifyShipmentQuantities, parseShopifyShipment } from '../shopifyFulfilment';
+import { buildShopifyShipmentQuantities, hasRecordedShopifyFulfilmentQuantities, parseShopifyShipment } from '../shopifyFulfilment';
 
 const orderItems = [
   { id: 10, shopify_line_item_id: '501', qty_ordered: 3, qty_fulfilled: 1 },
   { id: 11, shopify_line_item_id: '502', qty_ordered: 2, qty_fulfilled: 0 },
 ];
+
+describe('hasRecordedShopifyFulfilmentQuantities', () => {
+  const operation = {
+    operation_key: 'shopify:store:fulfillments/create:700',
+    request_json: { shipmentQuantities: [{ itemId: 10, quantity: 1 }] },
+  };
+  const verified = (operations: typeof operation[] = [operation]) =>
+    hasRecordedShopifyFulfilmentQuantities({ channelInstanceId: 'store', orderItems, operations });
+
+  it('requires exact known quantities for every local line', () => {
+    expect(verified()).toBe(true);
+    expect(verified([])).toBe(false);
+    expect(verified([{ ...operation, request_json: { shipmentQuantities: [{ itemId: 10, quantity: 2 }] } }])).toBe(false);
+    expect(verified([{ ...operation, request_json: { shipmentQuantities: [{ itemId: 11, quantity: 1 }] } }])).toBe(false);
+  });
+
+  it.each(['shopify:other:fulfillments/create:700', 'shopify:fulfillments/create:700', 'manual:700'])(
+    'does not adopt receipt %s', operation_key => {
+      expect(verified([{ ...operation, operation_key }])).toBe(false);
+    },
+  );
+
+  it('combines separate exact-storefront receipts without duplicating a shipment', () => {
+    expect(verified([{
+      ...operation, request_json: { shipmentQuantities: [{ itemId: 10, quantity: 0.25 }] },
+    }, {
+      operation_key: 'shopify:store:fulfillments/create:701',
+      request_json: { shipmentQuantities: [{ itemId: 10, quantity: 0.75 }] },
+    }])).toBe(true);
+  });
+
+  it.each([
+    '{', null, {}, { shipmentQuantities: null },
+    { shipmentQuantities: [{ itemId: 99, quantity: 1 }] },
+    { shipmentQuantities: [{ itemId: 10, quantity: -1 }] },
+    { shipmentQuantities: [{ itemId: 10, quantity: 0.5 }, { itemId: 10, quantity: 0.5 }] },
+  ])('refuses malformed or unowned receipt evidence %j', request_json => {
+    expect(hasRecordedShopifyFulfilmentQuantities({
+      channelInstanceId: 'store', orderItems, operations: [{ ...operation, request_json }],
+    })).toBe(false);
+  });
+
+  it('accepts JSON driver output and requires no receipts when nothing has shipped', () => {
+    expect(hasRecordedShopifyFulfilmentQuantities({
+      channelInstanceId: 'store', orderItems,
+      operations: [{ ...operation, request_json: JSON.stringify(operation.request_json) }],
+    })).toBe(true);
+    expect(hasRecordedShopifyFulfilmentQuantities({
+      channelInstanceId: 'store', orderItems: orderItems.map(item => ({ ...item, qty_fulfilled: 0 })), operations: [],
+    })).toBe(true);
+  });
+});
 
 describe('buildShopifyShipmentQuantities', () => {
   it('maps only the lines and quantities in a Shopify fulfillment', () => {

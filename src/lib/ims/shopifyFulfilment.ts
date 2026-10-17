@@ -10,6 +10,50 @@ export type ShopifyFulfilmentPayloadLine = {
   quantity?: number | string | null;
 };
 
+export type ShopifyFulfilmentOperation = {
+  operation_key: string;
+  request_json: unknown;
+};
+
+export function hasRecordedShopifyFulfilmentQuantities(input: {
+  channelInstanceId: string;
+  orderItems: ShopifyFulfilmentOrderItem[];
+  operations: ShopifyFulfilmentOperation[];
+}): boolean {
+  const quantityScale = 10_000;
+  const recorded = new Map(input.orderItems.map(item => [item.id, 0]));
+  const prefixes = ['fulfillments/create', 'orders/fulfilled']
+    .map(topic => `shopify:${input.channelInstanceId}:${topic}:`);
+  for (const operation of input.operations) {
+    if (!prefixes.some(prefix => operation.operation_key.startsWith(prefix))) continue;
+    let request: unknown = operation.request_json;
+    if (typeof request === 'string') {
+      try { request = JSON.parse(request); } catch (error) {
+        if (error instanceof SyntaxError) return false;
+        throw error;
+      }
+    }
+    if (!request || typeof request !== 'object'
+      || !('shipmentQuantities' in request) || !Array.isArray(request.shipmentQuantities)) return false;
+    const seen = new Set<number>();
+    for (const line of request.shipmentQuantities) {
+      if (!line || typeof line !== 'object'
+        || typeof line.itemId !== 'number' || !Number.isSafeInteger(line.itemId)
+        || typeof line.quantity !== 'number' || !Number.isFinite(line.quantity) || line.quantity < 0
+        || !recorded.has(line.itemId) || seen.has(line.itemId)) return false;
+      seen.add(line.itemId);
+      const quantity = recorded.get(line.itemId)! + Math.round(line.quantity * quantityScale);
+      if (!Number.isSafeInteger(quantity)) return false;
+      recorded.set(line.itemId, quantity);
+    }
+  }
+  return input.orderItems.every(item => {
+    const fulfilled = Number(item.qty_fulfilled ?? 0);
+    return Number.isFinite(fulfilled) && fulfilled >= 0
+      && recorded.get(item.id) === Math.round(fulfilled * quantityScale);
+  });
+}
+
 export type ShopifyShipment = {
   shopifyFulfilmentId: string;
   status: string | null;

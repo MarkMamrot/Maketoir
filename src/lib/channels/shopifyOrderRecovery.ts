@@ -101,7 +101,11 @@ export async function applyShopifyRecoverySnapshot(input: {
     }
     if (input.order.fulfillment_status === 'fulfilled') {
       await checkBudget();
-      await applyCoordinatedShopifyFulfilment(lease, { topic: 'orders/fulfilled', payload: input.order });
+      if (plan.fulfilments.length) {
+        await runShopifyOrderEffect(lease, 'order_fulfilment', async () => ({ status: 'not_required' }));
+      } else {
+        await applyCoordinatedShopifyFulfilment(lease, { topic: 'orders/fulfilled', payload: input.order });
+      }
     }
     for (const refund of plan.refunds) {
       await checkBudget();
