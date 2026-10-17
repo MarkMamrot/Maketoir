@@ -83,7 +83,7 @@
       ],
       "contextSections": {
         "brand-assets": "Brand assets",
-        "brand-assets-models": "Brand assets",
+        "brand-assets-models": "Model reference previews",
         "brand-assets-backdrops": "Brand assets",
         "brand-assets-poses": "Brand assets",
         "brand-assets-scenes": "Brand assets",
@@ -96,7 +96,7 @@
       ],
       "order": 30,
       "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
@@ -3917,7 +3917,7 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "Use **IMS > Automations > Brand Assets** to prepare reliable brand inputs, then choose the right content or customer-service workflow.",
       "sectionId": "foresight-content-service:1"
     },
@@ -3941,7 +3941,7 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "- Check source rights and intended use before saving a reusable asset.\n- Keep models, backdrops, poses, scenes, and templates clearly named.\n- Review generated product content against the real product and brand.\n- Check customer, order, recipients, and claims before sending a reply.\n- Fix required settings or connections before repeating failed work.",
       "sectionId": "foresight-content-service:2"
     },
@@ -3965,12 +3965,36 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "Brand Assets stores reusable references for creative work. A generated image is a candidate, not an automatic replacement for an existing image or an approved advertisement.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Source image, instructions, and chosen asset type | Are the source rights, quality, and intended use acceptable? | A reusable model, backdrop, pose, scene, or template | None |\n\n> **Warning:** Do not use an asset when you cannot confirm that the business has the right to use its source image.",
       "sectionId": "foresight-content-service:3"
     },
     {
       "id": "foresight-content-service:4",
+      "documentId": "foresight-content-service",
+      "title": "Brand Assets, Content, and Service",
+      "heading": "Model reference previews",
+      "audiences": [
+        "ims"
+      ],
+      "capability": "navigation",
+      "screen": "IMS > Automations > Brand Assets and Customer Service",
+      "topicId": "foresight-content-service",
+      "contexts": [
+        "brand-assets",
+        "brand-assets-models",
+        "brand-assets-backdrops",
+        "brand-assets-poses",
+        "brand-assets-scenes",
+        "brand-assets-templates"
+      ],
+      "sourcePriority": 8,
+      "lastReviewed": "2026-10-17",
+      "content": "Model cards show the full saved photo without cropping it to fill the preview. Portrait photos may have empty space at the sides. The same full-photo view is used for model references in the AI Creative picker and selected-reference strip.\n\nThis changes only the preview, not the saved image or the reference sent to AI. If a head is missing from the original photo, upload a complete reference photo instead.",
+      "sectionId": "foresight-content-service:4"
+    },
+    {
+      "id": "foresight-content-service:5",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Choose the right asset type",
@@ -3989,12 +4013,12 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "| Asset | Use it for | Check before reuse |\n| --- | --- | --- |\n| Model | A consistent person reference | Consent, source rights, and appearance |\n| Backdrop | An empty setting for product placement | Space, lighting, and brand fit |\n| Pose | A body-position reference | Clear position and suitability |\n| Scene | A reusable environment | No unintended products, logos, or claims |\n| Template | A repeatable composition | Layout, required text, and intended channel |",
-      "sectionId": "foresight-content-service:4"
+      "sectionId": "foresight-content-service:5"
     },
     {
-      "id": "foresight-content-service:5",
+      "id": "foresight-content-service:6",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Supporting settings",
@@ -4013,12 +4037,12 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "Connections are managed in IMS Settings. SuperAdmins with Marketing Activities enabled can open **IMS > Automations > Marketing Activities (Test) > Marketing Settings**.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |",
-      "sectionId": "foresight-content-service:5"
+      "sectionId": "foresight-content-service:6"
     },
     {
-      "id": "foresight-content-service:6",
+      "id": "foresight-content-service:7",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Troubleshooting",
@@ -4037,12 +4061,12 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| An asset does not fit the product | The wrong asset type or instructions were used | Start a new candidate with the correct input; keep the original until reviewed |\n| Content lacks brand detail | Business or Brand Profile information is incomplete | Update and review the source information first |\n| A connected action is unavailable | Access expired or required setup is incomplete | Check Setup and reconnect only the intended account |\n| A retry produces another poor result | The input or template still needs correction | Stop generating and correct the source material |",
-      "sectionId": "foresight-content-service:6"
+      "sectionId": "foresight-content-service:7"
     },
     {
-      "id": "foresight-content-service:7",
+      "id": "foresight-content-service:8",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Worked examples",
@@ -4061,12 +4085,12 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 8,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "### Prepare a reusable backdrop\n\nChoose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.\n\n### Decide where to fix missing context\n\nA product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
-      "sectionId": "foresight-content-service:7"
+      "sectionId": "foresight-content-service:8"
     },
     {
-      "id": "foresight-content-service:7.1",
+      "id": "foresight-content-service:8.1",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Worked examples > Prepare a reusable backdrop",
@@ -4085,12 +4109,12 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "Choose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.",
-      "sectionId": "foresight-content-service:7"
+      "sectionId": "foresight-content-service:8"
     },
     {
-      "id": "foresight-content-service:7.2",
+      "id": "foresight-content-service:8.2",
       "documentId": "foresight-content-service",
       "title": "Brand Assets, Content, and Service",
       "heading": "Worked examples > Decide where to fix missing context",
@@ -4109,9 +4133,9 @@
         "brand-assets-templates"
       ],
       "sourcePriority": 0,
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "content": "A product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
-      "sectionId": "foresight-content-service:7"
+      "sectionId": "foresight-content-service:8"
     },
     {
       "id": "foresight-content-production-customer-service:1",

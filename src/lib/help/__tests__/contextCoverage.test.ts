@@ -38,6 +38,12 @@ const contexts: Array<{ audience: 'ims' | 'pos' | 'wholesale'; product: HelpProd
 ];
 
 describe('canonical Help context coverage', () => {
+  it('opens model asset Help at the full-photo preview guidance', () => {
+    const result = resolveHelpContext({ audience: 'ims', product: 'ims', context: 'brand-assets-models' });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'foresight-content-service' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Model reference previews');
+  });
+
   it('opens privacy guidance at the request and retention section', () => {
     const result = resolveHelpContext({ audience: 'ims', product: 'setup', context: 'privacy' });
     expect(result).toMatchObject({ exact: true, topic: { id: 'setup-team-access-security' } });

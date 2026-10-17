@@ -861,7 +861,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                     style={{ position: 'relative', width: 56, cursor: 'pointer' }}
                     onClick={() => removeRef(r.label)}>
                     <img src={r.thumbnail} alt={r.label}
-                      style={{ width: 56, height: 74, objectFit: 'cover', borderRadius: 6, border: `2px solid #22c55e`, display: 'block' }} />
+                      style={{ width: 56, height: 74, objectFit: assetModels.some(a => a.name === r.label) ? 'contain' : 'cover', borderRadius: 6, border: `2px solid #22c55e`, display: 'block' }} />
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.45)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity .15s' }}
                       onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
                       onMouseLeave={e => (e.currentTarget.style.opacity = '0')}>
@@ -916,7 +916,7 @@ export default function ProductAICreativePanel({ productId, productName, busines
                           <div className="ai-creative-ref-thumb" style={{ position: 'relative', overflow: 'hidden', border: `2px solid ${sel ? color : etch}`, boxShadow: sel ? `0 0 0 1px ${color}` : 'none' }}>
                             {a.image_data ? (
                               <img src={`data:${a.image_mime ?? 'image/jpeg'};base64,${a.image_data}`}
-                                alt={a.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                alt={a.name} style={{ width: '100%', height: '100%', objectFit: key === 'models' ? 'contain' : 'cover', display: 'block' }} />
                             ) : (
                               <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{icon}</div>
                             )}

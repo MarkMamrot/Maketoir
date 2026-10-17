@@ -8352,7 +8352,7 @@ function BrandAssetsView({ activeCategory, databaseId }: { activeCategory?: stri
                         <img
                           src={`data:${asset.image_mime ?? 'image/png'};base64,${asset.image_data}`}
                           alt={asset.name}
-                          style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
+                          style={{ width: '100%', aspectRatio: '4/3', objectFit: cat.id === 'models' ? 'contain' : 'cover', display: 'block' }}
                         />
                       )}
                       <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
