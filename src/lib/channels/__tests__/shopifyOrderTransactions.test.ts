@@ -378,4 +378,22 @@ describe('Shopify caller-owned local transactions with real repository and helpe
     expect(() => assertShopifyOrderLineMappings([{ variant_id: 8001, quantity: 1 }], []))
       .toThrow(/exact linked mapping/);
   });
+
+  it('preserves the non-stock fallback for explicitly untracked Shopify extras', () => {
+    expect(() => assertShopifyOrderLineMappings([{
+      id: 9002, variant_id: 8002, quantity: 1, variant_inventory_management: null,
+    }], [])).not.toThrow();
+  });
+
+  it('still rejects a missing mapping for an explicitly stock-tracked Shopify line', () => {
+    expect(() => assertShopifyOrderLineMappings([{
+      id: 9002, variant_id: 8002, quantity: 1, variant_inventory_management: 'shopify',
+    }], [])).toThrow(/exact linked mapping/);
+  });
+
+  it('requires a source line identity even for explicitly untracked extras', () => {
+    expect(() => assertShopifyOrderLineMappings([{
+      variant_id: 8002, quantity: 1, variant_inventory_management: null,
+    }], [])).toThrow(/source line identities/);
+  });
 });
