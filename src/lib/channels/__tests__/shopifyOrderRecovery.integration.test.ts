@@ -8,6 +8,7 @@ import type { OnlineSyncSqlValue } from '../onlineSyncJobs';
 
 const mocks = vi.hoisted(() => ({
   pool: vi.fn(), query: vi.fn(), execute: vi.fn(), main: vi.fn(),
+  syncCN: vi.fn(), reverseRefund: vi.fn(),
   forbidden: vi.fn(() => { throw new Error('Unexpected provider or main-database mutation.'); }),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({
@@ -18,21 +19,24 @@ vi.mock('@/services/MySQLService', () => ({
 }));
 vi.mock('@/lib/ims/businessTimeZone', () => ({ getBusinessTimeZone: async () => 'UTC' }));
 vi.mock('@/lib/ims/xeroHooks', () => ({
-  triggerCNXeroSync: mocks.forbidden, syncCNXeroWithOutcome: mocks.forbidden,
+  triggerCNXeroSync: mocks.forbidden, syncCNXeroWithOutcome: mocks.syncCN,
   triggerSOXeroSync: mocks.forbidden,
 }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyService', () => ({
-  ShopifyLoyaltyService: { reverseRefund: mocks.forbidden, awardPaidOrder: mocks.forbidden },
+  ShopifyLoyaltyService: { reverseRefund: mocks.reverseRefund, awardPaidOrder: mocks.forbidden },
 }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyMetafieldService', () => ({
   ShopifyLoyaltyMetafieldService: { syncConfiguredCustomer: mocks.forbidden },
 }));
 import { applyShopifyRecoverySnapshot } from '../shopifyOrderRecovery';
+import { recoverShopifyRefundDownstreamEffects } from '../shopifyOrderRecoveryEffects';
 
 const port = Number(process.env.ONLINE_SYNC_TEST_PORT);
 const password = process.env.ONLINE_SYNC_TEST_PASSWORD ?? '';
 const schema = `online_lifecycle_test_${randomUUID().replaceAll('-', '')}`;
+const mainSchema = `online_proof_test_${randomUUID().replaceAll('-', '')}`;
 let pool: Pool;
+let mainPool: Pool;
 async function rows(sql: string) { return (await pool.query<RowDataPacket[]>(sql))[0]; }
 function source(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   const now = new Date().toISOString();
@@ -76,11 +80,22 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
   beforeAll(async () => {
     if (!Number.isSafeInteger(port) || port <= 0) throw new Error('Explicit loopback test port required.');
     const server = await mysql.createConnection({ host: '127.0.0.1', port, user: 'root', password });
-    try { await server.query(`CREATE DATABASE \`${schema}\``); } finally { await server.end(); }
+    try {
+      await server.query(`CREATE DATABASE \`${schema}\``);
+      await server.query(`CREATE DATABASE \`${mainSchema}\``);
+    } finally { await server.end(); }
     pool = mysql.createPool({
       host: '127.0.0.1', port, user: 'root', password, database: schema,
       connectionLimit: 6, timezone: 'Z', dateStrings: true,
     });
+    mainPool = mysql.createPool({
+      host: '127.0.0.1', port, user: 'root', password, database: mainSchema,
+      connectionLimit: 2, timezone: 'Z', dateStrings: true,
+    });
+    await mainPool.query(`CREATE TABLE xero_sync_log (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY, business_id VARCHAR(255) NOT NULL,
+      sync_type VARCHAR(30) NOT NULL, reference_id INT, xero_id VARCHAR(100),
+      status VARCHAR(20) NOT NULL, xero_state VARCHAR(20))`);
     const connection = await pool.getConnection();
     try {
       for (const sql of parseSchemaStatements(await readFile(path.join(process.cwd(), 'scripts', 'ims-schema.sql'), 'utf8'))) {
@@ -93,6 +108,9 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
   }, 60_000);
   beforeEach(async () => {
     vi.resetAllMocks();
+    mocks.syncCN.mockImplementation(mocks.forbidden);
+    mocks.reverseRefund.mockImplementation(mocks.forbidden);
+    await mainPool.query('TRUNCATE TABLE xero_sync_log');
     await pool.query('DROP TRIGGER IF EXISTS test_expire_lifecycle');
     const connection = await pool.getConnection();
     try {
@@ -134,8 +152,12 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
   afterAll(async () => {
     if (!pool) return;
     await pool.end();
+    await mainPool.end();
     const server = await mysql.createConnection({ host: '127.0.0.1', port, user: 'root', password });
-    try { await server.query(`DROP DATABASE \`${schema}\``); } finally { await server.end(); }
+    try {
+      await server.query(`DROP DATABASE \`${schema}\``);
+      await server.query(`DROP DATABASE \`${mainSchema}\``);
+    } finally { await server.end(); }
   });
 
   it('atomically updates financial facts, dirty generation and exact-hash handoff, then skips replay', async () => {
@@ -210,6 +232,46 @@ describe.skipIf(!port)('complete Shopify lifecycle orchestration on real MySQL (
     expect(await facts()).toMatchObject({ stock: 10, committed: 3, status: 'confirmed', total: 33, jobs: 1 });
     expect(await recover(order)).toBe('already_current');
     expect(await facts()).toMatchObject({ committed: 3, jobs: 1 });
+    expect(mocks.forbidden).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['alpha', 71, 'xero-cn-71', 'success', 'AUTHORISED', true],
+    ['beta', 71, 'xero-cn-71', 'success', 'AUTHORISED', false],
+    ['alpha', 72, 'xero-cn-71', 'success', 'AUTHORISED', false],
+    ['alpha', 71, 'other-xero-cn', 'success', 'AUTHORISED', false],
+    ['alpha', 71, 'xero-cn-71', 'error', 'AUTHORISED', false],
+    ['alpha', 71, 'xero-cn-71', 'success', 'DRAFT', false],
+  ])('verifies refund posting across separate schemas: %s/%s/%s/%s/%s', async (
+    businessId, referenceId, xeroId, status, xeroState, completed,
+  ) => {
+    expect(await rows("SHOW TABLES LIKE 'xero_sync_log'")).toEqual([]);
+    await pool.query(`INSERT INTO ims_credit_notes
+      (id,business_id,cn_number,so_id,location_id,status,source,channel_instance_id,
+       external_refund_id,cn_date,subtotal,tax_amount,total_amount,xero_credit_note_id,xero_sync_status)
+      VALUES (71,'alpha','CN-71',44,4,'complete','shopify','store','8001',UTC_DATE(),10,1,11,'xero-cn-71','synced')`);
+    await mainPool.execute(`INSERT INTO xero_sync_log
+      (business_id,reference_id,xero_id,sync_type,status,xero_state) VALUES (?,?,?,'cn_credit_note',?,?)`,
+    [businessId, referenceId, xeroId, status, xeroState]);
+    mocks.main.mockImplementation(async (sql: string, params: OnlineSyncSqlValue[] = []) =>
+      (await mainPool.execute<RowDataPacket[]>(sql, params))[0]);
+    mocks.reverseRefund.mockResolvedValue({ status: 'skipped', reason: 'original_award_not_found' });
+    mocks.syncCN.mockResolvedValue({ status: 'linked', xeroId: 'xero-cn-71' });
+    const input = {
+      businessId: 'alpha', channelInstanceId: 'store', creditNoteId: 71,
+      refund: {
+        id: '8001', order_id: '123',
+        transactions: [{ kind: 'refund', status: 'success', amount: '11.00' }],
+        refund_line_items: [{ subtotal: '10.00', total_tax: '1.00' }],
+      },
+    };
+    const before = await facts();
+    const expected = completed ? { status: 'completed' }
+      : { status: 'blocked', reason: 'accounting_completion_unverified' };
+    expect(await recoverShopifyRefundDownstreamEffects(input)).toEqual(expected);
+    expect(await recoverShopifyRefundDownstreamEffects(input)).toEqual(expected);
+    expect(await facts()).toEqual(before);
+    expect(mocks.main).toHaveBeenCalledWith(expect.stringContaining('FROM xero_sync_log'), ['alpha', 71, 'xero-cn-71']);
     expect(mocks.forbidden).not.toHaveBeenCalled();
   });
 });

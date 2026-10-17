@@ -8,6 +8,7 @@ import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { toBusinessDate } from '@/lib/shopifyDate';
 import { parseShopifyRefund } from '@/lib/shopifyRefund';
 import { imsQuery } from '@/services/IMSMySQLService';
+import { query } from '@/services/MySQLService';
 
 export type ShopifyRecoveryEffectResult =
   | { status: 'completed' }
@@ -151,14 +152,17 @@ export async function recoverShopifyRefundDownstreamEffects(input: ShopifyOrderR
     const evidence = await imsQuery<{ id: number }>(
       `SELECT cn.id FROM ims_credit_notes cn
         WHERE cn.business_id = ? AND cn.id = ? AND cn.status = 'complete'
-          AND cn.xero_credit_note_id = ? AND cn.xero_sync_status = 'synced'
-          AND EXISTS (SELECT 1 FROM xero_sync_log log
-            WHERE log.business_id = cn.business_id AND log.reference_id = cn.id
-              AND log.sync_type = 'cn_credit_note' AND log.xero_id = cn.xero_credit_note_id
-              AND log.status = 'success' AND log.xero_state = 'AUTHORISED') LIMIT 1`,
+          AND cn.xero_credit_note_id = ? AND cn.xero_sync_status = 'synced' LIMIT 1`,
       [input.businessId, input.creditNoteId, result.accounting.xeroId],
     );
-    return evidence.length ? { status: 'completed' }
+    if (!evidence.length) return { status: 'blocked', reason: 'accounting_completion_unverified' };
+    const posting = await query<{ id: number }>(
+      `SELECT id FROM xero_sync_log WHERE BINARY business_id = BINARY ? AND reference_id = ?
+        AND sync_type = 'cn_credit_note' AND xero_id = ?
+        AND status = 'success' AND xero_state = 'AUTHORISED' LIMIT 1`,
+      [input.businessId, input.creditNoteId, result.accounting.xeroId],
+    );
+    return posting.length ? { status: 'completed' }
       : { status: 'blocked', reason: 'accounting_completion_unverified' };
   } catch {
     return failed(input, 'refund_downstream_effects_failed', orderId);

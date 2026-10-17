@@ -79,6 +79,8 @@ Returned stock stays linked to the original fulfilled sales-order line. Under FI
 
 If Shopify has already refunded the customer but Solvantis could not complete the return, correct the reported linkage or source-history issue and retry processing that existing refund. Do not issue another Shopify refund or manually add the same returned stock. Reprocessing a completed refund does not create another credit note or restock it again.
 
+When accounting is required, scheduled recovery verifies both the completed credit note and its matching authorised Xero posting. A saved Xero reference alone does not confirm completion. Retrying resumes unfinished checks without creating another refund or stock return.
+
 ## Check order sync and webhook verification
 
 1. Open **Sales > Sales Channels**, choose **Configure** on the intended Shopify store, then open **Connection**.

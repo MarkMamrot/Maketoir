@@ -2,9 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   query: vi.fn(), award: vi.fn(), mark: vi.fn(), project: vi.fn(), recoverRefund: vi.fn(),
-  mutation: vi.fn(), report: vi.fn(),
+  mutation: vi.fn(), report: vi.fn(), main: vi.fn(),
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
+vi.mock('@/services/MySQLService', () => ({ query: mocks.main }));
 vi.mock('@/lib/loyalty/ShopifyLoyaltyService', () => ({
   ShopifyLoyaltyService: { awardPaidOrder: mocks.award, markPaidOrderRedemptionsUsed: mocks.mark },
 }));
@@ -41,11 +42,13 @@ beforeEach(() => {
   mocks.award.mockResolvedValue({ status: 'awarded', points: null, mutation: { accountId: 2, duplicate: true } });
   mocks.project.mockResolvedValue({ status: 'synced' });
   mocks.query.mockImplementation(async (sql: string) => {
+    if (sql.includes('xero_sync_log')) throw new Error('Accounting completion ledger is not in the tenant schema.');
     if (sql.includes('loyalty_accounts')) return [{ contact_id: 42 }];
     if (sql.includes('cn.total_amount')) return [{ id: 81, total_amount: '22.00', tax_amount: '2.00' }];
     return [{ id: 81 }];
   });
   mocks.mutation.mockResolvedValue(null);
+  mocks.main.mockResolvedValue([{ id: 71 }]);
   mocks.recoverRefund.mockResolvedValue({
     outcome: 'duplicate', salesOrderId: 44, creditNoteId: 81,
     accounting: { status: 'linked', xeroId: 'xero-cn-81' },
@@ -125,8 +128,14 @@ describe('refund downstream recovery effects', () => {
     expect(mocks.recoverRefund).toHaveBeenCalledWith({ ...identity, refund });
     expect(mocks.query.mock.calls[0][1]).toEqual(['business-1', 81, 'instance-2', '1001', 'instance-2', '7001', '7001']);
     expect(mocks.query.mock.calls[0][0]).toContain("cn.status = 'complete'");
-    expect(mocks.query.mock.calls[1][0]).toContain("log.xero_state = 'AUTHORISED'");
     expect(mocks.query.mock.calls[1][1]).toEqual(['business-1', 81, 'xero-cn-81']);
+    expect(mocks.query.mock.calls[1][0]).not.toContain('xero_sync_log');
+    expect(mocks.main).toHaveBeenCalledWith(
+      expect.stringContaining('BINARY business_id = BINARY ?'), ['business-1', 81, 'xero-cn-81'],
+    );
+    expect(mocks.main.mock.calls[0][0]).toContain("xero_state = 'AUTHORISED'");
+    expect(mocks.main.mock.calls[0][0]).toContain("status = 'success'");
+    expect(mocks.main.mock.calls[0][0]).toContain("sync_type = 'cn_credit_note'");
   });
 
   it.each([
@@ -153,6 +162,21 @@ describe('refund downstream recovery effects', () => {
     mocks.query.mockResolvedValueOnce([{ id: 81, total_amount: '22', tax_amount: '2' }]).mockResolvedValueOnce([]);
     expect(await recoverShopifyRefundDownstreamEffects(refundInput))
       .toEqual({ status: 'blocked', reason: 'accounting_completion_unverified' });
+    expect(mocks.main).not.toHaveBeenCalled();
+  });
+
+  it('requires matching main-ledger evidence even when the tenant credit is synced', async () => {
+    mocks.main.mockResolvedValueOnce([]);
+    expect(await recoverShopifyRefundDownstreamEffects(refundInput))
+      .toEqual({ status: 'blocked', reason: 'accounting_completion_unverified' });
+  });
+
+  it('reports a sanitized retry when the main completion ledger is unavailable', async () => {
+    mocks.main.mockRejectedValueOnce(new Error('raw accounting database secret'));
+    expect(await recoverShopifyRefundDownstreamEffects(refundInput))
+      .toEqual({ status: 'retry', reason: 'refund_downstream_effects_failed' });
+    expect(mocks.report).toHaveBeenCalled();
+    expect(JSON.stringify(mocks.report.mock.calls)).not.toContain('secret');
   });
 
   it('accepts explicit policy not-required without demanding a Xero ID', async () => {
@@ -161,6 +185,7 @@ describe('refund downstream recovery effects', () => {
     });
     expect(await recoverShopifyRefundDownstreamEffects(refundInput)).toEqual({ status: 'completed' });
     expect(mocks.query).toHaveBeenCalledTimes(1);
+    expect(mocks.main).not.toHaveBeenCalled();
   });
 
   it('verifies refund projection on replay instead of acknowledging skipped linkage', async () => {
