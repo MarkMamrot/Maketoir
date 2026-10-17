@@ -10,11 +10,12 @@ stale-browser accounting calls cannot fall back to historical imports. At verifi
 browser startup calls without disabling Xero functionality.
 
 The user has authorised deployment, additive migration and Monsterthreads-only
-activation **after verification passes**. No online-recovery production deployment,
-migration or activation has been performed. The normal build and full unit suite
-now pass in an isolated release tree that excludes unrelated working-tree edits.
-Production and provider acceptance must still pass before cutover. Do not enable
-another business. Creating the schema never inserts or changes rollout-control rows.
+activation **after verification passes**. The release passed local and hosted CI
+and was deployed through PR #3. The narrow additive migration and independent
+audits/rerun passed across all five schemas; installing the schema did not activate
+any business. Only Monsterthreads is authorised for validation. Cutover still
+requires trustworthy baseline/catch-up and live acceptance. Do not enable another
+business. Unrelated working-tree edits were excluded from the release.
 
 ## Implemented components
 

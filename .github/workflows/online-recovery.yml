@@ -20,7 +20,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           test -n "$APP_URL" && test -n "$CRON_SECRET"
-          status=$(curl --silent --show-error --max-time 100 --output recovery-result.json --write-out "%{http_code}" \
+          status=$(curl --silent --show-error --location --max-redirs 3 --max-time 100 --output recovery-result.json --write-out "%{http_code}" \
             --request POST --header "x-cron-secret: $CRON_SECRET" \
             "$APP_URL/api/ims/online-sales/recovery-cron")
           echo "Online recovery HTTP status: $status"
