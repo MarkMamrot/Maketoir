@@ -30,6 +30,8 @@ Availability is shown explicitly:
 
 Webhooks prompt order updates. Scheduled reconciliation starts with a recent updated-order window, normally seven days, then checks changes since its last confirmed checkpoint with a short overlap. An older order changed recently can still be discovered. It does not automatically audit every imported order; historical backfills require a separate, explicitly chosen scope.
 
+Scheduled gift-card recovery follows a recent last-updated window too, then resumes from its saved checkpoint with a short overlap. It reads the newest card updates first and stops at the window boundary instead of walking old transaction histories. Existing cards remain available under their normal balance safeguards. An older card updated recently is still eligible; its transaction history must pass the same currency, ownership and balance checks. Older unchanged cards are not marked verified, converted or repaired.
+
 Daily accounting runs independently from its configured business start date, after each trading day closes. Older accounting days and earlier credit-note postings are left unchanged. A complete initial catch-up confirms only the displayed recovery window; it does not confirm that later changes, gift card work or accounting work are complete. It does not certify all historical orders.
 
 Each exact storefront shows:

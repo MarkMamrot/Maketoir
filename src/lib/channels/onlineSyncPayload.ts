@@ -1,11 +1,14 @@
-import { OnlineSyncValidationError, onlineSyncTimestamp } from './onlineSyncPolicy';
+import {
+  OnlineSyncValidationError, onlineSyncTimestamp, validateReconciliationWindow, type ReconciliationWindow,
+} from './onlineSyncPolicy';
 import { parseShopifyGiftCardRecoveryContinuation } from './shopifyGiftCardRecoveryCheckpoint';
 
 export type OnlineSyncWorkPayload = (
   | { kind: 'order_snapshot'; orderId: string }
   | { kind: 'order_effects'; orderId: string; updatedAt: string; hash: string; refundIds: string[]; paid: boolean }
   | { kind: 'daily_accounting'; date: string; manual?: true }
-  | { kind: 'gift_cards'; continuation: import('./shopifyGiftCardRecoveryEffects').ShopifyGiftCardRecoveryContinuation | null }
+  | { kind: 'gift_cards'; continuation: import('./shopifyGiftCardRecoveryEffects').ShopifyGiftCardRecoveryContinuation | null;
+      window?: ReconciliationWindow; coveredThrough?: string }
 ) & { blockedReason?: string };
 
 function id(value: unknown): string {
@@ -58,8 +61,25 @@ function parseWorkPayload(value: unknown): OnlineSyncWorkPayload {
       return { kind: record.kind, date: record.date, ...(record.manual === true ? { manual: true } : {}) };
     }
     case 'gift_cards': {
+      let window: ReconciliationWindow | undefined;
+      if (record.window !== undefined) {
+        const raw = record.window;
+        if (!raw || typeof raw !== 'object' || !('phase' in raw) || !('from' in raw) || !('to' in raw)
+          || typeof raw.from !== 'string' || typeof raw.to !== 'string'
+          || (raw.phase !== 'baseline' && raw.phase !== 'catchup' && raw.phase !== 'incremental' && raw.phase !== 'anti_entropy')) {
+          throw new OnlineSyncValidationError('Invalid gift-card recovery window.');
+        }
+        window = validateReconciliationWindow({ phase: raw.phase, from: raw.from, to: raw.to });
+      }
+      if (record.coveredThrough !== undefined) {
+        if (typeof record.coveredThrough !== 'string') throw new OnlineSyncValidationError('Invalid gift-card recovery watermark.');
+        onlineSyncTimestamp(record.coveredThrough);
+      }
       return { kind: record.kind, continuation: record.continuation === null ? null
-        : parseShopifyGiftCardRecoveryContinuation(record.continuation) };
+        : parseShopifyGiftCardRecoveryContinuation(record.continuation),
+        ...(window ? { window } : {}),
+        ...(typeof record.coveredThrough === 'string' ? { coveredThrough: record.coveredThrough } : {}),
+      };
     }
     default:
       throw new OnlineSyncValidationError('Unsupported online recovery job payload.');

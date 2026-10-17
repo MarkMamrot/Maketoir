@@ -8,7 +8,10 @@ vi.mock('@/lib/channels/shopifyGiftCardRecoveryHistory', () => ({
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.report }));
 import { recoverShopifyGiftCardEffects } from '../shopifyGiftCardRecoveryEffects';
 
-const input = { businessId: 'business-1', channelInstanceId: 'instance-2', beforeCommit: vi.fn(async () => {}) };
+const input = {
+  businessId: 'business-1', channelInstanceId: 'instance-2', beforeCommit: vi.fn(async () => {}),
+  window: { phase: 'baseline' as const, from: '2026-09-25T01:00:00.000Z', to: '2026-10-02T01:00:00.000Z' },
+};
 const loaded = {
   status: 'enabled' as const, pageInfo: null, pageLoaded: true,
   pendingCardIds: ['11', '12'], nextPageInfo: 'discovery-next', reviewRequired: 0,
@@ -51,7 +54,10 @@ describe('bounded gift-card recovery orchestration', () => {
 
   it('discovers only bounded IDs with native provider cursors, without processing histories in the same call', async () => {
     reply({ giftCards: {
-      nodes: [{ id: 'gid://shopify/GiftCard/11' }, { id: 'gid://shopify/GiftCard/12' }],
+      nodes: [
+        { id: 'gid://shopify/GiftCard/11', updatedAt: '2026-10-01T01:00:00Z' },
+        { id: 'gid://shopify/GiftCard/12', updatedAt: '2026-09-30T01:00:00Z' },
+      ],
       pageInfo: { hasNextPage: true, endCursor: 'discovery-next' },
     } });
     const result = await recoverShopifyGiftCardEffects(input);
@@ -62,6 +68,8 @@ describe('bounded gift-card recovery orchestration', () => {
     });
     const request = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(request.query).toContain('first: 25');
+    expect(request.query).toContain('sortKey: UPDATED_AT, reverse: true');
+    expect(request.query).toContain('nodes { id updatedAt }');
     expect(request.variables).toEqual({ after: null, query: 'status:enabled OR status:expired OR status:expiring' });
     expect(mocks.history).not.toHaveBeenCalled();
     expect(mocks.fetch).toHaveBeenCalledTimes(1);
@@ -75,7 +83,8 @@ describe('bounded gift-card recovery orchestration', () => {
       status: 'pending', continuation: { ...loaded, currentCard: checkpoint }, processed: 0, reviewRequired: 0,
     });
     expect(mocks.history).toHaveBeenCalledWith(expect.objectContaining({
-      ...input, cardId: '11', page: expect.objectContaining({
+      businessId: input.businessId, channelInstanceId: input.channelInstanceId,
+      beforeCommit: input.beforeCommit, cardId: '11', page: expect.objectContaining({
         snapshot: expect.objectContaining({ id: '11', balance: '50' }),
       }),
     }));
@@ -176,5 +185,79 @@ describe('bounded gift-card recovery orchestration', () => {
       ...input, continuation: { ...loaded, pendingCardIds: Array.from({ length: 26 }, () => '11') },
     })).toMatchObject({ status: 'blocked' });
     expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it('stops at old metadata without fetching old transaction histories or guessing currencies', async () => {
+    reply({ giftCards: {
+      nodes: [
+        { id: 'gid://shopify/GiftCard/11', updatedAt: input.window.from },
+        { id: 'gid://shopify/GiftCard/12', updatedAt: '2026-04-14T07:56:06Z' },
+      ],
+      pageInfo: { hasNextPage: true, endCursor: 'old-pages' },
+    } });
+    expect(await recoverShopifyGiftCardEffects(input)).toMatchObject({
+      status: 'pending', continuation: { pendingCardIds: ['11'], nextPageInfo: null },
+    });
+    expect(mocks.history).not.toHaveBeenCalled();
+    expect(mocks.fetch).toHaveBeenCalledOnce();
+  });
+
+  it.each(['enabled', 'disabled'] as const)('does not queue any out-of-window %s cards', async status => {
+    reply({ giftCards: {
+      nodes: [
+        { id: 'gid://shopify/GiftCard/11', updatedAt: '2026-10-03T01:00:00Z' },
+        { id: 'gid://shopify/GiftCard/12', updatedAt: '2026-04-14T07:56:06Z' },
+      ],
+      pageInfo: { hasNextPage: true, endCursor: 'old-pages' },
+    } });
+    expect(await recoverShopifyGiftCardEffects({ ...input, continuation: { status, pageInfo: null } }))
+      .toMatchObject(status === 'enabled'
+        ? { status: 'pending', continuation: { status: 'disabled', pageInfo: null } }
+        : { status: 'completed', continuation: null });
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it('keeps paging past updates newer than the frozen window', async () => {
+    reply({ giftCards: {
+      nodes: [{ id: 'gid://shopify/GiftCard/11', updatedAt: '2026-10-03T01:00:00Z' }],
+      pageInfo: { hasNextPage: true, endCursor: 'eligible-next' },
+    } });
+    expect(await recoverShopifyGiftCardEffects(input)).toMatchObject({
+      status: 'pending', continuation: { status: 'enabled', pageInfo: 'eligible-next' },
+    });
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { updated: ['2026-09-30T01:00:00Z', '2026-10-01T01:00:00Z'] },
+    { updated: ['invalid', '2026-10-01T01:00:00Z'] },
+  ])('rejects invalid descending discovery evidence %#', async ({ updated }) => {
+    reply({ giftCards: {
+      nodes: updated.map((updatedAt, index) => ({ id: `gid://shopify/GiftCard/${11 + index}`, updatedAt })),
+      pageInfo: { hasNextPage: false, endCursor: null },
+    } });
+    expect(await recoverShopifyGiftCardEffects(input)).toMatchObject({ status: 'retry' });
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it('includes both exact window boundaries', async () => {
+    reply({ giftCards: {
+      nodes: [
+        { id: 'gid://shopify/GiftCard/11', updatedAt: input.window.to },
+        { id: 'gid://shopify/GiftCard/12', updatedAt: input.window.from },
+      ],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    } });
+    expect(await recoverShopifyGiftCardEffects(input)).toMatchObject({
+      status: 'pending', continuation: { pendingCardIds: ['11', '12'], nextPageInfo: null },
+    });
+  });
+
+  it.each(['2026-04-14T07:56:06Z', '2026-10-03T01:00:00Z'])('does not reconcile a queued card now outside the window: %s', async updatedAt => {
+    reply({ giftCard: { ...card, updatedAt } });
+    expect(await recoverShopifyGiftCardEffects({ ...input, continuation: loaded })).toMatchObject({
+      status: 'pending', continuation: { pendingCardIds: ['12'], currentCard: null },
+    });
+    expect(mocks.history).not.toHaveBeenCalled();
   });
 });

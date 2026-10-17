@@ -249,12 +249,13 @@ export async function finishOnlineSyncJob(
   lease: OnlineSyncJobLease,
   nextEligibleAt: string | null,
   sql: OnlineSyncSql = defaultSql,
+  payload: OnlineSyncWorkPayload | null = null,
 ): Promise<void> {
   if (nextEligibleAt !== null) onlineSyncTimestamp(nextEligibleAt);
   const result = await sql.execute(
     `UPDATE ims_sales_channel_jobs job
        JOIN ims_online_sync_control control ON control.business_id = job.business_id
-        SET job.status = ?, job.available_at = ?, job.payload_json = NULL,
+        SET job.status = ?, job.available_at = ?, job.payload_json = ?,
             job.attempts = 0, job.safe_error = NULL,
             job.completed_at = UTC_TIMESTAMP(3), job.locked_at = NULL,
             job.lease_token = NULL, job.lease_expires_at = NULL
@@ -262,6 +263,7 @@ export async function finishOnlineSyncJob(
     [
       nextEligibleAt === null ? 'complete' : 'pending',
       nextEligibleAt === null ? new Date(0) : new Date(nextEligibleAt),
+      payload === null ? null : JSON.stringify(parseOnlineSyncWorkPayload(payload)),
       ...jobParams(lease), ...businessParams(lease.business),
     ],
   );
