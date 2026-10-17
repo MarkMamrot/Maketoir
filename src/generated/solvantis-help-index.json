@@ -145,7 +145,7 @@
       ],
       "contextSections": {
         "brand-assets": "Brand assets",
-        "brand-assets-models": "Brand assets",
+        "brand-assets-models": "Model reference previews",
         "brand-assets-backdrops": "Brand assets",
         "brand-assets-poses": "Brand assets",
         "brand-assets-scenes": "Brand assets",
@@ -158,7 +158,7 @@
       ],
       "order": 30,
       "summary": "Choose and review reusable brand inputs before producing website content or customer replies.",
-      "lastReviewed": "2026-10-13",
+      "lastReviewed": "2026-10-17",
       "owner": "commerce",
       "quickSections": [
         "Main operations",
@@ -192,24 +192,30 @@
         },
         {
           "id": "foresight-content-service:4",
+          "heading": "Model reference previews",
+          "content": "Model cards show the full saved photo without cropping it to fill the preview. Portrait photos may have empty space at the sides. The same full-photo view is used for model references in the AI Creative picker and selected-reference strip.\n\nThis changes only the preview, not the saved image or the reference sent to AI. If a head is missing from the original photo, upload a complete reference photo instead.",
+          "presentation": "detail"
+        },
+        {
+          "id": "foresight-content-service:5",
           "heading": "Choose the right asset type",
           "content": "| Asset | Use it for | Check before reuse |\n| --- | --- | --- |\n| Model | A consistent person reference | Consent, source rights, and appearance |\n| Backdrop | An empty setting for product placement | Space, lighting, and brand fit |\n| Pose | A body-position reference | Clear position and suitability |\n| Scene | A reusable environment | No unintended products, logos, or claims |\n| Template | A repeatable composition | Layout, required text, and intended channel |",
           "presentation": "quick"
         },
         {
-          "id": "foresight-content-service:5",
+          "id": "foresight-content-service:6",
           "heading": "Supporting settings",
           "content": "Connections are managed in IMS Settings. SuperAdmins with Marketing Activities enabled can open **IMS > Automations > Marketing Activities (Test) > Marketing Settings**.\n\n| Input | Human decision | Output | External change |\n| --- | --- | --- | --- |\n| Current business settings and connection state | Which setting is appropriate for this business | Saved preference or connection selection | Depends on the setting; saving a preference does not publish content |",
           "presentation": "detail"
         },
         {
-          "id": "foresight-content-service:6",
+          "id": "foresight-content-service:7",
           "heading": "Troubleshooting",
           "content": "| Symptom | Likely cause | Safe action |\n| --- | --- | --- |\n| An asset does not fit the product | The wrong asset type or instructions were used | Start a new candidate with the correct input; keep the original until reviewed |\n| Content lacks brand detail | Business or Brand Profile information is incomplete | Update and review the source information first |\n| A connected action is unavailable | Access expired or required setup is incomplete | Check Setup and reconnect only the intended account |\n| A retry produces another poor result | The input or template still needs correction | Stop generating and correct the source material |",
           "presentation": "detail"
         },
         {
-          "id": "foresight-content-service:7",
+          "id": "foresight-content-service:8",
           "heading": "Worked examples",
           "content": "### Prepare a reusable backdrop\n\nChoose Backdrops, use a source the business may reuse, and describe an empty setting with room for the product. Review the result for unintended logos, products, or readable text before saving it for later creative work.\n\n### Decide where to fix missing context\n\nA product description uses the wrong returns wording. Correct the reviewed business or brand information first, then return to the content workflow and create a fresh draft.",
           "presentation": "detail"

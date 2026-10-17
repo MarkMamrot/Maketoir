@@ -1,5 +1,5 @@
 ---
-{"id":"foresight-content-service","title":"Brand Assets, Content, and Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Brand Assets and Customer Service","product":"ims","format":"overview","parentId":"foresight-workspaces","contexts":["brand-assets","brand-assets-models","brand-assets-backdrops","brand-assets-poses","brand-assets-scenes","brand-assets-templates"],"contextSections":{"brand-assets":"Brand assets","brand-assets-models":"Brand assets","brand-assets-backdrops":"Brand assets","brand-assets-poses":"Brand assets","brand-assets-scenes":"Brand assets","brand-assets-templates":"Brand assets"},"relatedTopics":["foresight-content-production-customer-service","setup-connections","setup-business-brand-appearance"],"order":30,"summary":"Choose and review reusable brand inputs before producing website content or customer replies.","lastReviewed":"2026-10-13","owner":"commerce","quickSections":["Main operations","Brand assets","Choose the right asset type"],"navigation":{"category":"automations","label":"Prepare and manage brand assets","subgroup":"Business & brand"}}
+{"id":"foresight-content-service","title":"Brand Assets, Content, and Service","audiences":["ims"],"capability":"navigation","screen":"IMS > Automations > Brand Assets and Customer Service","product":"ims","format":"overview","parentId":"foresight-workspaces","contexts":["brand-assets","brand-assets-models","brand-assets-backdrops","brand-assets-poses","brand-assets-scenes","brand-assets-templates"],"contextSections":{"brand-assets":"Brand assets","brand-assets-models":"Model reference previews","brand-assets-backdrops":"Brand assets","brand-assets-poses":"Brand assets","brand-assets-scenes":"Brand assets","brand-assets-templates":"Brand assets"},"relatedTopics":["foresight-content-production-customer-service","setup-connections","setup-business-brand-appearance"],"order":30,"summary":"Choose and review reusable brand inputs before producing website content or customer replies.","lastReviewed":"2026-10-17","owner":"commerce","quickSections":["Main operations","Brand assets","Choose the right asset type"],"navigation":{"category":"automations","label":"Prepare and manage brand assets","subgroup":"Business & brand"}}
 ---
 # Brand Assets, Content, and Service
 
@@ -22,6 +22,12 @@ Brand Assets stores reusable references for creative work. A generated image is 
 | Source image, instructions, and chosen asset type | Are the source rights, quality, and intended use acceptable? | A reusable model, backdrop, pose, scene, or template | None |
 
 > **Warning:** Do not use an asset when you cannot confirm that the business has the right to use its source image.
+
+## Model reference previews
+
+Model cards show the full saved photo without cropping it to fill the preview. Portrait photos may have empty space at the sides. The same full-photo view is used for model references in the AI Creative picker and selected-reference strip.
+
+This changes only the preview, not the saved image or the reference sent to AI. If a head is missing from the original photo, upload a complete reference photo instead.
 
 ## Choose the right asset type
 
