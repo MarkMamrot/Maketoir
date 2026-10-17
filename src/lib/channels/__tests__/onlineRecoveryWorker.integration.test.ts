@@ -256,8 +256,8 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
       (id,business_id,cn_number,so_id,location_id,status,source,channel_instance_id,external_refund_id,cn_date)
       VALUES (71,'alpha','CN-71',44,7,'complete','shopify','store','8001',?)`, [cnDate]);
     await pool.execute(`INSERT INTO ims_sales_channel_jobs
-      (business_id,channel_instance_id,provider,operation,operation_key,payload_json)
-      VALUES ('alpha','store','shopify','shopify_order_apply','effects:123',?)`, [JSON.stringify({
+      (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
+      VALUES ('alpha','store','shopify','shopify_order_apply','effects:123',?,UTC_TIMESTAMP(3))`, [JSON.stringify({
       kind: 'order_effects', orderId: '123', updatedAt: snapshot.updatedAt, hash: snapshot.hash, paid: false, refundIds: ['8001'],
     })]);
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0 });
