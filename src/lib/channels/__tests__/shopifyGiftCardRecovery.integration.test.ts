@@ -31,6 +31,7 @@ const businessId = `gift-${randomUUID()}`;
 const channelInstanceId = randomUUID();
 const leaseToken = randomUUID();
 const identity = { businessId, channelInstanceId, cardId: '123', beforeCommit: assertLease };
+const window = { phase: 'baseline' as const, from: '2026-10-10T00:00:00.000Z', to: '2026-10-18T00:00:00.000Z' };
 let pool: Pool | undefined;
 let created = false;
 
@@ -194,18 +195,19 @@ describe.skipIf(!process.env.ONLINE_SYNC_TEST_PORT)('real MySQL gift-card recove
   it('completes a nonempty storefront only after actual bounded history imports', async () => {
     const guard = vi.fn(assertLease);
     const reply = (data: unknown) => mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ data })));
-    reply({ giftCards: { nodes: [{ id: 'gid://shopify/GiftCard/123' }], pageInfo: { hasNextPage: false, endCursor: null } } });
+    reply({ giftCards: { nodes: [{ id: 'gid://shopify/GiftCard/123', updatedAt: '2026-10-17T01:00:00Z' }],
+      pageInfo: { hasNextPage: false, endCursor: null } } });
     reply({ giftCard: providerCard() });
     reply({ giftCards: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } } });
     await runImsForBusiness(businessId, async () => {
-      const discovered = await recoverShopifyGiftCardEffects({ businessId, channelInstanceId, beforeCommit: guard });
+      const discovered = await recoverShopifyGiftCardEffects({ businessId, channelInstanceId, beforeCommit: guard, window });
       expect(discovered.status).toBe('pending');
       const reconciled = await recoverShopifyGiftCardEffects({
-        businessId, channelInstanceId, continuation: discovered.continuation, beforeCommit: guard,
+        businessId, channelInstanceId, continuation: discovered.continuation, beforeCommit: guard, window,
       });
       expect(reconciled).toMatchObject({ status: 'pending', processed: 1, reviewRequired: 0 });
       expect(await recoverShopifyGiftCardEffects({
-        businessId, channelInstanceId, continuation: reconciled.continuation, beforeCommit: guard,
+        businessId, channelInstanceId, continuation: reconciled.continuation, beforeCommit: guard, window,
       })).toEqual({ status: 'completed', continuation: null, processed: 0, reviewRequired: 0 });
       const saved = await state();
       expect(saved.transactions).toHaveLength(1);
@@ -289,7 +291,7 @@ describe.skipIf(!process.env.ONLINE_SYNC_TEST_PORT)('real MySQL gift-card recove
     mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ data: { giftCard: providerCard() } })));
     await runImsForBusiness(businessId, async () => {
       expect(await recoverShopifyGiftCardEffects({
-        businessId, channelInstanceId, beforeCommit: guard,
+        businessId, channelInstanceId, beforeCommit: guard, window,
         continuation: {
           status: 'enabled', pageInfo: null, pageLoaded: true, pendingCardIds: ['123'], nextPageInfo: null,
         },
@@ -300,5 +302,20 @@ describe.skipIf(!process.env.ONLINE_SYNC_TEST_PORT)('real MySQL gift-card recove
     expect(saved.transactions).toHaveLength(0);
     expect(Number(saved.cards[0].balance)).toBe(100);
     expect(Number(saved.cards[0].shopify_observed_balance)).toBe(100);
+  });
+  it('leaves an unchanged historical card and its unknown-currency transactions entirely untouched', async () => {
+    const before = await state();
+    const history = page([{ ...transaction('999', '30'), amount: { amount: '30', currencyCode: 'XXX' } }]);
+    const old = providerCard({ ...history, snapshot: { ...history.snapshot, updated_at: '2026-04-14T07:56:06Z' } });
+    mocks.fetch.mockResolvedValueOnce(new Response(JSON.stringify({ data: { giftCard: old } })));
+    const guard = vi.fn(assertLease);
+    await runImsForBusiness(businessId, async () => {
+      expect(await recoverShopifyGiftCardEffects({
+        businessId, channelInstanceId, beforeCommit: guard, window,
+        continuation: { status: 'enabled', pageInfo: null, pageLoaded: true, pendingCardIds: ['123'], nextPageInfo: null },
+      })).toMatchObject({ status: 'pending', processed: 1, reviewRequired: 0 });
+    });
+    expect(guard).not.toHaveBeenCalled();
+    expect(await state()).toEqual(before);
   });
 });

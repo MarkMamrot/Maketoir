@@ -5,6 +5,7 @@ import mysql, { type Pool, type ResultSetHeader, type RowDataPacket } from 'mysq
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseSchemaStatements } from '@/lib/ims/provisionBusiness';
 import type { OnlineSyncSqlValue } from '../onlineSyncJobs';
+import { ONLINE_SYNC_LIMITS } from '../onlineSyncPolicy';
 import type { ShopifyGiftCardRecoveryCommitGuard } from '../shopifyGiftCardRecoveryHistory';
 import { shopifyOrderSnapshot } from '../shopifyOrderSnapshot';
 
@@ -358,7 +359,7 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
     });
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 1 });
     const [gift] = await rows("SELECT * FROM ims_sales_channel_jobs WHERE operation_key='gift_cards'");
-    expect(decoded(gift.payload_json)).toEqual({
+    expect(decoded(gift.payload_json)).toMatchObject({
       kind: 'gift_cards', continuation: null, blockedReason: 'gift_card_review_required',
     });
     expect(await runOnlineRecoveryDispatch()).toMatchObject({ jobs: 0 });
@@ -385,6 +386,44 @@ describe.skipIf(!port)('integrated recovery worker persistence on real MySQL (lo
     expect(decoded(gift.payload_json).continuation).toEqual(continuation);
     await runOnlineRecoveryDispatch();
     expect(mocks.gift.mock.calls[1][0].continuation).toEqual(continuation);
+    expect(mocks.gift.mock.calls[1][0].window).toEqual(mocks.gift.mock.calls[0][0].window);
+  });
+  it('persists completed gift coverage and resumes the full outage gap with overlap, not a new seven-day scan', async () => {
+    const settings = { shopify: { orders: { enabled: false }, giftCards: { mode: 'combined' } } };
+    mocks.instances.mockResolvedValue([{ ...channel, settings }]);
+    mocks.context.mockResolvedValue({ instance: { settings }, credentials: { shopDomain: 'test.myshopify.com', token: 'fixture' } });
+    const coveredThrough = new Date(Date.now() - 30 * 86400_000).toISOString();
+    await pool.execute(`INSERT INTO ims_sales_channel_jobs
+      (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
+      VALUES ('alpha','store','shopify','shopify_order_apply','gift_cards',?,UTC_TIMESTAMP(3))`,
+      [JSON.stringify({ kind: 'gift_cards', continuation: null, coveredThrough })]);
+    expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0 });
+    const firstWindow = mocks.gift.mock.calls[0][0].window;
+    expect(Date.parse(firstWindow.from)).toBe(Date.parse(coveredThrough) - ONLINE_SYNC_LIMITS.overlapMs);
+    const [gift] = await rows("SELECT * FROM ims_sales_channel_jobs WHERE operation_key='gift_cards'");
+    expect(decoded(gift.payload_json)).toEqual({ kind: 'gift_cards', continuation: null, coveredThrough: firstWindow.to });
+    await pool.execute("UPDATE ims_sales_channel_jobs SET available_at=UTC_TIMESTAMP(3) WHERE operation_key='gift_cards'");
+    expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 0 });
+    expect(Date.parse(mocks.gift.mock.calls[1][0].window.from))
+      .toBe(Date.parse(firstWindow.to) - ONLINE_SYNC_LIMITS.overlapMs);
+  });
+  it('holds an old unscoped gift-card cursor rather than silently continuing historical scanning', async () => {
+    const settings = { shopify: { orders: { enabled: false }, giftCards: { mode: 'combined' } } };
+    mocks.instances.mockResolvedValue([{ ...channel, settings }]);
+    const continuation = {
+      status: 'enabled', pageInfo: null, pageLoaded: true, pendingCardIds: ['123'],
+      nextPageInfo: null, currentCard: null, reviewRequired: 0,
+    };
+    await pool.execute(`INSERT INTO ims_sales_channel_jobs
+      (business_id,channel_instance_id,provider,operation,operation_key,payload_json,available_at)
+      VALUES ('alpha','store','shopify','shopify_order_apply','gift_cards',?,UTC_TIMESTAMP(3))`,
+      [JSON.stringify({ kind: 'gift_cards', continuation })]);
+    expect(await runOnlineRecoveryDispatch()).toMatchObject({ failed: 1 });
+    const [gift] = await rows("SELECT * FROM ims_sales_channel_jobs WHERE operation_key='gift_cards'");
+    expect(decoded(gift.payload_json)).toEqual({
+      kind: 'gift_cards', continuation, blockedReason: 'gift_card_rebaseline_required',
+    });
+    expect(mocks.gift).not.toHaveBeenCalled();
   });
   it('binds the gift commit guard to the exact live job and rolls back work after final-fence loss', async () => {
     mocks.instances.mockResolvedValue([{

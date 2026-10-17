@@ -197,8 +197,24 @@ async function runApplication(lease: OnlineSyncJobLease, deadline: number) {
       );
     }
   } else if (payload.kind === 'gift_cards') {
+    if (payload.continuation && !payload.window) {
+      await saveOnlineSyncWorkPayload(lease, { ...payload, blockedReason: 'gift_card_rebaseline_required' });
+      throw new OnlineSyncWorkPending('rebaseline_required', 0, true);
+    }
+    const context = await getShopifyOperationContext({ businessId, channelInstanceId: lease.channelInstanceId });
+    const settings = shopifyInstanceSettings(context.instance.settings);
+    const window = payload.window ?? nextReconciliationWindow({
+      baselineFrom: settings.orders.recoveryFrom ?? new Date(payload.coveredThrough
+        ? onlineSyncTimestamp(payload.coveredThrough) - ONLINE_SYNC_LIMITS.overlapMs : Date.now() - 7 * 86400_000).toISOString(),
+      coveredThrough: payload.coveredThrough ?? null, now: new Date().toISOString(),
+    });
+    if (!window) {
+      await finishOnlineSyncJob(lease, nextOnlineSyncDue(new Date().toISOString(), businessId, lease.channelInstanceId), undefined, payload);
+      return;
+    }
+    await saveOnlineSyncWorkPayload(lease, { ...payload, window });
     const result = await recoverShopifyGiftCardEffects({
-      businessId, channelInstanceId: lease.channelInstanceId,
+      businessId, channelInstanceId: lease.channelInstanceId, window,
       ...(payload.continuation ? { continuation: payload.continuation } : {}),
       beforeCommit: async connection => {
         await assertOnlineRecoveryBusinessActive(businessId);
@@ -207,6 +223,7 @@ async function runApplication(lease: OnlineSyncJobLease, deadline: number) {
     });
     await saveOnlineSyncWorkPayload(lease, {
       kind: 'gift_cards', continuation: result.continuation,
+      window, ...(payload.coveredThrough ? { coveredThrough: payload.coveredThrough } : {}),
       ...(result.status === 'blocked' ? { blockedReason: 'gift_card_review_required' } : {}),
     });
     if (result.status === 'pending') { await yieldOnlineSyncJob(lease); return; }
@@ -214,7 +231,9 @@ async function runApplication(lease: OnlineSyncJobLease, deadline: number) {
       throw new OnlineSyncWorkPending(result.status === 'blocked' ? 'gift_card_review_required' : 'operational_failure', 0, true);
     }
     await renewRecoveryLease(lease);
-    await finishOnlineSyncJob(lease, nextOnlineSyncDue(new Date().toISOString(), businessId, lease.channelInstanceId));
+    await finishOnlineSyncJob(lease, nextOnlineSyncDue(new Date().toISOString(), businessId, lease.channelInstanceId), undefined, {
+      kind: 'gift_cards', continuation: null, coveredThrough: window.to,
+    });
     return;
   } else {
     const context = await getShopifyOperationContext({ businessId, channelInstanceId: lease.channelInstanceId });

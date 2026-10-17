@@ -123,4 +123,13 @@ describe('every checkpoint and result is fenced', () => {
     await yieldOnlineSyncJob(job, sql);
     expect(sql.execute.mock.calls[1][0]).not.toContain('payload_json');
   });
+  it('persists only a validated completed watermark under the same final fence', async () => {
+    const sql = database();
+    const payload = { kind: 'gift_cards' as const, continuation: null, coveredThrough: '2026-10-17T01:00:00Z' };
+    await finishOnlineSyncJob(job, '2026-10-17T01:15:00Z', sql, payload);
+    const [statement, parameters] = sql.execute.mock.calls[0];
+    expect(statement).toContain('job.payload_json = ?');
+    expect(statement).toContain('control.lease_token = ?');
+    expect(parameters[2]).toBe(JSON.stringify(payload));
+  });
 });

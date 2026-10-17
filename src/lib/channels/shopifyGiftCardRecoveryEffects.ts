@@ -5,6 +5,7 @@ import {
   type ShopifyGiftCardRecoveryCommitGuard,
 } from '@/lib/channels/shopifyGiftCardRecoveryHistory';
 import { reportRuntimeIssue } from '@/lib/runtimeIssues';
+import { validateReconciliationWindow, type ReconciliationWindow } from './onlineSyncPolicy';
 
 export type ShopifyGiftCardRecoveryContinuation = {
   status: 'enabled' | 'disabled';
@@ -63,6 +64,7 @@ export async function recoverShopifyGiftCardEffects(input: {
   businessId: string;
   channelInstanceId: string;
   continuation?: ShopifyGiftCardRecoveryContinuation | null;
+  window: ReconciliationWindow;
   beforeCommit: ShopifyGiftCardRecoveryCommitGuard;
 }): Promise<ShopifyGiftCardRecoveryResult> {
   const cursor = input.continuation ?? { status: 'enabled', pageInfo: null };
@@ -94,15 +96,18 @@ export async function recoverShopifyGiftCardEffects(input: {
       : { status: 'completed', continuation: null, processed, reviewRequired: 0 };
   };
   try {
+    const window = validateReconciliationWindow(input.window);
+    const from = Date.parse(window.from);
+    const to = Date.parse(window.to);
     const context = await getShopifyOperationContext({
       businessId: input.businessId, channelInstanceId: input.channelInstanceId,
     });
     if (!cursor.pageLoaded) {
       const data = await graphql<{
-        giftCards: { nodes: Array<{ id: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+        giftCards: { nodes: Array<{ id: string; updatedAt: string }>; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
       }>(context.credentials, `query RecoveryGiftCards($after: String, $query: String!) {
-        giftCards(first: ${SHOPIFY_GIFT_CARD_RECOVERY_PAGE_SIZE}, after: $after, query: $query, sortKey: ID) {
-          nodes { id } pageInfo { hasNextPage endCursor }
+        giftCards(first: ${SHOPIFY_GIFT_CARD_RECOVERY_PAGE_SIZE}, after: $after, query: $query, sortKey: UPDATED_AT, reverse: true) {
+          nodes { id updatedAt } pageInfo { hasNextPage endCursor }
         }
       }`, {
         after: cursor.pageInfo,
@@ -114,9 +119,14 @@ export async function recoverShopifyGiftCardEffects(input: {
           && (!validToken(page.pageInfo.endCursor) || !page.pageInfo.endCursor || page.pageInfo.endCursor === cursor.pageInfo))) {
         throw new Error('Invalid Shopify gift-card discovery page.');
       }
-      const ids = page.nodes.map(node => externalId(node.id));
-      if (ids.some(id => id == null) || new Set(ids).size !== ids.length) throw new Error('Invalid Shopify gift-card identities.');
-      const next = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+      const identities = page.nodes.map(node => externalId(node.id));
+      const updated = page.nodes.map(node => Date.parse(node.updatedAt));
+      if (identities.some(id => id == null) || new Set(identities).size !== identities.length
+        || updated.some((value, index) => !Number.isFinite(value) || (index > 0 && value > updated[index - 1]))) {
+        throw new Error('Invalid Shopify gift-card discovery identities or update order.');
+      }
+      const ids = identities.filter((id, index): id is string => id !== null && updated[index] >= from && updated[index] <= to);
+      const next = !updated.some(value => value < from) && page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
       if (!ids.length) return advance(next, reviewRequired, 0);
       return {
         status: 'pending', continuation: {
@@ -150,6 +160,15 @@ export async function recoverShopifyGiftCardEffects(input: {
       || !Array.isArray(card.transactions.nodes) || !card.transactions.pageInfo
       || !card.tip || !Array.isArray(card.tip.nodes) || card.tip.nodes.length > 1) {
       throw new Error('Incomplete Shopify gift-card transaction history.');
+    }
+    const updatedAt = Date.parse(card.updatedAt);
+    if (!Number.isFinite(updatedAt)) throw new Error('Invalid Shopify gift-card update timestamp.');
+    if (updatedAt < from || updatedAt > to) {
+      const remaining = cursor.pendingCardIds!.slice(1);
+      return remaining.length ? {
+        status: 'pending', continuation: { ...cursor, pendingCardIds: remaining, currentCard: null },
+        processed: 1, reviewRequired,
+      } : advance(cursor.nextPageInfo ?? null, reviewRequired, 1);
     }
     const result = await reconcileShopifyGiftCardHistoryPage({
       businessId: input.businessId, channelInstanceId: input.channelInstanceId, cardId, checkpoint: cursor.currentCard,

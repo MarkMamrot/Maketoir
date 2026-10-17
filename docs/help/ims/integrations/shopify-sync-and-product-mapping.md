@@ -103,6 +103,8 @@ When scheduled recovery is active, **Import Orders from Shopify** reports **queu
 
 Scheduled recovery checks recently updated orders, normally starting with seven days, rather than replaying the entire import history. Later checks resume from a saved checkpoint. Recovery displays its coverage start and separate accounting start; older saved work stays held and is not resumed by Retry. An older order updated now is still eligible for recovery, but earlier accounting days and credit-note postings remain outside the configured accounting scope.
 
+Scheduled gift-card recovery also starts with recent updates and follows a saved incremental checkpoint. It does not walk every old card's transaction history. Older cards updated recently still undergo full currency, ownership and balance checks; recovery does not guess a currency or certify unchanged historical cards. Existing cards remain subject to their normal redemption and balance safeguards.
+
 ## Step-by-step
 
 ### Import products from Shopify
