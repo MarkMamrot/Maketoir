@@ -9,6 +9,13 @@ function jsonResponse(body: unknown, status = 200, headers: Record<string, strin
 }
 
 describe('KlaviyoService', () => {
+  it('uses bearer authentication for OAuth connections', async () => {
+    const fetcher = vi.fn().mockResolvedValue(jsonResponse({ data: [], links: { next: null } }));
+    await new KlaviyoService('oauth-access', { authMode: 'oauth', fetcher }).getLists();
+    expect(fetcher).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer oauth-access' }),
+    }));
+  });
   it('follows collection pagination and normalizes campaign records', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(jsonResponse({

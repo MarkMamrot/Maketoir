@@ -8,14 +8,14 @@ Use Setup to maintain business information, team access, POS payment options, an
 ## Main operations
 
 - Confirm the selected business before saving anything.
-- Enable the service in **IMS Settings > Integrations**, then connect the intended external account and check its displayed identity. Xero saves its availability toggle immediately; other providers use **Save availability**.
+- Enable the service in **IMS Settings > Integrations**, then connect the intended external account and check its displayed status. Xero and Klaviyo save their availability toggles immediately; other providers use **Save availability**.
 - Test access, then complete the product-specific mappings or settings.
 - Add only the POS payment methods the business accepts.
 - Reconnect expired access before repeating dependent work.
 
 ## Choose a Setup area
 
-Settings keeps Save and Cancel actions together in a spaced row below the fields they control. Actions wrap onto another line when space is limited, and multi-column forms stack on narrower screens. Quick links remain separate from saving: save or cancel your edits before moving to another workspace.
+Settings keeps Save and Cancel actions together below the fields they control, except for controls that save immediately, including Klaviyo switches. Actions wrap onto another line when space is limited, and multi-column forms stack on narrower screens. Quick links remain separate from saving: save or cancel any pending edits before moving to another workspace.
 
 | Need | Open | Result |
 | --- | --- | --- |
@@ -68,12 +68,17 @@ If saving fails, the toggle returns to its saved value and an error is shown; re
 
 ## Configure Klaviyo customer and sales sync
 
-1. Enable Klaviyo and save availability, then enter and save the private API key and select **Test Connection**.
-2. Turn on **Enable customer and commerce sync**.
-3. Turn on **Sync customer profiles** before selecting any commerce event source.
-4. Select each Solvantis sales source that should send identified commerce events.
-5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, then acknowledge the duplicate-event risk.
-6. Select **Save**.
+1. Open **IMS Settings > Integrations > Klaviyo** and turn on **Use this integration**. The toggle saves immediately.
+2. Select **Connect Klaviyo**, sign in to the intended Klaviyo account, and approve the requested permissions. No private API key is needed.
+3. Turn on **Enable customer and commerce sync** when that workflow is ready for the business.
+4. Select **Sync customer profiles** and each sales source that should send identified commerce events. Selecting a source also enables the profile sync it needs.
+5. For Shopify, first confirm that the store is not already sending the same events directly to Klaviyo, acknowledge the duplicate-event risk, then enable Shopify orders.
+
+Each switch saves immediately. Controls are temporarily unavailable while saving; if saving fails, the last saved value remains and an error appears. There is no separate Save step. Turn off all commerce sources before disabling profile sync.
+
+The connection uses **OAuth 2.0**, allowing Klaviyo to grant Solvantis permission without sharing a password. Solvantis renews access automatically. If access expires or is withdrawn, select **Reconnect Klaviyo**. If sign-in is awaiting app configuration, contact your Solvantis administrator.
+
+Turning **Use this integration** off pauses Klaviyo-dependent analysis and sync while retaining the connection. **Disconnect** revokes the connection and stops customer and commerce sync; connecting again requires permission in Klaviyo. Previously delivered events and profiles are not deleted.
 
 The master switch stops all customer and commerce event processing for the business. Each source switch independently controls events from that source. All switches start off. Turning the integration off does not delete Klaviyo profiles or previously delivered events.
 

@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockRequireAdminSession, mockTestConnection, mockAvailability } = vi.hoisted(() => ({
+const { mockRequireAdminSession, mockTestConnection, mockAvailability, mockCreateClient } = vi.hoisted(() => ({
   mockRequireAdminSession: vi.fn(),
   mockTestConnection: vi.fn(),
   mockAvailability: vi.fn(),
+  mockCreateClient: vi.fn(),
 }));
 
 vi.mock('@/lib/sessionUtils', () => ({
@@ -23,6 +24,8 @@ vi.mock('@/lib/ims/integrationAvailability', () => ({
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
   ConnectionsRepository: { get: vi.fn().mockResolvedValue({}) },
 }));
+vi.mock('@/lib/klaviyo/oauth', () => ({ createKlaviyoClient: mockCreateClient }));
+vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: vi.fn().mockResolvedValue(null) }));
 
 import { POST } from '../route';
 
@@ -40,6 +43,7 @@ describe('POST /api/sync/klaviyo', () => {
     mockRequireAdminSession.mockReturnValue({ user: { businessId: 'business-1' } });
     mockAvailability.mockResolvedValue(undefined);
     mockTestConnection.mockResolvedValue(1);
+    mockCreateClient.mockResolvedValue({ testConnection: mockTestConnection, revision: '2024-10-15' });
   });
 
   it('rejects unauthenticated connection tests', async () => {
@@ -53,13 +57,14 @@ describe('POST /api/sync/klaviyo', () => {
     expect(mockTestConnection).not.toHaveBeenCalled();
   });
 
-  it('rejects requests without an API key', async () => {
+  it('tests the saved OAuth connection without an API key', async () => {
     const response = await POST(request({}));
     const body = await response.json();
 
-    expect(response.status).toBe(400);
-    expect(body.error).toBe('Klaviyo API key not provided.');
-    expect(mockTestConnection).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(mockCreateClient).toHaveBeenCalledWith('business-1');
+    expect(mockTestConnection).toHaveBeenCalledOnce();
   });
 
   it('delegates authenticated tests to the Klaviyo adapter', async () => {

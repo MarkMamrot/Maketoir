@@ -4,6 +4,15 @@
 -- =========================================================
 SET NAMES utf8mb4;
 
+CREATE TABLE IF NOT EXISTS klaviyo_oauth_connections (
+  business_id VARCHAR(100) NOT NULL PRIMARY KEY,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT NOT NULL,
+  expires_at BIGINT NOT NULL,
+  scopes TEXT NOT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------------------------------------------------------
 -- businesses
 -- Maps to the legacy Google Sheets spreadsheetId (databaseId)

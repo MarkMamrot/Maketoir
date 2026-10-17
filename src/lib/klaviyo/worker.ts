@@ -14,6 +14,7 @@ import {
 } from './outboxRepository';
 import { KlaviyoProfileConflictError, reconcileKlaviyoProfile } from './profileReconciliation';
 import { KlaviyoSettingsRepository } from './settingsRepository';
+import { createKlaviyoClient } from './oauth';
 
 const MAX_ATTEMPTS = 5;
 
@@ -26,7 +27,7 @@ export interface KlaviyoWorkerDependencies {
   getConnection: typeof ConnectionsRepository.get;
   isIntegrationEnabled: typeof isOptionalIntegrationEnabled;
   decryptKey: typeof decrypt;
-  createClient: (apiKey: string) => KlaviyoService;
+  createClient: (businessId: string) => KlaviyoService | Promise<KlaviyoService>;
   recoverStale: typeof recoverStaleKlaviyoOutbox;
   listPending: typeof listPendingKlaviyoOutbox;
   claim: typeof claimKlaviyoOutbox;
@@ -41,7 +42,7 @@ const defaultDependencies: KlaviyoWorkerDependencies = {
   getConnection: ConnectionsRepository.get,
   isIntegrationEnabled: isOptionalIntegrationEnabled,
   decryptKey: decrypt,
-  createClient: apiKey => new KlaviyoService(apiKey),
+  createClient: createKlaviyoClient,
   recoverStale: recoverStaleKlaviyoOutbox,
   listPending: listPendingKlaviyoOutbox,
   claim: claimKlaviyoOutbox,
@@ -77,9 +78,7 @@ export async function processKlaviyoOutbox(
   if (!await dependencies.isIntegrationEnabled(input.businessId, 'klaviyo')) return result;
   const settings = await dependencies.getSettings(input.businessId);
   if (!settings.enabled || !settings.profilesEnabled) return result;
-  const connection = await dependencies.getConnection(input.businessId);
-  if (!connection?.klaviyo_api_key) throw new Error('Klaviyo API key is not configured.');
-  const client = dependencies.createClient(dependencies.decryptKey(connection.klaviyo_api_key));
+  const client = await dependencies.createClient(input.businessId);
 
   result.recovered = await dependencies.recoverStale(input.businessId);
   const jobs = await dependencies.listPending(input.businessId, input.limit ?? 25);

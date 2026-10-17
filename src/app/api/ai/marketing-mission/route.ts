@@ -1,3 +1,5 @@
+import { createKlaviyoClient } from '@/lib/klaviyo/oauth';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 import { NextResponse } from 'next/server';
 import { GoogleSheetsService } from '@/services/GoogleSheetsService';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
@@ -267,29 +269,24 @@ async function fetchAnalyticsRaw(ga4PropertyId: string): Promise<string[][]> {
   } catch { return []; }
 }
 
-async function fetchKlaviyoRaw(apiKey: string): Promise<string[][]> {
-  if (!apiKey) return [];
+async function fetchKlaviyoRaw(businessId: string): Promise<string[][]> {
   try {
-    const KLAVIYO_BASE = 'https://a.klaviyo.com/api';
-    const h = { Authorization: `Klaviyo-API-Key ${apiKey}`, revision: '2024-10-15' };
-    const [campRes, flowRes] = await Promise.all([
-      fetch(`${KLAVIYO_BASE}/campaigns/?filter=equals(messages.channel,'email')&page[size]=50&sort=-created_at`, { headers: h }),
-      fetch(`${KLAVIYO_BASE}/flows/?page[size]=50&sort=-created`, { headers: h }),
-    ]);
-    const campData: any[] = campRes.ok ? ((await campRes.json()).data ?? []) : [];
-    const flowData: any[] = flowRes.ok ? ((await flowRes.json()).data ?? []) : [];
+    const client = await createKlaviyoClient(businessId);
+    const [campData, flowData] = await Promise.all([client.getCampaigns(), client.getFlows()]);
     if (!campData.length && !flowData.length) return [];
     const rows: string[][] = [['type', 'name', 'status', 'trigger_type', 'archived', 'send_time', 'created', 'updated']];
     for (const c of campData) {
-      const a = c.attributes ?? {};
-      rows.push(['campaign', a.name ?? '', a.status ?? '', '', String(a.archived ?? false), a.send_time ?? '', a.created_at ?? '', a.updated_at ?? '']);
+      rows.push(['campaign', c.name, c.status, '', c.archived, c.send_time, c.created_at, c.updated_at]);
     }
     for (const f of flowData) {
-      const a = f.attributes ?? {};
-      rows.push(['flow', a.name ?? '', a.status ?? '', a.trigger_type ?? '', String(a.archived ?? false), '', a.created ?? '', a.updated ?? '']);
+      rows.push(['flow', f.name, f.status, f.trigger_type, f.archived, '', f.created, f.updated]);
     }
     return rows;
-  } catch { return []; }
+  } catch (error) {
+    await reportRuntimeIssue({ businessId, source: 'klaviyo.oauth', operation: 'marketing_mission',
+      title: 'Klaviyo marketing data could not be loaded', error }).catch(() => null);
+    return [];
+  }
 }
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
@@ -485,7 +482,6 @@ export async function POST(req: Request) {
     let metaToken = '';
     let metaAccountId = '';
     let ga4PropertyId = '';
-    let klaviyoApiKey = '';
     let inventorySystemId = databaseId;
 
     try {
@@ -499,9 +495,6 @@ export async function POST(req: Request) {
         if (providerAvailability?.meta?.enabled && conn.meta_ad_account_id) metaAccountId = conn.meta_ad_account_id;
         if (providerAvailability?.meta?.enabled && conn.meta_access_token) {
           try { metaToken = decrypt(conn.meta_access_token); } catch { metaToken = conn.meta_access_token; }
-        }
-        if (providerAvailability?.klaviyo?.enabled && conn.klaviyo_api_key) {
-          try { klaviyoApiKey = decrypt(conn.klaviyo_api_key); } catch { klaviyoApiKey = conn.klaviyo_api_key; }
         }
       }
       inventorySystemId = resolvedInvId;
@@ -536,7 +529,7 @@ export async function POST(req: Request) {
       googleAds: () => fetchGoogleAdsRaw(),
       metaAds:   () => fetchMetaAdsRaw(metaToken, metaAccountId),
       analytics: () => fetchAnalyticsRaw(ga4PropertyId),
-      klaviyo:   () => fetchKlaviyoRaw(klaviyoApiKey),
+      klaviyo:   () => fetchKlaviyoRaw(databaseId),
     };
     const csvRowArrays = await Promise.all(
       csvSourceIds.map(s => csvFetchers[s]?.() ?? Promise.resolve([] as string[][]))

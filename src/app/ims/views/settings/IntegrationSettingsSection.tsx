@@ -101,7 +101,7 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
         <label className={styles.toggle}>Use this integration
           <input type="checkbox" role="switch" checked={draftEnabled ?? availability?.enabled ?? false} disabled={!data.canManage || saving}
             onChange={event => {
-              if (provider === 'xero') void save(event.target.checked);
+              if (provider === 'xero' || provider === 'klaviyo') void save(event.target.checked);
               else { setDraftEnabled(event.target.checked); setMessage(''); }
             }} />
         </label>
@@ -109,7 +109,8 @@ export function IntegrationSettingsSection({ businessId, businessName, provider,
       <p>{availability?.enabled ? 'Enabled. Review connection readiness and optional sync policy below.' : 'Off. Dependent activity is paused. Credentials and history are retained; disconnecting is a separate action.'}</p>
       {!data.canManage && <p>Only administrators can change integration availability.</p>}
       {provider === 'xero' && saving && <p role="status">Saving Xero availability...</p>}
-      {provider !== 'xero' && dirty && <div className={styles.actions}>
+      {provider === 'klaviyo' && saving && <p role="status">Saving Klaviyo availability...</p>}
+      {provider !== 'xero' && provider !== 'klaviyo' && dirty && <div className={styles.actions}>
         <button type="button" data-primary onClick={() => void save()} disabled={saving}>{saving ? 'Saving...' : 'Save availability'}</button>
         <button type="button" disabled={saving} onClick={() => { setDraftEnabled(null); setError(''); }}>Cancel</button>
       </div>}

@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   guard: vi.fn(), cin7Credentials: vi.fn(), getConnection: vi.fn(), fetch: vi.fn(), klaviyo: vi.fn(),
-  klaviyoTest: vi.fn(),
+  klaviyoTest: vi.fn(), klaviyoClient: vi.fn(),
 }));
 vi.mock('@/lib/auth/imsSession', () => ({ getImsSession: async () => ({ businessId: 'business-1' }) }));
 vi.mock('@/lib/sessionUtils', () => ({ requireAdminSession: () => ({ user: { businessId: 'business-1' } }) }));
 vi.mock('@/lib/cin7Helpers', () => ({ getCin7Credentials: mocks.cin7Credentials }));
 vi.mock('@/lib/db/ConnectionsRepository', () => ({ ConnectionsRepository: { get: mocks.getConnection } }));
 vi.mock('@/lib/encryption', () => ({ decrypt: (value: string) => value.replace(/^encrypted:/, '') }));
+vi.mock('@/lib/klaviyo/oauth', () => ({ createKlaviyoClient: mocks.klaviyoClient }));
 vi.mock('@/lib/ims/integrationAvailability', () => ({
   assertOptionalIntegrationEnabled: mocks.guard,
   isIntegrationDisabledError: (error: { code?: string }) => error?.code === 'integration_disabled',
@@ -42,6 +43,7 @@ describe('optional provider connection-test credential contracts', () => {
       gmail_client_secret: 'encrypted:client-secret', klaviyo_api_key: 'encrypted:saved-klaviyo',
     });
     mocks.klaviyoTest.mockResolvedValue(1);
+    mocks.klaviyoClient.mockResolvedValue({ revision: 'test', testConnection: mocks.klaviyoTest });
     mocks.fetch.mockImplementation(async (url: string) => new Response(JSON.stringify(
       url.includes('oauth2.googleapis.com') ? { access_token: 'access' }
         : { emailAddress: 'shop@example.com', messagesTotal: 1 },
@@ -73,9 +75,9 @@ describe('optional provider connection-test credential contracts', () => {
     expect(mocks.fetch.mock.calls[0][1].body.get('refresh_token')).toBe('draft-token');
   });
 
-  it('tests retained Klaviyo credentials with an omitted draft key', async () => {
+  it('tests the saved Klaviyo connection with an omitted draft key', async () => {
     expect((await klaviyoPost(request('klaviyo'))).status).toBe(200);
-    expect(mocks.klaviyo).toHaveBeenCalledWith('saved-klaviyo');
+    expect(mocks.klaviyoClient).toHaveBeenCalledWith('business-1');
   });
 
   it('retains saved-credential GET compatibility', async () => {
@@ -92,5 +94,6 @@ describe('optional provider connection-test credential contracts', () => {
     expect(mocks.cin7Credentials).not.toHaveBeenCalled();
     expect(mocks.fetch).not.toHaveBeenCalled();
     expect(mocks.klaviyoTest).not.toHaveBeenCalled();
+    expect(mocks.klaviyoClient).not.toHaveBeenCalled();
   });
 });

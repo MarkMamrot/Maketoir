@@ -20,6 +20,29 @@ function section() {
     onNavigate={vi.fn()} onHelp={vi.fn()} xeroEnabled={false} saveXeroEnabled={vi.fn()} />);
 }
 describe('enable-first integrations', () => {
+  it('saves the Klaviyo availability toggle immediately without a Save action', async () => {
+    const enabledResponse = JSON.parse(await response().text());
+    enabledResponse.integrations.klaviyo.enabled = true;
+    vi.mocked(fetch).mockResolvedValueOnce(response()).mockResolvedValueOnce(new Response(JSON.stringify(enabledResponse)));
+    render(<IntegrationSettingsSection businessId="sandbox" businessName="Sandbox" provider="klaviyo"
+      onNavigate={vi.fn()} onHelp={vi.fn()} xeroEnabled={false} saveXeroEnabled={vi.fn()} />);
+    await userEvent.setup().click(await screen.findByRole('switch'));
+    expect(await screen.findByText('Credential setup')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Save availability' })).toBeNull();
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))).toEqual({
+      provider: 'klaviyo', enabled: true, expectedBusinessId: 'sandbox',
+    });
+  });
+
+  it('keeps the saved Klaviyo toggle off when an immediate save fails', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(response()).mockResolvedValueOnce(new Response(JSON.stringify({ error: 'Save failed' }), { status: 500 }));
+    render(<IntegrationSettingsSection businessId="sandbox" businessName="Sandbox" provider="klaviyo"
+      onNavigate={vi.fn()} onHelp={vi.fn()} xeroEnabled={false} saveXeroEnabled={vi.fn()} />);
+    await userEvent.setup().click(await screen.findByRole('switch'));
+    expect((await screen.findByRole('alert')).textContent).toBe('Save failed');
+    expect((screen.getByRole('switch') as HTMLInputElement).checked).toBe(false);
+    expect(screen.queryByText('Credential setup')).toBeNull();
+  });
   it('does not mount credentials or test connections while off', async () => {
     section();
     await screen.findByRole('switch');

@@ -70,6 +70,7 @@ interface KlaviyoSingleResponse {
 }
 
 export interface KlaviyoServiceOptions {
+  authMode?: 'oauth' | 'apiKey';
   revision?: string;
   fetcher?: typeof fetch;
   sleeper?: (milliseconds: number) => Promise<void>;
@@ -110,6 +111,7 @@ function retryDelayMilliseconds(response: Response, attempt: number): number {
 }
 
 export class KlaviyoService {
+  private readonly authMode: 'oauth' | 'apiKey';
   readonly revision: string;
   private readonly fetcher: typeof fetch;
   private readonly sleeper: (milliseconds: number) => Promise<void>;
@@ -120,6 +122,7 @@ export class KlaviyoService {
     options: KlaviyoServiceOptions = {},
   ) {
     if (!apiKey) throw new Error('Klaviyo API key is required.');
+    this.authMode = options.authMode ?? 'apiKey';
     this.revision = options.revision ?? process.env.KLAVIYO_API_REVISION ?? DEFAULT_KLAVIYO_REVISION;
     this.fetcher = options.fetcher ?? fetch;
     this.sleeper = options.sleeper ?? sleep;
@@ -129,7 +132,7 @@ export class KlaviyoService {
   private headers(hasBody = false): HeadersInit {
     return {
       Accept: 'application/json',
-      Authorization: `Klaviyo-API-Key ${this.apiKey}`,
+      Authorization: `${this.authMode === 'oauth' ? 'Bearer' : 'Klaviyo-API-Key'} ${this.apiKey}`,
       revision: this.revision,
       ...(hasBody ? { 'Content-Type': 'application/vnd.api+json' } : {}),
     };

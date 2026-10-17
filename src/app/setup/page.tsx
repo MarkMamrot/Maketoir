@@ -1008,7 +1008,7 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
   const [gmailRefreshToken, setGmailRefreshToken] = useState('');
   const [gmailClientId, setGmailClientId] = useState('');
   const [gmailClientSecret, setGmailClientSecret] = useState('');
-  const [klaviyoApiKey, setKlaviyoApiKey] = useState('');
+  const [klaviyoConnection, setKlaviyoConnection] = useState<{ configured: boolean; connected: boolean; oauth: boolean } | null>(null);
   const [klaviyoSettings, setKlaviyoSettings] = useState<KlaviyoIntegrationSettings>(DEFAULT_KLAVIYO_INTEGRATION_SETTINGS);
   const [klaviyoSettingsLoading, setKlaviyoSettingsLoading] = useState(false);
   const [klaviyoTenantReady, setKlaviyoTenantReady] = useState<boolean | null>(null);
@@ -1126,6 +1126,7 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
       setXeroStatus(null); setGoogleStatus(null); setMetaStatus(null); setGoogleMessage('');
       setKlaviyoSettings(DEFAULT_KLAVIYO_INTEGRATION_SETTINGS);
       setKlaviyoTenantReady(null);
+      setKlaviyoConnection(null);
       setCardMsgs({});
 
     const databaseId = business.databaseId;
@@ -1162,7 +1163,6 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
       setGmailRefreshToken('');
       setGmailClientId(gmCid);
       setGmailClientSecret('');
-      setKlaviyoApiKey('');
 
       if (provider === 'google') try {
         const googleResponse = await fetch('/api/google/status', { cache: 'no-store' });
@@ -1186,6 +1186,20 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
       if (provider === 'klaviyo') {
       setKlaviyoSettingsLoading(true);
       try {
+        const callbackParams = new URLSearchParams(window.location.search);
+        const callbackMessage = callbackParams.get('klaviyoError') || callbackParams.get('klaviyoSuccess');
+        if (callbackMessage) {
+          setCardMsgs(previous => ({ ...previous, klaviyo: callbackMessage }));
+          const cleanedUrl = new URL(window.location.href);
+          cleanedUrl.searchParams.delete('klaviyoError');
+          cleanedUrl.searchParams.delete('klaviyoSuccess');
+          window.history.replaceState({}, '', cleanedUrl.toString());
+        }
+        const connectionResponse = await fetch('/api/klaviyo/oauth', { cache: 'no-store' });
+        const connection = await connectionResponse.json();
+        if (!connectionResponse.ok) throw new Error(connection.error || 'Unable to load Klaviyo connection.');
+        if (!current) return;
+        setKlaviyoConnection(connection);
         const response = await fetch(`/api/klaviyo/settings?databaseId=${encodeURIComponent(databaseId)}`, { cache: 'no-store' });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Unable to load Klaviyo settings.');
@@ -1228,7 +1242,6 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
     try {
       const valuesByCard: Record<string, Record<string, string>> = {
         cin7: { Cin7AccountId: cin7AccountId, Cin7ApiKey: cin7ApiKey },
-        klaviyo: { KlaviyoApiKey: klaviyoApiKey },
         gmail: { GmailAddress: gmailAddress, GmailRefreshToken: gmailRefreshToken, GmailClientId: gmailClientId, GmailClientSecret: gmailClientSecret },
       };
       const res = await fetch('/api/user/business-connections', {
@@ -1417,42 +1430,50 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
       const res = await fetch('/api/sync/klaviyo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(klaviyoApiKey ? { apiKey: klaviyoApiKey } : {}),
+        body: JSON.stringify({}),
       });
       setKlaviyoResult(await res.json());
     } catch (err: any) { setKlaviyoResult({ success: false, error: err.message }); }
     setKlaviyoLoading(false);
   };
 
-  const saveKlaviyo = async () => {
+  const connectKlaviyo = async (disconnect = false) => {
+    setKlaviyoLoading(true);
+    setCardMsgs(previous => ({ ...previous, klaviyo: '' }));
+    try {
+      const response = await fetch('/api/klaviyo/oauth', { method: disconnect ? 'DELETE' : 'POST' });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Unable to update the Klaviyo connection.');
+      if (!disconnect) {
+        window.location.assign(body.url);
+        return;
+      }
+      setKlaviyoConnection(current => current ? { ...current, connected: false, oauth: false } : null);
+      setKlaviyoSettings(current => ({ ...current, enabled: false }));
+      setKlaviyoResult(null);
+      setCardMsgs(previous => ({ ...previous, klaviyo: 'Disconnected' }));
+    } catch (error) {
+      setCardMsgs(previous => ({ ...previous, klaviyo: error instanceof Error ? error.message : 'Connection failed' }));
+    } finally { setKlaviyoLoading(false); }
+  };
+
+  const saveKlaviyo = async (settings: KlaviyoIntegrationSettings) => {
     if (!business?.databaseId) return;
     setSavingCard('klaviyo');
     setCardMsgs(previous => ({ ...previous, klaviyo: '' }));
-    let credentialsSaved = false;
     try {
-      const connectionResponse = await fetch('/api/user/business-connections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: business.databaseId, connections: klaviyoApiKey ? { KlaviyoApiKey: klaviyoApiKey } : {} }),
-      });
-      const connectionData = await connectionResponse.json();
-      if (!connectionResponse.ok || !connectionData.success) throw new Error(connectionData.error || 'Unable to save the Klaviyo connection.');
-      credentialsSaved = true;
-      if (klaviyoApiKey) setCredentialPresence(previous => ({ ...previous, KlaviyoApiKey: true }));
-
       const settingsResponse = await fetch('/api/klaviyo/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ databaseId: business.databaseId, settings: klaviyoSettings }),
+        body: JSON.stringify({ databaseId: business.databaseId, settings }),
       });
       const settingsData = await settingsResponse.json();
       if (!settingsResponse.ok) throw new Error(settingsData.error || 'Unable to save Klaviyo settings.');
       setKlaviyoSettings(settingsData.settings);
-      setKlaviyoApiKey('');
       setDirty(false);
-      setCardMsgs(previous => ({ ...previous, klaviyo: '✅ Saved' }));
+      setCardMsgs(previous => ({ ...previous, klaviyo: 'Saved' }));
     } catch (error) {
-      setCardMsgs(previous => ({ ...previous, klaviyo: `${credentialsSaved ? 'Connection credentials saved, but sync policy was not saved. ' : ''}${error instanceof Error ? error.message : 'Save failed'}` }));
+      setCardMsgs(previous => ({ ...previous, klaviyo: error instanceof Error ? error.message : 'Save failed' }));
     } finally {
       setSavingCard(null);
     }
@@ -1498,7 +1519,7 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
   if (!loadComplete) return <p role="status">Loading connection settings...</p>;
 
   return (
-    <div className="w-full max-w-2xl space-y-6" onChangeCapture={() => setDirty(true)}>
+    <div className="w-full max-w-2xl space-y-6" onChangeCapture={() => { if (provider !== 'klaviyo') setDirty(true); }}>
       <p className="text-sm text-gray-500">Connection setup for <span className="font-semibold text-gray-700">{business.name}</span>. Leave a saved secret blank to retain it. Connection tests and authorisation are separate actions.</p>
       {dirty && <button type="button" onClick={() => { setDirty(false); setLoadVersion(value => value + 1); }}>Cancel changes</button>}
 
@@ -1700,17 +1721,21 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
           <p className="text-xs text-gray-500 -mt-2">
             Connect Klaviyo for marketing analysis and controlled customer and commerce event sync.
           </p>
-          <div className="w-full">
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Private API Key</label>
-            <input
-              className="w-full p-2 border rounded text-sm font-mono"
-              type="password"
-              value={klaviyoApiKey}
-              onChange={e => setKlaviyoApiKey(e.target.value)}
-              autoComplete="new-password"
-              placeholder={credentialPresence.KlaviyoApiKey ? 'Saved; leave blank to retain' : 'pk_...'}
-            />
-            <p className="text-xs text-gray-400 mt-1">Found in Klaviyo → Settings → API Keys → Create Private API Key.</p>
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <button type="button" onClick={() => void connectKlaviyo()}
+              disabled={klaviyoLoading || !klaviyoConnection?.configured}
+              className="px-3 py-2 bg-teal-700 text-white rounded text-sm font-semibold disabled:opacity-40">
+              {klaviyoLoading ? 'Connecting...' : klaviyoConnection?.connected ? 'Reconnect Klaviyo' : 'Connect Klaviyo'}
+            </button>
+            {klaviyoConnection?.connected && <>
+              <span className="text-xs text-green-700">Connected</span>
+              <button type="button" disabled={klaviyoLoading || savingCard === 'klaviyo'}
+                onClick={() => { if (confirm('Disconnect Klaviyo and stop customer and commerce sync?')) void connectKlaviyo(true); }}
+                className="text-xs text-red-700 underline disabled:opacity-40">Disconnect</button>
+            </>}
+            {klaviyoConnection && !klaviyoConnection.configured && <p role="status" className="text-xs text-amber-800">
+              Klaviyo sign-in is awaiting Solvantis app configuration.
+            </p>}
           </div>
           <div className="w-full border-t border-gray-100 pt-4 space-y-3">
             <label className="flex items-center justify-between gap-4 text-sm font-semibold text-gray-800">
@@ -1718,8 +1743,8 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
               <input
                 type="checkbox"
                 checked={klaviyoSettings.enabled}
-                disabled={klaviyoSettingsLoading || (!klaviyoSettings.enabled && klaviyoTenantReady !== true)}
-                onChange={event => setKlaviyoSettings(current => ({ ...current, enabled: event.target.checked }))}
+                disabled={klaviyoLoading || savingCard === 'klaviyo' || klaviyoSettingsLoading || (!klaviyoSettings.enabled && (klaviyoTenantReady !== true || !klaviyoConnection?.connected))}
+                onChange={event => void saveKlaviyo({ ...klaviyoSettings, enabled: event.target.checked })}
                 className="h-4 w-4 accent-teal-600"
               />
             </label>
@@ -1728,13 +1753,14 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
                 Customer and commerce sync is not available for this business yet.
               </p>
             )}
-            <fieldset disabled={!klaviyoSettings.enabled || klaviyoSettingsLoading} className="space-y-3 disabled:opacity-50">
+            <fieldset disabled={!klaviyoSettings.enabled || klaviyoSettingsLoading || savingCard === 'klaviyo' || klaviyoLoading} className="space-y-3 disabled:opacity-50">
               <label className="flex items-center justify-between gap-4 text-sm text-gray-700">
                 Sync customer profiles
                 <input
                   type="checkbox"
                   checked={klaviyoSettings.profilesEnabled}
-                  onChange={event => setKlaviyoSettings(current => ({ ...current, profilesEnabled: event.target.checked }))}
+                  disabled={Object.values(klaviyoSettings.sources).some(Boolean)}
+                  onChange={event => void saveKlaviyo({ ...klaviyoSettings, profilesEnabled: event.target.checked })}
                   className="h-4 w-4 accent-teal-600"
                 />
               </label>
@@ -1746,10 +1772,12 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
                       <input
                         type="checkbox"
                         checked={klaviyoSettings.sources[option.key]}
-                        onChange={event => setKlaviyoSettings(current => ({
-                          ...current,
-                          sources: { ...current.sources, [option.key]: event.target.checked },
-                        }))}
+                        disabled={option.key === 'shopify' && !klaviyoSettings.shopifyDuplicateRiskAcknowledged}
+                        onChange={event => void saveKlaviyo({
+                          ...klaviyoSettings,
+                          profilesEnabled: event.target.checked || klaviyoSettings.profilesEnabled,
+                          sources: { ...klaviyoSettings.sources, [option.key]: event.target.checked },
+                        })}
                         className="h-4 w-4 accent-teal-600"
                       />
                       {option.label}
@@ -1757,12 +1785,15 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
                   ))}
                 </div>
               </div>
-              {klaviyoSettings.sources.shopify && (
+              {(
                 <label className="flex items-start gap-2 border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
                   <input
                     type="checkbox"
                     checked={klaviyoSettings.shopifyDuplicateRiskAcknowledged}
-                    onChange={event => setKlaviyoSettings(current => ({ ...current, shopifyDuplicateRiskAcknowledged: event.target.checked }))}
+                    onChange={event => void saveKlaviyo({ ...klaviyoSettings,
+                      shopifyDuplicateRiskAcknowledged: event.target.checked,
+                      sources: { ...klaviyoSettings.sources, shopify: event.target.checked && klaviyoSettings.sources.shopify },
+                    })}
                     className="mt-0.5 h-4 w-4 accent-amber-700"
                   />
                   I have confirmed this store is not already sending the same commerce events directly to Klaviyo.
@@ -1771,14 +1802,12 @@ export function ConnectionsTab({ business, onHelp, provider, advanced = false }:
             </fieldset>
           </div>
           <div className="w-full flex items-center justify-between pt-2 border-t border-gray-100">
-            <button onClick={testKlaviyoSync} disabled={klaviyoLoading || (!klaviyoApiKey && !credentialPresence.KlaviyoApiKey)} className="px-3 py-1.5 bg-violet-600 text-white rounded text-xs font-medium hover:bg-violet-700 transition disabled:opacity-40">
+            <button onClick={testKlaviyoSync} disabled={klaviyoLoading || !klaviyoConnection?.connected} className="px-3 py-1.5 bg-teal-700 text-white rounded text-xs font-medium hover:bg-teal-800 transition disabled:opacity-40">
               {klaviyoLoading ? 'Testing...' : 'Test Connection'}
             </button>
             <div className="flex items-center gap-2">
               {cardMsgs['klaviyo'] && <span className="text-xs font-medium">{cardMsgs['klaviyo']}</span>}
-              <button onClick={saveKlaviyo} disabled={savingCard === 'klaviyo' || klaviyoSettingsLoading} className="px-3 py-1.5 bg-gray-800 text-white rounded text-xs font-semibold hover:bg-gray-900 transition disabled:opacity-40">
-                {savingCard === 'klaviyo' ? 'Saving...' : 'Save'}
-              </button>
+              {savingCard === 'klaviyo' && <span role="status" className="text-xs">Saving...</span>}
             </div>
           </div>
           {klaviyoResult && (

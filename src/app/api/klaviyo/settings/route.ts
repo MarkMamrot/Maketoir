@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
+import { hasKlaviyoOAuthConnection } from '@/lib/klaviyo/oauth';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
 import { parseKlaviyoIntegrationSettings } from '@/lib/klaviyo/contracts';
 import { isKlaviyoTenantSchemaReady } from '@/lib/klaviyo/schemaReadiness';
@@ -48,8 +49,8 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Klaviyo sync is not available for this business yet.' }, { status: 409 });
       }
       const connection = await ConnectionsRepository.get(businessId!);
-      if (!connection?.klaviyo_api_key) {
-        return NextResponse.json({ success: false, error: 'Save a Klaviyo API key before enabling the integration.' }, { status: 400 });
+      if (!connection?.klaviyo_api_key && !await hasKlaviyoOAuthConnection(businessId!)) {
+        return NextResponse.json({ success: false, error: 'Connect your Klaviyo account before enabling sync.' }, { status: 400 });
       }
     }
     await KlaviyoSettingsRepository.save(businessId!, settings);

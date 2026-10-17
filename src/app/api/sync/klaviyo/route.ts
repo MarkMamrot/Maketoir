@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAdminSession } from '@/lib/sessionUtils';
-import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
-import { decrypt } from '@/lib/encryption';
 import {
   assertOptionalIntegrationEnabled,
   isIntegrationDisabledError,
 } from '@/lib/ims/integrationAvailability';
 import { KlaviyoService } from '@/services/KlaviyoService';
+import { createKlaviyoClient } from '@/lib/klaviyo/oauth';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 /**
  * POST /api/sync/klaviyo { apiKey }
@@ -20,11 +20,6 @@ export async function POST(req: Request) {
   let apiKey = typeof body.apiKey === 'string' ? body.apiKey.trim() : '';
   try {
     await assertOptionalIntegrationEnabled(user.businessId, 'klaviyo');
-    if (!apiKey) {
-      const stored = (await ConnectionsRepository.get(user.businessId))?.klaviyo_api_key ?? '';
-      try { apiKey = stored ? decrypt(stored) : ''; }
-      catch { apiKey = stored; }
-    }
   } catch (error) {
     if (isIntegrationDisabledError(error)) {
       return NextResponse.json({ success: false, error: error.message, code: error.code }, { status: error.status });
@@ -32,12 +27,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Unable to load the saved Klaviyo connection.' }, { status: 503 });
   }
 
-  if (!apiKey) {
-    return NextResponse.json({ success: false, error: 'Klaviyo API key not provided.' }, { status: 400 });
-  }
-
   try {
-    const klaviyo = new KlaviyoService(apiKey);
+    const klaviyo = apiKey ? new KlaviyoService(apiKey) : await createKlaviyoClient(user.businessId);
     const count = await klaviyo.testConnection();
     return NextResponse.json({
       success: true,
@@ -45,6 +36,8 @@ export async function POST(req: Request) {
       revision: klaviyo.revision,
     });
   } catch (e: any) {
-    return NextResponse.json({ success: false, error: 'Klaviyo connection failed. Check the saved credentials.' }, { status: 401 });
+    await reportRuntimeIssue({ businessId: user.businessId, source: 'klaviyo.oauth', operation: 'test_connection',
+      title: 'Klaviyo connection test failed', error: e }).catch(() => null);
+    return NextResponse.json({ success: false, error: 'Klaviyo connection failed. Reconnect your Klaviyo account.' }, { status: 401 });
   }
 }

@@ -10,6 +10,7 @@ import { cookies } from 'next/headers';
 import { GoogleAdsService } from '@/services/GoogleAdsService';
 import { GoogleAnalyticsService } from '@/services/GoogleAnalyticsService';
 import { KlaviyoService } from '@/services/KlaviyoService';
+import { createKlaviyoClient } from '@/lib/klaviyo/oauth';
 import { decrypt } from '@/lib/encryption';
 import { ConnectionsRepository } from '@/lib/db/ConnectionsRepository';
 import { MarketingDataRepository } from '@/lib/db/MarketingDataRepository';
@@ -637,15 +638,18 @@ export async function POST(req: Request) {
 
         // ── Klaviyo ───────────────────────────────────────────────────────
         if (sources.includes('klaviyo')) {
-          const klaviyoKey = conn?.klaviyo_api_key ? decrypt(conn.klaviyo_api_key) : '';
-          if (!klaviyoKey) {
+          let klaviyo: KlaviyoService | null = null;
+          try { klaviyo = await createKlaviyoClient(databaseId); }
+          catch (error) {
             await recordTab({
               source: 'klaviyo', accountId: 'klaviyo', tabKey: 'configuration', label: 'Configuration',
-              state: 'failed', error: 'Klaviyo API key not configured in Connections tab.',
+              state: 'failed', error: 'Reconnect Klaviyo in integration settings.',
             });
-            emit({ source: 'klaviyo', status: 'error', error: 'Klaviyo API key not configured in Connections tab.' });
-          } else {
-            const klaviyo = new KlaviyoService(klaviyoKey);
+            emit({ source: 'klaviyo', status: 'error', error: 'Reconnect Klaviyo in integration settings.' });
+            await reportRuntimeIssue({ businessId: databaseId, source: 'klaviyo.oauth', operation: 'marketing_sync',
+              title: 'Klaviyo marketing connection failed', error }).catch(() => null);
+          }
+          if (klaviyo) {
             const klaviyoTabs: Array<{
               key: string;
               label: string;

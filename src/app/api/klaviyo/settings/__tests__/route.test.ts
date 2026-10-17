@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   getConnection: vi.fn(),
+  hasOAuthConnection: vi.fn(),
   reportRuntimeIssue: vi.fn(),
   runImsForBusiness: vi.fn(),
   isTenantReady: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock('@/lib/db/ConnectionsRepository', () => ({
   ConnectionsRepository: { get: mocks.getConnection },
 }));
 vi.mock('@/lib/runtimeIssues', () => ({ reportRuntimeIssue: mocks.reportRuntimeIssue }));
+vi.mock('@/lib/klaviyo/oauth', () => ({ hasKlaviyoOAuthConnection: mocks.hasOAuthConnection }));
 vi.mock('@/lib/db/BusinessRegistry', () => ({ runImsForBusiness: mocks.runImsForBusiness }));
 vi.mock('@/lib/klaviyo/schemaReadiness', () => ({ isKlaviyoTenantSchemaReady: mocks.isTenantReady }));
 
@@ -42,6 +44,7 @@ describe('/api/klaviyo/settings', () => {
     mocks.assertBusinessAccess.mockReturnValue(null);
     mocks.getSettings.mockResolvedValue(settings);
     mocks.getConnection.mockResolvedValue({ klaviyo_api_key: 'encrypted-key' });
+    mocks.hasOAuthConnection.mockResolvedValue(false);
     mocks.reportRuntimeIssue.mockResolvedValue(null);
     mocks.isTenantReady.mockResolvedValue(true);
     mocks.runImsForBusiness.mockImplementation(async (_businessId: string, callback: () => Promise<unknown>) => callback());
@@ -84,7 +87,7 @@ describe('/api/klaviyo/settings', () => {
     expect(mocks.saveSettings).not.toHaveBeenCalled();
   });
 
-  it('requires a saved API key before enabling', async () => {
+  it('requires a connection before enabling', async () => {
     mocks.getConnection.mockResolvedValue(null);
     const response = await PUT(new Request('http://localhost/api/klaviyo/settings', {
       method: 'PUT',
@@ -93,6 +96,16 @@ describe('/api/klaviyo/settings', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.saveSettings).not.toHaveBeenCalled();
+  });
+
+  it('accepts OAuth connections without a private API key', async () => {
+    mocks.getConnection.mockResolvedValue(null);
+    mocks.hasOAuthConnection.mockResolvedValue(true);
+    const response = await PUT(new Request('http://localhost/api/klaviyo/settings', {
+      method: 'PUT', body: JSON.stringify({ databaseId: 'business-1', settings: { ...settings, enabled: true } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(mocks.saveSettings).toHaveBeenCalled();
   });
 
   it('requires profile sync for enabled commerce sources', async () => {
