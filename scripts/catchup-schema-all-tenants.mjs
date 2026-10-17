@@ -19,6 +19,7 @@ import fs from 'node:fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { installCatalogueTracking } from './pos-catalogue-triggers.mjs';
+import { installOnlineSyncMainSchema, installOnlineSyncTenantSchema, ONLINE_SYNC_CONTROL_COLUMNS, ONLINE_SYNC_JOB_COLUMNS, ONLINE_SYNC_ORDER_COLUMNS, ONLINE_SYNC_TENANT_TABLES, onlineSyncTableDdl } from './online-sync-schema.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
@@ -119,6 +120,7 @@ const MISC_TENANT_TABLES = [
 ];
 
 const canonicalImsSchema = await fs.readFile(path.join(__dirname, 'ims-schema.sql'), 'utf8');
+const ONLINE_SYNC_TABLE_DDLS = ONLINE_SYNC_TENANT_TABLES.map(table => onlineSyncTableDdl(canonicalImsSchema, table));
 const amazonPiiGuards = JSON.parse(await fs.readFile(path.join(__dirname, 'amazon-pii-guards.json'), 'utf8'));
 const ONLINE_SHOP_TABLE_DDLS = ONLINE_SHOP_TABLES.map(table => {
   const expression = new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\([\\s\\S]*?\\n\\) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;`);
@@ -1345,15 +1347,23 @@ const TABLE_DDLS = [
     CONSTRAINT fk_wholesale_member_contact FOREIGN KEY (contact_id) REFERENCES ims_contacts(id) ON DELETE RESTRICT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ...ONLINE_SHOP_TABLE_DDLS,
+  ...ONLINE_SYNC_TABLE_DDLS,
 ];
 
 const requestedTable = process.argv.find(argument => argument.startsWith('--table='))?.slice('--table='.length);
 const consignmentOnly = process.argv.includes('--consignment-only');
 const catalogueOnly = process.argv.includes('--pos-catalogue-only');
+const onlineSyncOnly = process.argv.includes('--online-sync-only');
+if (onlineSyncOnly && (catalogueOnly || consignmentOnly || requestedTable)) {
+  throw new Error('--online-sync-only cannot be combined with other migration modes.');
+}
 if (catalogueOnly && (consignmentOnly || requestedTable)) throw new Error('--pos-catalogue-only cannot be combined with other migration modes.');
 const requestedRepair = process.argv.find(argument => argument.startsWith('--repair='))?.slice('--repair='.length);
 const auditLegacyStockAvgCost = process.argv.includes('--audit-legacy-stock-avg-cost');
 const dropLegacyStockAvgCost = process.argv.includes('--drop-legacy-stock-avg-cost');
+if (onlineSyncOnly && (requestedRepair || auditLegacyStockAvgCost || dropLegacyStockAvgCost)) {
+  throw new Error('--online-sync-only cannot be combined with repair or stock-cost modes.');
+}
 if (catalogueOnly && (requestedRepair || auditLegacyStockAvgCost || dropLegacyStockAvgCost)) {
   throw new Error('--pos-catalogue-only cannot be combined with repair or stock-cost modes.');
 }
@@ -1364,6 +1374,9 @@ const tableNameFromDdl = ddl => ddl.match(/CREATE TABLE IF NOT EXISTS\s+`?([a-zA
 
 // Column definitions: [table, column, definition]
 const COLUMNS = [
+  ...Object.entries(ONLINE_SYNC_JOB_COLUMNS).map(([column, definition]) => ['ims_sales_channel_jobs', column, definition]),
+  ...Object.entries(ONLINE_SYNC_ORDER_COLUMNS).map(([column, definition]) => ['ims_shopify_order_recovery', column, definition]),
+  ...Object.entries(ONLINE_SYNC_CONTROL_COLUMNS).map(([column, definition]) => ['ims_online_sync_control', column, definition]),
   ['ims_contacts', 'is_consignment', 'TINYINT NOT NULL DEFAULT 0'],
   ['ims_purchase_orders', 'consignment_supplier_id', 'INT NULL'],
   ['ims_supplier_credit_notes', 'consignment_supplier_id', 'INT NULL'],
@@ -2172,6 +2185,12 @@ async function installAmazonPiiGuards(schema) {
 }
 
 async function migrateSchema(schema, businessId) {
+  if (onlineSyncOnly) {
+    await conn.query(`USE ${conn.escapeId(schema)}`);
+    await installOnlineSyncTenantSchema(conn);
+    console.log(`  ${schema}: online recovery schema ensured; rollout remains unchanged`);
+    return;
+  }
   if (catalogueOnly) {
     await conn.query('SET SESSION lock_wait_timeout = 5');
     await conn.query(`USE \`${schema}\``);
@@ -2929,6 +2948,11 @@ try {
     throw new Error(`Requested schema is not registered: ${requestedSchema}`);
   }
   const selectedSchemas = requestedSchema ? [requestedSchema] : [...schemas];
+  if (onlineSyncOnly) {
+    if (!process.env.MYSQL_DATABASE) throw new Error('Main database is required for online sync migration.');
+    await conn.query(`USE ${conn.escapeId(process.env.MYSQL_DATABASE)}`);
+    await installOnlineSyncMainSchema(conn);
+  }
   console.log(`Schemas: ${selectedSchemas.join(', ')}`);
   for (const schema of selectedSchemas) {
     if (auditLegacyStockAvgCost || dropLegacyStockAvgCost) {
@@ -2940,7 +2964,7 @@ try {
       continue;
     }
     await migrateSchema(schema, businessIdsBySchema.get(schema));
-    if (requestedTable || consignmentOnly || catalogueOnly) continue;
+    if (requestedTable || consignmentOnly || catalogueOnly || onlineSyncOnly) continue;
     await verifyStockAvailabilitySchema(schema);
     await verifyGiftCardReconciliationSchema(schema);
     await verifyOutstandingResolutionSchema(schema);

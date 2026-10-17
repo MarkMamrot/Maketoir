@@ -8,6 +8,9 @@ import { cookies } from 'next/headers';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { getImsSession } from '@/lib/auth/imsSession';
 import { resolveXeroAccountingEnabled } from '@/lib/ims/businessOperations';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 function getSession() {
   for (const name of ['pos_session', 'marketoir_session']) {
@@ -31,8 +34,22 @@ export async function GET() {
 
   const settings = Object.fromEntries(rows.map(row => [row.key, row.value]));
   const access = settings.pos_bt_access;
+  let onlineSalesStartupEnabled: boolean;
+  try {
+    onlineSalesStartupEnabled = await runImsForBusiness(
+      businessId, async () => (await getOnlineSyncControl(businessId)).mode !== 'cutover',
+    );
+  } catch {
+    await reportRuntimeIssue({
+      businessId, source: 'pos', operation: 'online_sales_startup_capability',
+      title: 'POS online accounting startup capability could not be verified',
+      error: new Error('Scheduled recovery control query failed.'),
+    });
+    return NextResponse.json({ error: 'POS accounting capability could not be verified.' }, { status: 503 });
+  }
   return NextResponse.json({
     bt_access: access === 'disabled' || access === 'manager' ? access : 'all',
     xeroAccountingEnabled: resolveXeroAccountingEnabled(settings),
+    onlineSalesStartupEnabled,
   });
 }

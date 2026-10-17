@@ -1,13 +1,17 @@
 import { getContactChannelMapping } from '@/lib/ims/contactChannelMappings';
 import { ImsSORepo } from '@/lib/ims/ImsRepository';
-import { recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
+import { recomputeBuildRequirementsForSalesOrder, recomputeBuildRequirementsSafely } from '@/lib/ims/builds/buildRequirementService';
 import { parseShopifyOrderDeliveryAddress, parseShopifyOrderDeliveryMethod } from '@/lib/ims/shopifyOrderAddress';
 import { getOrCreateOnlineCustomerId, getShopifyOrderCustomerId } from '@/lib/ims/shopifyOrderCustomer';
 import { getOrCreateOnlineFallbackVariantId } from '@/lib/shopifyFallbackVariant';
 import { toBusinessDateTime } from '@/lib/shopifyDate';
-import { getIMSPool, imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { getIMSPool } from '@/services/IMSMySQLService';
+import type { PoolConnection } from 'mysql2/promise';
+import { localTransactionQueries } from '@/lib/ims/localTransactionQueries';
+import { lockInventoryCostState } from '@/lib/ims/costing/fifoCostingService';
+import { ShopifyOrderReviewRequiredError } from '@/lib/ims/shopifyOrderReview';
 
-import { reportUnmappedShopifyOrderLines, unmappedTrackedShopifyOrderLines } from './shopifyOrderLineMapping';
+import { assertShopifyOrderLineMappings, loadShopifyOrderMappings, reportUnmappedShopifyOrderLines, unmappedTrackedShopifyOrderLines } from './shopifyOrderLineMapping';
 
 type ShopifyOrderPayload = Record<string, any>;
 
@@ -31,53 +35,107 @@ function text(value: unknown): string | null {
   return normalized || null;
 }
 
-export async function cancelShopifyOrder(input: {
+export type ShopifyOrderCancellationInput = {
   businessId: string;
   channelInstanceId: string;
   order: ShopifyOrderPayload;
-}): Promise<ShopifyOrderCancellationResult> {
+};
+
+export type ShopifyOrderImportInput = ShopifyOrderCancellationInput & {
+  locationId: number;
+  topic: 'orders/create' | 'orders/paid';
+};
+
+export async function cancelShopifyOrderInTransaction(
+  connection: PoolConnection, input: ShopifyOrderCancellationInput,
+): Promise<ShopifyOrderCancellationResult> {
+  if (!input.businessId.trim() || !input.channelInstanceId.trim()) throw new Error('Business and channel instance identity are required.');
+  return cancelShopifyOrderLocal(input, connection);
+}
+
+export async function cancelShopifyOrder(input: ShopifyOrderCancellationInput): Promise<ShopifyOrderCancellationResult> {
+  return cancelShopifyOrderLocal(input);
+}
+
+async function cancelShopifyOrderLocal(input: ShopifyOrderCancellationInput, connection?: PoolConnection): Promise<ShopifyOrderCancellationResult> {
   const externalOrderId = String(input.order.id ?? '').trim();
   if (!/^\d+$/.test(externalOrderId)) throw new Error('Shopify order ID is invalid.');
+  if (connection) await lockInventoryCostState(connection, input.businessId);
+  const { query: imsQuery } = localTransactionQueries(connection);
   const rows = await imsQuery<{ id: number; status: string }>(
     `SELECT id, status FROM ims_sales_orders
       WHERE business_id = ? AND sales_channel = 'shopify'
-        AND channel_instance_id = ? AND external_order_id = ? LIMIT 1`,
+        AND channel_instance_id = ? AND external_order_id = ? LIMIT 1${connection ? ' FOR UPDATE' : ''}`,
     [input.businessId, input.channelInstanceId, externalOrderId],
   );
   const order = rows[0];
   if (!order) throw new Error(`Shopify order ${externalOrderId} is not available for exact-instance cancellation.`);
-  if (order.status === 'cancelled') return { outcome: 'already_cancelled', salesOrderId: order.id };
+  if (order.status === 'cancelled') {
+    if (connection) await recomputeBuildRequirementsForSalesOrder({
+      businessId: input.businessId, salesOrderId: order.id, sourceChannel: 'shopify',
+    }, connection);
+    return { outcome: 'already_cancelled', salesOrderId: order.id };
+  }
 
-  await ImsSORepo.changeStatus(order.id, 'cancelled');
-  await recomputeBuildRequirementsSafely({
+  if (connection) await ImsSORepo.changeStatusInTransaction(connection, input.businessId, order.id, 'cancelled');
+  else await ImsSORepo.changeStatus(order.id, 'cancelled');
+  const buildInput = {
     businessId: input.businessId,
     salesOrderId: order.id,
     sourceChannel: 'shopify',
-  });
+  };
+  if (connection) await recomputeBuildRequirementsForSalesOrder(buildInput, connection);
+  else await recomputeBuildRequirementsSafely(buildInput);
   return { outcome: 'cancelled', salesOrderId: order.id };
 }
 
-export async function importShopifyOrder(input: {
-  businessId: string;
-  channelInstanceId: string;
-  locationId: number;
-  topic: 'orders/create' | 'orders/paid';
-  order: ShopifyOrderPayload;
-}): Promise<ShopifyOrderImportResult> {
+export async function importShopifyOrderInTransaction(
+  connection: PoolConnection, input: ShopifyOrderImportInput,
+): Promise<ShopifyOrderImportResult> {
+  if (!input.businessId.trim() || !input.channelInstanceId.trim()) throw new Error('Business and channel instance identity are required.');
+  return importShopifyOrderLocal(input, connection);
+}
+
+export async function importShopifyOrder(input: ShopifyOrderImportInput): Promise<ShopifyOrderImportResult> {
+  return importShopifyOrderLocal(input);
+}
+
+async function importShopifyOrderLocal(input: ShopifyOrderImportInput, suppliedConnection?: PoolConnection): Promise<ShopifyOrderImportResult> {
   const externalOrderId = String(input.order.id ?? '').trim();
   if (!/^\d+$/.test(externalOrderId)) throw new Error('Shopify order ID is invalid.');
   const locationId = Math.floor(Number(input.locationId));
   if (!Number.isInteger(locationId) || locationId <= 0) throw new Error('Shopify order location is not configured.');
+  if (suppliedConnection) await lockInventoryCostState(suppliedConnection, input.businessId);
+  const { query: imsQuery, execute: imsExecute } = localTransactionQueries(suppliedConnection);
   const delivery = parseShopifyOrderDeliveryAddress(input.order);
   const deliveryMethod = parseShopifyOrderDeliveryMethod(input.order);
   const financialStatus = input.topic === 'orders/paid' ? 'paid' : text(input.order.financial_status);
   const existingRows = await imsQuery<{ id: number; status: string }>(
     `SELECT id, status FROM ims_sales_orders
-      WHERE business_id = ? AND channel_instance_id = ? AND external_order_id = ? LIMIT 1`,
+      WHERE business_id = ? AND channel_instance_id = ? AND external_order_id = ?${suppliedConnection ? " AND sales_channel = 'shopify'" : ''} LIMIT 1${suppliedConnection ? ' FOR UPDATE' : ''}`,
     [input.businessId, input.channelInstanceId, externalOrderId],
   );
   const existing = existingRows[0];
   if (existing) {
+    if (suppliedConnection) {
+      const lines = Array.isArray(input.order.line_items) ? input.order.line_items : [];
+      const mappings = await loadShopifyOrderMappings(suppliedConnection, input.businessId, input.channelInstanceId);
+      assertShopifyOrderLineMappings(lines, mappings);
+      const variantByExternalId = new Map(mappings.map(row => [String(row.external_variant_id), String(row.variant_id)]));
+      const items = await imsQuery<{ external_order_item_id: string; variant_id: string }>(
+        'SELECT external_order_item_id, variant_id FROM ims_sales_order_items WHERE so_id = ? AND business_id = ? FOR UPDATE',
+        [existing.id, input.businessId],
+      );
+      for (const line of lines) {
+        if (line.gift_card || !line.variant_id || amount(line.current_quantity ?? line.quantity) <= 0) continue;
+        const local = items.find(item => String(item.external_order_item_id) === String(line.id));
+        if (!local || local.variant_id !== variantByExternalId.get(String(line.variant_id))) {
+          throw new ShopifyOrderReviewRequiredError(
+            'existing_order_mapping_mismatch', 'Existing Shopify lines require mapping reconciliation through an order update.',
+          );
+        }
+      }
+    }
     await imsExecute(
       `UPDATE ims_sales_orders
           SET financial_status = ?, shopify_order_name = COALESCE(?, shopify_order_name),
@@ -90,29 +148,39 @@ export async function importShopifyOrder(input: {
         delivery.delivery_country, deliveryMethod.channel_shipping_method, deliveryMethod.channel_delivery_type,
         existing.id, input.businessId, input.channelInstanceId],
     );
-    if (existing.status === 'draft') await ImsSORepo.changeStatus(existing.id, 'confirmed');
+    if (existing.status === 'draft') {
+      if (suppliedConnection) {
+        await ImsSORepo.changeStatusInTransaction(suppliedConnection, input.businessId, existing.id, 'confirmed');
+        await recomputeBuildRequirementsForSalesOrder({
+          businessId: input.businessId, salesOrderId: existing.id, sourceChannel: 'shopify',
+        }, suppliedConnection);
+      } else await ImsSORepo.changeStatus(existing.id, 'confirmed');
+    }
     return { outcome: 'updated', salesOrderId: existing.id };
   }
 
   const lines = Array.isArray(input.order.line_items) ? input.order.line_items : [];
   if (lines.length === 0) return { outcome: 'skipped', salesOrderId: null };
-  const mappingRows = await imsQuery<{ external_variant_id: string; variant_id: string }>(
+  const mappingRows = suppliedConnection
+    ? await loadShopifyOrderMappings(suppliedConnection, input.businessId, input.channelInstanceId)
+    : await imsQuery<{ external_variant_id: string; variant_id: string }>(
     `SELECT external_variant_id, variant_id FROM ims_sales_channel_product_mappings
       WHERE business_id = ? AND channel_instance_id = ?
         AND mapping_status = 'linked' AND variant_id IS NOT NULL`,
     [input.businessId, input.channelInstanceId],
   );
   const variantByExternalId = new Map(mappingRows.map(row => [String(row.external_variant_id), String(row.variant_id)]));
+  if (suppliedConnection) assertShopifyOrderLineMappings(lines, mappingRows);
   const unmappedTrackedLines = unmappedTrackedShopifyOrderLines(lines, new Set(variantByExternalId.keys()));
   const fallbackVariantId = lines.some(line => !variantByExternalId.has(String(line.variant_id ?? '')))
-    ? await getOrCreateOnlineFallbackVariantId(input.businessId)
+    ? await getOrCreateOnlineFallbackVariantId(input.businessId, ...(suppliedConnection ? [suppliedConnection] as const : []))
     : null;
-  const fallbackCustomerId = await getOrCreateOnlineCustomerId(input.businessId);
+  const fallbackCustomerId = await getOrCreateOnlineCustomerId(input.businessId, ...(suppliedConnection ? [suppliedConnection] as const : []));
   const externalCustomerId = getShopifyOrderCustomerId(input.order);
   const customerMapping = externalCustomerId
     ? await getContactChannelMapping({
       businessId: input.businessId, channelInstanceId: input.channelInstanceId, externalCustomerId,
-    })
+    }, ...(suppliedConnection ? [suppliedConnection] as const : []))
     : null;
   const customerId = customerMapping?.mappingStatus === 'linked' ? customerMapping.contactId : fallbackCustomerId;
   const gateway = Array.isArray(input.order.payment_gateway_names)
@@ -123,11 +191,10 @@ export async function importShopifyOrder(input: {
   const taxAmount = amount(input.order.total_tax);
   const totalAmount = amount(input.order.total_price);
   const discount = amount(input.order.total_discounts);
-  const pool = getIMSPool();
-  const connection = await pool.getConnection();
+  const connection = suppliedConnection ?? await getIMSPool().getConnection();
   let salesOrderId = 0;
   try {
-    await connection.beginTransaction();
+    if (!suppliedConnection) await connection.beginTransaction();
     const [created] = await connection.execute<any>(
       `INSERT INTO ims_sales_orders
          (business_id, so_number, so_type, sales_channel, channel_instance_id, external_order_id,
@@ -163,13 +230,19 @@ export async function importShopifyOrder(input: {
           unitPrice, quantity * unitPrice, text(line.name)],
       );
     }
-    await connection.commit();
+    if (suppliedConnection) {
+      await ImsSORepo.changeStatusInTransaction(connection, input.businessId, salesOrderId, 'confirmed');
+      await recomputeBuildRequirementsForSalesOrder({
+        businessId: input.businessId, salesOrderId, sourceChannel: 'shopify',
+      }, connection);
+    } else await connection.commit();
   } catch (error) {
-    await connection.rollback();
+    if (!suppliedConnection) await connection.rollback();
     throw error;
   } finally {
-    connection.release();
+    if (!suppliedConnection) connection.release();
   }
+  if (suppliedConnection) return { outcome: 'imported', salesOrderId };
   await ImsSORepo.changeStatus(salesOrderId, 'confirmed');
   await reportUnmappedShopifyOrderLines({
     businessId: input.businessId,

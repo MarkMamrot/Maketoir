@@ -3,6 +3,10 @@ import Shopify from 'shopify-api-node';
 import { StandardizedProduct } from '../types/StandardizedData';
 import { parseShopifyOrderRecipientName } from '@/lib/ims/shopifyOrderAddress';
 import {
+  assertShopifyReconciliationHistoryAccess, shopifyReconciliationPage, shopifyReconciliationParameters,
+} from '@/lib/channels/shopifyReconciliationPage';
+import { onlineSyncTimestamp, OnlineSyncValidationError, type ReconciliationWindow } from '@/lib/channels/onlineSyncPolicy';
+import {
   assertShopifyDefaultOptionRepairPreserved, isShopifyPlaceholderOptionValue,
   type ShopifyProductOptionsSnapshot,
 } from '@/lib/ims/shopifyProductOptions';
@@ -737,6 +741,39 @@ export class ShopifyService {
       }
     }
     return orders;
+  }
+
+  private reconciliationClient(): Shopify {
+    return new Shopify({
+      shopName: this.shopName_, accessToken: this.accessToken_, timeout: 10_000, maxRetries: 0,
+    });
+  }
+
+  async getOrderReconciliationPage(window: ReconciliationWindow, pageInfo: string | null) {
+    const parameters = shopifyReconciliationParameters(window, pageInfo);
+    const page = await this.reconciliationClient().order.list(parameters);
+    return shopifyReconciliationPage(page);
+  }
+
+  async getOrderForReconciliation(externalOrderId: string): Promise<Shopify.IOrder> {
+    if (!/^[1-9]\d*$/.test(externalOrderId) || !Number.isSafeInteger(Number(externalOrderId))) {
+      throw new OnlineSyncValidationError('A safely representable Shopify order ID is required.');
+    }
+    const order = await this.reconciliationClient().order.get(Number(externalOrderId));
+    if (String(order.id) !== externalOrderId || typeof order.updated_at !== 'string' || typeof order.created_at !== 'string'
+      || !Array.isArray(order.line_items) || !Array.isArray(order.refunds) || !Array.isArray(order.fulfillments)) {
+      throw new OnlineSyncValidationError('Shopify returned an incomplete reconciliation order.');
+    }
+    onlineSyncTimestamp(order.updated_at);
+    onlineSyncTimestamp(order.created_at);
+    return order;
+  }
+
+  async verifyOrderReconciliationHistoryAccess(baselineFrom: string, now: string): Promise<void> {
+    onlineSyncTimestamp(baselineFrom);
+    onlineSyncTimestamp(now);
+    const scopes = await this.reconciliationClient().accessScope.list();
+    assertShopifyReconciliationHistoryAccess({ baselineFrom, now, scopes: scopes.map(scope => scope.handle) });
   }
 
   /** Map a Shopify product object to a flat row matching PRODUCT_HEADERS. */

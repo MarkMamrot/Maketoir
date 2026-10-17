@@ -160,7 +160,7 @@
     {
       "id": "public-capability:ims-sales-channels",
       "title": "Sales Channels",
-      "summary": "Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.",
+      "summary": "Review Point of Sale, the B2B Wholesale Portal, each online storefront and available online order recovery status.",
       "capabilities": [
         "ims",
         "integrations"

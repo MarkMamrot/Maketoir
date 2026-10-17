@@ -17,6 +17,9 @@ import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { getCompletedOnlineBatchKeys, onlineBatchKey } from '@/lib/xero/onlineBatchSyncState';
 import { notifySyncFailure } from '@/lib/ims/notifySyncFailure';
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
+import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
+import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { reportRuntimeIssue } from '@/lib/runtimeIssues';
 
 const IMS_OR_POS_SESSION = ['marketoir_session', 'pos_session'];
 
@@ -24,6 +27,19 @@ export async function POST(req: Request) {
   const session = await getImsSession(IMS_OR_POS_SESSION);
   const businessId = session?.businessId;
   if (!businessId) return NextResponse.json({ skipped: true, reason: 'unauthenticated' });
+  try {
+    const control = await runImsForBusiness(businessId, () => getOnlineSyncControl(businessId));
+    if (control.mode !== 'legacy') {
+      return NextResponse.json({ skipped: true, reason: 'scheduled_recovery', paused: control.paused });
+    }
+  } catch {
+    await reportRuntimeIssue({
+      businessId, source: 'online_recovery', operation: 'startup_compatibility_gate',
+      title: 'Online accounting startup gate could not be verified',
+      error: new Error('Scheduled recovery control query failed.'),
+    });
+    return NextResponse.json({ error: 'Online recovery status could not be verified.' }, { status: 503 });
+  }
 
   const channelInstances = await query<{ channel_instance_id: string; provider: string; settings_json: string | Record<string, unknown> | null }>(
     `SELECT channel_instance_id, provider, settings_json FROM sales_channel_instances

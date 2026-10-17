@@ -4,6 +4,9 @@ import { CRON_JOBS } from '../catalog';
 
 const mocks = vi.hoisted(() => ({ gate: vi.fn(), query: vi.fn(), execute: vi.fn() }));
 vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: mocks.gate }));
+vi.mock('@/lib/channels/onlineRecoveryWorker', () => ({
+  runOnlineRecoveryDispatch: vi.fn(), requestOnlineRecovery: vi.fn(),
+}));
 vi.mock('@/services/MySQLService', () => ({ query: mocks.query, execute: mocks.execute, getPool: vi.fn() }));
 vi.mock('@/services/GoogleSheetsService', () => ({ GoogleSheetsService: vi.fn() }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: vi.fn(), imsExecute: vi.fn(), getIMSPool: vi.fn() }));
@@ -29,6 +32,7 @@ const routeLoaders: Record<string, () => Promise<any>> = {
   'klaviyo-outbox': () => import('../../../app/api/klaviyo/outbox/cron/route'),
   'cogs-sync': () => import('../../../app/api/xero/cogs/cron/route'),
   'online-sales': () => import('../../../app/api/ims/online-sales/auto-sync-cron/route'),
+  'online-recovery': () => import('../../../app/api/ims/online-sales/recovery-cron/route'),
   'marketing-daily': () => import('../../../app/api/foresight/digests/cron/route'),
   'marketing-weekly': () => import('../../../app/api/foresight/digests/cron/route'),
   'amazon-orders': () => import('../../../app/api/ims/channels/amazon/orders/cron/route'),

@@ -3,6 +3,7 @@ import { createContext, Fragment, useContext, useEffect, useState, useCallback }
 import { RefreshCw } from 'lucide-react';
 import { SHOPIFY_INVENTORY_CONFIRMATION } from '@/lib/ims/shopifyOpeningStock';
 import importStyles from './ShopifyImport.module.css';
+import { ONLINE_ORDER_RECOVERY_QUEUED } from './OnlineSalesRequestFeedback';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function statusBadge(s: 'success' | 'error' | 'partial' | string) {
@@ -883,6 +884,7 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
   }
 
   async function runImport() {
+    if (!canManage || importing) return;
     setImporting(true); setImportResult(null); setImportError(null);
     try {
       if (!shopifySelection.channelInstanceId) throw new Error('Select a Shopify storefront.');
@@ -1063,17 +1065,20 @@ export function ShopifyOrdersTab({ section = 'all', canManage = false }: { secti
       {(section === 'all' || section === 'orders') && <div style={card}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700, color: 'var(--sv-text-strong)' }}>Manual Order Import</h3>
         <p style={{ margin: '0 0 10px', fontSize: 13, color: 'var(--sv-text-main)', lineHeight: 1.6 }}>
-          Pulls all Shopify orders from the transition date to now and imports them into IMS. Safe to run multiple times — existing orders are skipped. Also backfills any refunds already recorded on those orders.
+          Before recovery rollout, imports Shopify orders from the transition date and backfills recorded refunds. When scheduled recovery is active, requests are queued for bounded recovery rather than completed in this page.
         </p>
         <div style={{ marginBottom: 14, padding: '8px 12px', background: 'rgba(96,165,250,.07)', borderRadius: 6, fontSize: 12, color: 'var(--sv-text-dim)', lineHeight: 1.6 }}>
-          💡 <strong>When to use:</strong> Run once to seed IMS with historical Shopify orders, or after a webhook outage to catch any missed events. Webhooks handle day-to-day sync automatically.
+          💡 <strong>When to use:</strong> Request recovery after missed order updates and check Online sales recovery for progress. A queued request is not confirmation that orders or accounting have finished.
         </div>
-        <button onClick={runImport} disabled={importing} style={btn(true)}>{importing ? 'Importing…' : '📦 Import Orders from Shopify'}</button>
+        <button onClick={runImport} disabled={importing || !canManage || !shopifySelection.channelInstanceId} style={btn(true)}>{importing ? 'Requesting…' : '📦 Import Orders from Shopify'}</button>
 
         {importError && (
           <div style={{ marginTop: 14, padding: 12, background: 'rgba(248,113,113,.1)', borderRadius: 8, border: '1px solid rgba(248,113,113,.3)', color: 'var(--sv-red)', fontSize: 13 }}>✗ {importError}</div>
         )}
-        {importResult && (
+        {importResult?.queued && <div role="status" style={{ marginTop: 14, padding: 14, border: '1px solid var(--sv-etch)', borderRadius: 8, fontSize: 13 }}>
+          {ONLINE_ORDER_RECOVERY_QUEUED}
+        </div>}
+        {importResult && !importResult.queued && (
           <div style={{ marginTop: 14, padding: 14, background: 'rgba(16,185,129,.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,.25)', fontSize: 13 }}>
             <strong style={{ color: '#34d399' }}>✓ Import complete</strong>
             <div style={{ marginTop: 8, color: 'var(--sv-text-main)', lineHeight: 2 }}>

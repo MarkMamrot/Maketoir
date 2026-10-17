@@ -3,12 +3,16 @@ import { applyShopifyOrderFulfilment } from '@/lib/channels/shopifyOrderFulfilme
 import { shopifyInstanceSettings } from '@/lib/channels/shopifyInstanceSettings';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { ShopifyService, type ShopifyUpdatedOrder } from '@/services/ShopifyService';
+import { getOnlineSyncControl } from './onlineSyncControl';
+import { requestOnlineRecovery } from './onlineRecoveryWorker';
+import { OnlineSyncLeaseLostError } from './onlineSyncPolicy';
 
 export type ShopifyFulfilmentReconciliationResult = {
   channelInstanceId: string;
   windowStart: string;
   windowEnd: string;
   disabled: boolean;
+  queued?: boolean;
   scanned: number;
   providerFulfilled: number;
   repaired: Array<{ salesOrderId: number; shopifyOrderId: string }>;
@@ -62,6 +66,16 @@ export async function reconcileShopifyFulfilmentsForChannel(input: {
   if (!settings.orders.enabled) {
     result.disabled = true;
     return result;
+  }
+  const control = await getOnlineSyncControl(input.businessId);
+  if (control.mode !== 'legacy') {
+    if (!control.paused) {
+      try { await requestOnlineRecovery(input.businessId, input.channelInstanceId); } catch (error) {
+        if (error instanceof OnlineSyncLeaseLostError) return { ...result, disabled: true, queued: false };
+        throw error;
+      }
+    }
+    return { ...result, disabled: control.paused, queued: !control.paused };
   }
 
   const shopify = new ShopifyService(context.credentials.shopDomain, context.credentials.token);

@@ -80,4 +80,54 @@ describe('ShopifyOrdersTab fulfilment reconciliation', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByText('Administrator access is required.')).toBeTruthy();
   });
+
+  it('reports active import requests as queued without completed-import counts', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input) === '/api/ims/shopify/import-orders') {
+        return json({ success: true, queued: true, channelInstanceId: 'store-1' }, 202);
+      }
+      return original(input, init);
+    });
+    render(<ShopifyInstanceScope instance={{ channelInstanceId: 'store-1', displayName: 'Retail Store' }}>
+      <ShopifyOrdersTab section="orders" canManage />
+    </ShopifyInstanceScope>);
+    await userEvent.click(await screen.findByRole('button', { name: '📦 Import Orders from Shopify' }));
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', expect.stringContaining('queued for scheduled recovery'));
+    expect(screen.queryByText('✓ Import complete')).toBeNull();
+    expect(screen.queryByText('Newly imported:')).toBeNull();
+    expect(fetch).toHaveBeenCalledWith('/api/ims/shopify/import-orders', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channelInstanceId: 'store-1' }),
+    });
+  });
+
+  it('retains completed-import counts in legacy mode', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input) === '/api/ims/shopify/import-orders') {
+        return json({ success: true, total_from_shopify: 7, imported: 4, skipped_existing: 3, skipped_no_items: 0 });
+      }
+      return original(input, init);
+    });
+    render(<ShopifyInstanceScope instance={{ channelInstanceId: 'store-1', displayName: 'Retail Store' }}>
+      <ShopifyOrdersTab section="orders" canManage />
+    </ShopifyInstanceScope>);
+    await userEvent.click(await screen.findByRole('button', { name: '📦 Import Orders from Shopify' }));
+    await screen.findByText('✓ Import complete');
+    expect(screen.getByText('Newly imported:').textContent).toBe('Newly imported: 4');
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('does not let read-only users request an order import', async () => {
+    render(<ShopifyInstanceScope instance={{ channelInstanceId: 'store-1', displayName: 'Retail Store' }}>
+      <ShopifyOrdersTab section="orders" canManage={false} />
+    </ShopifyInstanceScope>);
+    const button = await screen.findByRole('button', { name: '📦 Import Orders from Shopify' });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(button);
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url) === '/api/ims/shopify/import-orders')).toBe(false);
+  });
 });

@@ -483,10 +483,23 @@ CREATE TABLE IF NOT EXISTS xero_online_batches (
   gateway_allocations LONGTEXT     DEFAULT NULL,
   payout_managed      TINYINT(1)   NOT NULL DEFAULT 0,
   error_detail        TEXT         DEFAULT NULL,
+  sync_status         VARCHAR(20) NOT NULL DEFAULT 'pending',
+  sync_lease_token    CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  sync_lease_expires_at DATETIME(3) NULL,
+  sync_available_at   DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  sync_attempts       INT NOT NULL DEFAULT 0,
+  sync_required_through DATETIME(3) NULL,
+  sync_input_hash     CHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  sync_input_json     JSON NULL,
+  sync_stages_json    JSON NULL,
+  sync_source_generation CHAR(36) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NULL,
+  sync_review_reason  VARCHAR(64) NULL,
+  sync_safe_error_code VARCHAR(64) NULL,
   created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_xero_online_batch_instance (business_id, channel_instance_id, batch_date),
-  INDEX idx_xero_online_batch_status (business_id, channel_instance_id, payout_managed, invoice_status)
+  INDEX idx_xero_online_batch_status (business_id, channel_instance_id, payout_managed, invoice_status),
+  INDEX idx_xero_online_sync_due (business_id, sync_status, sync_available_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Durable per-order payments applied to a combined daily online invoice.

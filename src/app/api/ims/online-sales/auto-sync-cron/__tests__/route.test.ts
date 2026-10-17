@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/cron/settings', () => ({ checkCronJobEnabled: vi.fn().mockResolvedValue(null) }));
+vi.mock('@/lib/channels/onlineSyncControl', () => ({
+  getOnlineSyncControl: vi.fn().mockResolvedValue({ mode: 'legacy', paused: false }),
+}));
 
 const {
   mockQuery,

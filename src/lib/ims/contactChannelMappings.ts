@@ -1,4 +1,6 @@
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import type { PoolConnection } from 'mysql2/promise';
+import { localTransactionQueries } from './localTransactionQueries';
 
 export type ContactChannelMapping = {
   id: number;
@@ -43,9 +45,9 @@ export async function getContactChannelMapping(input: {
   businessId: string;
   channelInstanceId: string;
   externalCustomerId: string;
-}): Promise<ContactChannelMapping | null> {
+}, connection?: PoolConnection): Promise<ContactChannelMapping | null> {
   const identity = validateIdentity(input);
-  const rows = await imsQuery<ContactChannelMappingRow>(
+  const rows = await localTransactionQueries(connection).query<ContactChannelMappingRow>(
     `SELECT id, business_id, channel_instance_id, contact_id, external_customer_id, mapping_status
        FROM ims_contact_channel_mappings
       WHERE business_id = ? AND channel_instance_id = ? AND external_customer_id = ?

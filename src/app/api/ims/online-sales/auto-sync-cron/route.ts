@@ -14,6 +14,7 @@ import { checkCronJobEnabled } from '@/lib/cron/settings';
 import { imsQuery } from '@/services/IMSMySQLService';
 import { query } from '@/services/MySQLService';
 import { runImsForBusiness } from '@/lib/db/BusinessRegistry';
+import { getOnlineSyncControl } from '@/lib/channels/onlineSyncControl';
 import { getBusinessTimeZone } from '@/lib/ims/businessTimeZone';
 import { syncOnlineDailySalesDay } from '@/lib/xero/onlineDailySalesSync';
 import { getCompletedOnlineBatchKeys, onlineBatchKey } from '@/lib/xero/onlineBatchSyncState';
@@ -61,6 +62,7 @@ export async function POST(req: Request) {
   // (callback form — the only AsyncLocalStorage pattern that reliably
   // propagates across awaits).
   const processBusiness = async (business_id: string) => {
+    if ((await getOnlineSyncControl(business_id)).mode !== 'legacy') return;
     const timeZone = await getBusinessTimeZone(business_id);
     const capabilities = await getOnlineChannelCapabilities(business_id);
     const today = new Date().toLocaleDateString('sv-SE', { timeZone });

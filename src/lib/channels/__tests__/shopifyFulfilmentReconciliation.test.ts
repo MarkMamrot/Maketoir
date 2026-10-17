@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   context: vi.fn(), orders: vi.fn(), query: vi.fn(), fulfil: vi.fn(),
+  control: vi.fn(), request: vi.fn(),
 }));
+vi.mock('../onlineSyncControl', () => ({ getOnlineSyncControl: mocks.control }));
+vi.mock('../onlineRecoveryWorker', () => ({ requestOnlineRecovery: mocks.request }));
 
 vi.mock('@/lib/channels/shopifyOperationContext', () => ({ getShopifyOperationContext: mocks.context }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsQuery: mocks.query }));
@@ -25,6 +28,7 @@ const windowInput = {
 describe('reconcileShopifyFulfilmentsForChannel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.control.mockResolvedValue({ mode: 'legacy', paused: false });
     mocks.context.mockResolvedValue({
       instance: { settings: { shopify: { orders: { enabled: true, syncFrom: '2026-09-01', locationId: 7 } } } },
       credentials: { shopDomain: 'store.myshopify.com', token: 'secret' },
@@ -33,6 +37,19 @@ describe('reconcileShopifyFulfilmentsForChannel', () => {
     mocks.fulfil.mockResolvedValue({ outcome: 'fulfilled', salesOrderId: 44 });
   });
 
+  it('redirects activated repair to durable work without another stock owner', async () => {
+    mocks.control.mockResolvedValue({ mode: 'cutover', paused: false });
+    expect(await reconcileShopifyFulfilmentsForChannel(windowInput)).toMatchObject({ queued: true, scanned: 0 });
+    expect(mocks.request).toHaveBeenCalledWith('business-1', 'instance-1');
+    expect(mocks.orders).not.toHaveBeenCalled();
+    expect(mocks.fulfil).not.toHaveBeenCalled();
+  });
+  it('does not resurrect legacy scans when recovery is paused', async () => {
+    mocks.control.mockResolvedValue({ mode: 'validation', paused: true });
+    expect(await reconcileShopifyFulfilmentsForChannel(windowInput)).toMatchObject({ disabled: true, queued: false });
+    expect(mocks.request).not.toHaveBeenCalled();
+    expect(mocks.orders).not.toHaveBeenCalled();
+  });
   it('repairs only fully fulfilled exact-instance orders inside the fixed window', async () => {
     mocks.orders.mockResolvedValue([
       { id: 1001, created_at: '2026-09-20T00:00:00Z', updated_at: '2026-10-01T01:00:00Z', fulfillment_status: 'fulfilled' },

@@ -39,7 +39,12 @@ describe('SalesChannelsView', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/ims#sales-channels');
     vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => Promise.resolve(new Response(JSON.stringify(
-      url === '/api/ims/settings' ? { success: true, data: { business_requires_pos: 'yes', sells_wholesale: 'yes' } }
+      url === '/api/ims/online-sales/recovery' ? { mode: 'cutover', paused: false, channels: [{
+        channelInstanceId: 'shopify-1', displayName: 'Retail Shopify', baselineComplete: true,
+        coveredThrough: null, nextCheckAt: null, safeErrorCode: null, pendingJobs: 0, failedJobs: 0,
+        reviewOrderCount: 0, reviewOrdersTruncated: false, reviewOrders: [],
+      }] }
+        : url === '/api/ims/settings' ? { success: true, data: { business_requires_pos: 'yes', sells_wholesale: 'yes' } }
         : url === '/api/ims/locations' ? { success: true, data: [{ is_active: 1, has_pos: 1 }] }
           : { success: true, instances },
     ), { status: 200, headers: { 'Content-Type': 'application/json' } }))));
@@ -55,7 +60,7 @@ describe('SalesChannelsView', () => {
     const user = userEvent.setup();
     render(<SalesChannelsView canManage />);
 
-    await screen.findByText('Retail Shopify');
+    await screen.findByRole('region', { name: 'Retail Shopify' });
     expect(screen.getByRole('button', { name: 'Add Sales Channel' }).style.background).toBe('var(--sv-action)');
     await screen.findByRole('region', { name: 'Point of Sale' });
     expect(screen.getByRole('region', { name: 'B2B Wholesale Portal' })).toBeTruthy();
@@ -77,6 +82,13 @@ describe('SalesChannelsView', () => {
     await screen.findByRole('region', { name: 'Point of Sale' });
     await user.click(screen.getByRole('button', { name: 'Refresh sales channels' }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.filter(([url]) => url === '/api/ims/settings')).toHaveLength(2));
+  });
+  it('integrates exact-store recovery in Sales Channels without granting read-only users write controls', async () => {
+    render(<SalesChannelsView canManage={false} />);
+    const panel = await screen.findByRole('region', { name: 'Online sales recovery' });
+    await within(panel).findByRole('region', { name: 'Retail Shopify recovery' });
+    expect(panel.getAttribute('data-help-context')).toBe('online-sales-recovery');
+    expect(within(panel).queryByRole('button', { name: /Retry recovery|Pause recovery|Resume recovery/ })).toBeNull();
   });
   it('alternates backgrounds continuously across built-in and online channels', async () => {
     render(<SalesChannelsView canManage />);

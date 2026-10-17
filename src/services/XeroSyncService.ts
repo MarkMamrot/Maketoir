@@ -163,7 +163,7 @@ function getTaxTypes(_businessId: string): { sales: string; purchases: string; e
   return { sales: 'OUTPUT', purchases: 'INPUT', exempt: 'NONE' };
 }
 
-function getTrackingForLocation(mappings: TrackingMapping[], locationId: number | null, channel?: string) {
+export function getTrackingForLocation(mappings: TrackingMapping[], locationId: number | null, channel?: string) {
   const result: { TrackingCategoryID: string; TrackingOptionID: string }[] = [];
   const usedCategories = new Set<string>();
 
@@ -1882,7 +1882,7 @@ export async function voidXeroSupplierCreditNote(
 
 // ─── POS/Online Daily Batch → Summary Invoice ────────────────────────────────
 
-interface DailySalesBatch {
+export interface DailySalesBatch {
   date: string;          // YYYY-MM-DD
   locationId?: number;   // null for online
   channel: 'pos' | 'online';
@@ -1922,16 +1922,30 @@ function roundCurrency(value: number): number {
 /**
  * Post a single summary invoice for a day's POS or online sales.
  */
-export async function syncDailySalesBatch(businessId: string, batch: DailySalesBatch): Promise<string | null> {
+export interface OnlineAccountingRecoveryGuard {
+  assertOwnership(): Promise<void>;
+  beforeMutation(stage: string): Promise<void>;
+  revenueAccountCode: string;
+  tracking: ReturnType<typeof getTrackingForLocation>;
+}
+
+export class OnlineAccountingReviewRequiredError extends Error {}
+
+export async function syncDailySalesBatch(
+  businessId: string,
+  batch: DailySalesBatch,
+  recovery?: OnlineAccountingRecoveryGuard,
+): Promise<string | null> {
+  await recovery?.assertOwnership();
   const channelInstanceId = String(batch.channelInstanceId ?? '').trim();
   if (batch.channel === 'online' && !channelInstanceId) {
     throw new Error('An exact sales channel instance is required for an online daily batch.');
   }
-  const accounts = await getAccountMappings(businessId);
-  const trackingMappings = await getTrackingMappings(businessId);
+  const accounts = recovery ? null : await getAccountMappings(businessId);
+  const trackingMappings = recovery ? [] : await getTrackingMappings(businessId);
   const revenueAccountCode = batch.channel === 'pos'
     ? (batch.locationId ? await getPosRevenueAccountCode(businessId, batch.locationId) : null)
-    : accounts.sales_revenue;
+    : (recovery?.revenueAccountCode ?? accounts?.sales_revenue);
 
   if (!revenueAccountCode) {
     const detail = batch.channel === 'pos'
@@ -1941,7 +1955,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     return null;
   }
 
-  const tracking = getTrackingForLocation(trackingMappings, batch.locationId ?? null, batch.channel);
+  const tracking = recovery?.tracking ?? getTrackingForLocation(trackingMappings, batch.locationId ?? null, batch.channel);
 
   const invoice: any = {
     Type: 'ACCREC',
@@ -2072,7 +2086,9 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       if (!currentInvoice) throw new Error(`Existing Xero online invoice ${existingOnlineInvoiceId} was not found`);
       const currentTotal = roundCurrency(Number(currentInvoice.Total ?? 0));
       const status = String(currentInvoice.Status ?? '').toUpperCase();
-      if (status === 'VOIDED') {
+      if (recovery && (!['DRAFT', 'SUBMITTED', 'AUTHORISED', 'PAID'].includes(status) || Math.abs(totalDue - currentTotal) > 0.01)) {
+        throw new OnlineAccountingReviewRequiredError('Existing online invoice requires review; automatic correction or replacement is forbidden.');
+      } else if (status === 'VOIDED') {
         result = await xeroApiFetch(businessId, '/Invoices', {
           method: 'POST',
           idempotencyKey: crypto.createHash('sha256')
@@ -2108,6 +2124,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
         result = { Invoices: [currentInvoice] };
       }
     } else {
+      await recovery?.beforeMutation('invoice');
       result = await xeroApiFetch(businessId, '/Invoices', {
           method: 'POST',
           idempotencyKey: invoiceIdempotencyKey,
@@ -2116,6 +2133,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     }
     const batchInv = result.Invoices?.[0];
     const xeroId = batchInv?.InvoiceID ?? null;
+    if (recovery && !xeroId) throw new Error('Online invoice result is unconfirmed.');
+    await recovery?.assertOwnership();
 
     if (batch.channel === 'online' && !batch.gateway && xeroId) {
       await execute(
@@ -2198,7 +2217,10 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                   LIMIT 1`,
                 [businessId, channelInstanceId, p.paymentKey],
               );
-              if (existingPayment[0]?.status !== 'completed') continue;
+              if (existingPayment[0]?.status !== 'completed') {
+                if (recovery) throw new Error('Online payment stage is not confirmed.');
+                continue;
+              }
               paymentCompleted = true;
             }
           }
@@ -2207,6 +2229,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
             .digest('hex');
           try {
             if (!paymentCompleted) {
+            await recovery?.beforeMutation(`payment:${paymentKey}`);
             const paymentResult = await xeroApiFetch(businessId, '/Payments', {
               method: 'POST',
               idempotencyKey: paymentIdempotencyKey,
@@ -2218,6 +2241,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                 Reference: p.reference || `${batch.channel.toUpperCase()} clearing ${batch.date}${label ? ` (${label})` : ''}`,
               }] },
             });
+            if (recovery && !paymentResult?.Payments?.[0]?.PaymentID) throw new Error('Online payment result is unconfirmed.');
+            await recovery?.assertOwnership();
             postedClearingPayment = true;
             if (p.paymentKey) {
               await execute(
@@ -2258,6 +2283,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                   .update(`${businessId}|${batchKey}|fee|${feeKey}`)
                   .digest('hex');
                 try {
+                  await recovery?.beforeMutation(`fee:${feeKey}`);
                   const feeResult = await xeroApiFetch(businessId, '/BankTransactions', {
                     method: 'POST',
                     idempotencyKey: feeIdempotencyKey,
@@ -2277,6 +2303,8 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                       }],
                     }] },
                   });
+                  if (recovery && !feeResult?.BankTransactions?.[0]?.BankTransactionID) throw new Error('Online fee result is unconfirmed.');
+                  await recovery?.assertOwnership();
                   await execute(
                     `UPDATE xero_online_order_fees
                         SET status = 'completed', xero_bank_transaction_id = ?, error_detail = NULL
@@ -2284,6 +2312,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
                     [feeResult?.BankTransactions?.[0]?.BankTransactionID ?? null, businessId, channelInstanceId, feeKey],
                   );
                 } catch (feeError: any) {
+                  await recovery?.assertOwnership();
                   await execute(
                     `UPDATE xero_online_order_fees
                         SET status = 'error', error_detail = ?
@@ -2295,6 +2324,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
               }
             }
           } catch (paymentError: any) {
+            await recovery?.assertOwnership();
             if (p.paymentKey && !paymentCompleted) {
               await execute(
                 `UPDATE xero_online_order_payments
@@ -2307,9 +2337,11 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
           }
         }
       } catch (payErr: any) {
+        await recovery?.assertOwnership();
         // Invoice posted but payment failed — log separately; bookkeeper can apply manually.
         await logSync(businessId, syncType, null, xeroId, 'error',
           `Invoice ok but clearing payment failed: ${payErr.message}`, batchInv?.Status);
+        if (recovery) throw payErr;
         return xeroId;
       }
     }
@@ -2336,6 +2368,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
     await logSync(businessId, syncType, null, xeroId, 'success', batchKey, finalXeroState);
     return xeroId;
   } catch (err: any) {
+    await recovery?.assertOwnership();
     if (isCanonicalOnlineBatch) {
       await execute(
         `UPDATE xero_online_batches
@@ -2345,6 +2378,7 @@ export async function syncDailySalesBatch(businessId: string, batch: DailySalesB
       ).catch(() => {});
     }
     await logSync(businessId, syncType, null, null, 'error', `${batchKey}: ${err.message}`);
+    if (recovery) throw err;
     return null;
   }
 }
@@ -2427,6 +2461,7 @@ export async function syncGiftCardLiabilityReclass(input: {
   locationId?: number;
   gateway?: string;
   dedupeKey: string;
+  recovery?: OnlineAccountingRecoveryGuard & { liabilityAccountCode: string };
 }): Promise<string | null> {
   return syncDeferredLiabilityJournal({
     ...input,
@@ -2450,7 +2485,9 @@ async function syncDeferredLiabilityJournal(input: {
   liabilityRole: 'gift_card_liability' | 'store_credit_liability';
   liabilityLabel: 'Gift card' | 'Store credit';
   direction: 'issue' | 'redeem';
+  recovery?: OnlineAccountingRecoveryGuard & { liabilityAccountCode: string };
 }): Promise<string | null> {
+  await input.recovery?.assertOwnership();
   const amount = roundCurrency(Number(input.amount ?? 0));
   if (!(amount > 0)) return null;
   const policy = await getXeroDocumentPolicy(input.businessId);
@@ -2474,7 +2511,9 @@ async function syncDeferredLiabilityJournal(input: {
   ).catch(() => [] as { id: number }[]);
   if (existing.length > 0) return null;
 
-  const accounts = await getAccountMappings(input.businessId);
+  const accounts = input.recovery
+    ? { sales_revenue: input.recovery.revenueAccountCode, gift_card_liability: input.recovery.liabilityAccountCode, store_credit_liability: input.recovery.liabilityAccountCode }
+    : await getAccountMappings(input.businessId);
   const liabilityCode = input.liabilityRole === 'gift_card_liability'
     ? accounts.gift_card_liability
     : accounts.store_credit_liability;
@@ -2483,8 +2522,8 @@ async function syncDeferredLiabilityJournal(input: {
     return null;
   }
 
-  const trackingMappings = await getTrackingMappings(input.businessId);
-  const tracking = getTrackingForLocation(trackingMappings, input.locationId ?? null, input.channel);
+  const trackingMappings = input.recovery ? [] : await getTrackingMappings(input.businessId);
+  const tracking = input.recovery?.tracking ?? getTrackingForLocation(trackingMappings, input.locationId ?? null, input.channel);
   const channelLabel = input.channel === 'pos' ? 'POS' : 'Online';
   const gatewayLabel = input.gateway ? ` (${input.gateway})` : '';
   const actionLabel = input.direction === 'redeem' ? 'redemption' : 'liability reclass';
@@ -2531,6 +2570,7 @@ async function syncDeferredLiabilityJournal(input: {
   };
 
   try {
+    await input.recovery?.beforeMutation('gift_card_liability');
     const idempotencyKey = crypto.createHash('sha256')
       .update(`${input.businessId}|${input.syncType}|${input.dedupeKey}`)
       .digest('hex');
@@ -2541,6 +2581,7 @@ async function syncDeferredLiabilityJournal(input: {
     });
     const j = res.ManualJournals?.[0];
     const xeroId = j?.ManualJournalID ?? null;
+    await input.recovery?.assertOwnership();
     if (!xeroId) {
       await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'error', `No ManualJournalID returned: ${input.dedupeKey}`);
       return null;
@@ -2548,7 +2589,9 @@ async function syncDeferredLiabilityJournal(input: {
     await logSync(input.businessId, input.syncType, input.referenceId ?? null, xeroId, 'success', input.dedupeKey, j?.Status ?? 'POSTED');
     return xeroId;
   } catch (err: any) {
+    await input.recovery?.assertOwnership();
     await logSync(input.businessId, input.syncType, input.referenceId ?? null, null, 'error', `${input.dedupeKey}: ${err.message}`);
+    if (input.recovery) throw err;
     return null;
   }
 }

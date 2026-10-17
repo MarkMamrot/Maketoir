@@ -24,6 +24,8 @@ const {
   mockSyncCNAsCreditNote,
   mockSyncSupplierCNAsCreditNote,
   mockApproveCreditNote,
+  mockMarkCNXeroStatus,
+  mockNotifySyncFailure,
 } = vi.hoisted(() => ({
   mockConnectionsGet: vi.fn(),
   mockPOGet: vi.fn(),
@@ -48,6 +50,8 @@ const {
   mockSyncCNAsCreditNote: vi.fn(),
   mockSyncSupplierCNAsCreditNote: vi.fn(),
   mockApproveCreditNote: vi.fn(),
+  mockMarkCNXeroStatus: vi.fn(),
+  mockNotifySyncFailure: vi.fn(),
 }));
 
 vi.mock('@/lib/db/ConnectionsRepository', () => ({
@@ -81,7 +85,7 @@ vi.mock('@/services/XeroSyncService', () => ({
   voidXeroBill: vi.fn(),
   voidXeroInvoice: vi.fn(),
   syncCNAsCreditNote: mockSyncCNAsCreditNote,
-  markCNXeroStatus: vi.fn(),
+  markCNXeroStatus: mockMarkCNXeroStatus,
   syncSupplierCNAsCreditNote: mockSyncSupplierCNAsCreditNote,
   markSupplierCNXeroStatus: vi.fn(),
   voidXeroCreditNote: vi.fn(),
@@ -92,6 +96,7 @@ vi.mock('@/services/XeroSyncService', () => ({
 }));
 vi.mock('@/services/IMSMySQLService', () => ({ imsExecute: vi.fn(), imsQuery: mockImsQuery }));
 vi.mock('@/services/MySQLService', () => ({ query: mockQuery }));
+vi.mock('@/lib/ims/notifySyncFailure', () => ({ notifySyncFailure: mockNotifySyncFailure }));
 
 import {
   triggerPOPaymentXeroSync,
@@ -103,6 +108,7 @@ import {
   triggerSOXeroUpdate,
   triggerCNXeroUpdate,
   triggerCNXeroSync,
+  syncCNXeroWithOutcome,
   triggerSupplierCNXeroSync,
   triggerSupplierCNXeroUpdate,
   triggerSupplierCNXeroVoid,
@@ -121,6 +127,107 @@ describe('triggerSupplierCNXeroUpdate', () => {
     mockUpdateXeroDraftInvoice.mockResolvedValue(true);
     mockApproveBill.mockResolvedValue(true);
     mockApproveInvoice.mockResolvedValue(true);
+  });
+
+  describe('customer credit-note recovery outcomes', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockCNGet.mockResolvedValue({
+        id: 81, cn_number: 'CN-81', status: 'complete', source: 'shopify', items: [],
+      });
+      mockConnectionsGet.mockResolvedValue({ xero_tenant_id: 'tenant', xero_refresh_token: 'token' });
+      mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY });
+      mockMarkCNXeroStatus.mockResolvedValue(undefined);
+      mockNotifySyncFailure.mockResolvedValue(undefined);
+      mockReportRuntimeIssue.mockResolvedValue(null);
+    });
+
+    it('distinguishes a linked identity from confirmed accounting completion', async () => {
+      mockSyncCNAsCreditNote.mockResolvedValue('xero-81');
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+        status: 'linked', xeroId: 'xero-81',
+      });
+      expect(mockSyncCNAsCreditNote).toHaveBeenCalledWith(
+        'biz-1', expect.objectContaining({ id: 81 }), 'AUTHORISED',
+      );
+    });
+
+    it('preserves the original void-returning hook contract', async () => {
+      mockSyncCNAsCreditNote.mockResolvedValue('xero-81');
+      await expect(triggerCNXeroSync('biz-1', 81)).resolves.toBeUndefined();
+    });
+
+    it('does not recreate an existing Xero credit note', async () => {
+      mockCNGet.mockResolvedValue({
+        id: 81, status: 'complete', source: 'shopify', xero_credit_note_id: 'xero-81',
+      });
+      mockApproveCreditNote.mockResolvedValue(true);
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({ status: 'linked', xeroId: 'xero-81' });
+      expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+      expect(mockApproveCreditNote).toHaveBeenCalledWith('biz-1', 'xero-81', 81, 'cn_credit_note');
+    });
+
+    it('does not claim approval succeeded when approval returns false', async () => {
+      mockCNGet.mockResolvedValue({
+        id: 81, status: 'complete', source: 'shopify', xero_credit_note_id: 'xero-81',
+      });
+      mockApproveCreditNote.mockResolvedValue(false);
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+        status: 'blocked', reason: 'approval_pending',
+      });
+      expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+    });
+
+    it('does not mistake a disconnected business for successful accounting', async () => {
+      mockConnectionsGet.mockResolvedValue(null);
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+        status: 'blocked', reason: 'not_connected',
+      });
+      expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+    });
+
+    it('reports policy-load failures and leaves recovery blocked', async () => {
+      mockGetPolicy.mockRejectedValue(new Error('Database unavailable'));
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+        status: 'blocked', reason: 'policy_unavailable',
+      });
+      expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({
+        businessId: 'biz-1', operation: 'load_document_policy',
+      }));
+    });
+
+    it('retains the Shopify refund posting opt-out', async () => {
+      mockGetPolicy.mockResolvedValue({ ...DEFAULT_XERO_DOCUMENT_POLICY, shopifyRefundCreditNoteEnabled: false });
+      await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+        status: 'not_required', reason: 'policy_disabled',
+      });
+      expect(mockSyncCNAsCreditNote).not.toHaveBeenCalled();
+    });
+
+    it.each([null, { id: 81, status: 'draft', source: 'shopify' }])(
+      'does not process a missing or incomplete local credit note (%j)', async note => {
+        mockCNGet.mockResolvedValue(note);
+        await expect(syncCNXeroWithOutcome('biz-1', 81)).resolves.toEqual({
+          status: 'blocked', reason: 'credit_note_not_complete',
+        });
+        expect(mockConnectionsGet).not.toHaveBeenCalled();
+      },
+    );
+
+    it('returns queued only after the existing local retry marker has been saved', async () => {
+      vi.useFakeTimers();
+      try {
+        mockSyncCNAsCreditNote.mockResolvedValue(null);
+        const pending = syncCNXeroWithOutcome('biz-1', 81);
+        await vi.runAllTimersAsync();
+        await expect(pending).resolves.toEqual({ status: 'queued' });
+        expect(mockSyncCNAsCreditNote).toHaveBeenCalledTimes(2);
+        expect(mockMarkCNXeroStatus).toHaveBeenCalledWith(81, 'queued');
+        expect(mockNotifySyncFailure).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('updates the linked draft Xero credit note for an edited supplier credit note', async () => {

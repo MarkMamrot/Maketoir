@@ -107,6 +107,57 @@ describe('ShopifyLoyaltyService', () => {
       businessId: 'business-1', shopifyOrderId: '1001', paidDate: '2026-08-04', eligibleSpend: 90,
     })).resolves.toMatchObject({ status: 'awarded', points: null, mutation: { duplicate: true } });
     expect(mockGetIMSPool).not.toHaveBeenCalled();
+    expect(mockSyncConfiguredCustomer).not.toHaveBeenCalled();
+  });
+
+  it('can defer a newly committed award projection to independent recovery', async () => {
+    const connection = setupConnection([
+      [[{ id: 10, customer_id: 42, financial_status: 'paid' }]],
+      [[{ key: 'loyalty_enabled', value: '1' }, { key: 'loyalty_earn_rate', value: '1' }]],
+      [[{ id: 42 }]],
+    ]);
+    await expect(ShopifyLoyaltyService.awardPaidOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2', shopifyOrderId: '1001',
+      paidDate: '2026-08-04', eligibleSpend: 90, deferMetafieldSync: true,
+    })).resolves.toMatchObject({ status: 'awarded' });
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    expect(connection.release).toHaveBeenCalledTimes(1);
+    expect(mockSyncConfiguredCustomer).not.toHaveBeenCalled();
+  });
+
+  it.each(['partially_refunded', 'refunded'])('allows historical %s earning only for explicit recovery', async financial_status => {
+    const blocked = setupConnection([[[{ id: 10, customer_id: 42, financial_status }]]]);
+    await expect(ShopifyLoyaltyService.awardPaidOrder({
+      businessId: 'business-1', shopifyOrderId: '1001', paidDate: '2026-08-04', eligibleSpend: 90,
+    })).resolves.toEqual({ status: 'skipped', reason: 'not_paid' });
+    expect(blocked.commit).toHaveBeenCalledTimes(1);
+    const recovery = setupConnection([
+      [[{ id: 10, customer_id: 42, financial_status }]],
+      [[{ key: 'loyalty_enabled', value: '1' }, { key: 'loyalty_earn_rate', value: '1' }]],
+      [[{ id: 42 }]],
+    ]);
+    await expect(ShopifyLoyaltyService.awardPaidOrder({
+      businessId: 'business-1', channelInstanceId: 'instance-2', shopifyOrderId: '1001',
+      paidDate: '2026-08-04', eligibleSpend: 90, allowRefundedOrder: true, deferMetafieldSync: true,
+    })).resolves.toMatchObject({ status: 'awarded' });
+    expect(mockApplyTransaction).toHaveBeenCalledWith(recovery, expect.objectContaining({
+      pointsDelta: 90, eligibleSpendCents: 9000,
+      idempotencyKey: 'shopify:instance-2:order:1001:earn',
+    }));
+  });
+
+  it('does not roll back a committed/released paid award when legacy projection throws', async () => {
+    const connection = setupConnection([
+      [[{ id: 10, customer_id: 42, financial_status: 'paid' }]],
+      [[{ key: 'loyalty_enabled', value: '1' }, { key: 'loyalty_earn_rate', value: '1' }]],
+      [[{ id: 42 }]],
+    ]);
+    mockSyncConfiguredCustomer.mockRejectedValueOnce(new Error('projection failed'));
+    await expect(ShopifyLoyaltyService.awardPaidOrder({
+      businessId: 'business-1', shopifyOrderId: '1001', paidDate: '2026-08-04', eligibleSpend: 90,
+    })).rejects.toThrow('projection failed');
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalledTimes(1);
   });
 
   it('awards an enrolled customer from a persisted paid order before commit', async () => {
@@ -213,5 +264,47 @@ describe('ShopifyLoyaltyService', () => {
     expect(mockSyncConfiguredCustomer).toHaveBeenCalledWith({
       businessId: 'business-1', contactId: 42, channelInstanceId: 'instance-2',
     });
+  });
+
+  it('allows recovery to checkpoint the local reversal separately from the provider projection', async () => {
+    const connection = setupConnection([
+      [[{ id: 1, account_id: 2, contact_id: 42, points_delta: 95, eligible_spend_cents: 9500 }]],
+      [[]],
+    ]);
+
+    await expect(ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      shopifyOrderId: '1001', shopifyRefundId: '7001', eligibleRefundSpend: 20,
+      deferMetafieldSync: true,
+    })).resolves.toMatchObject({ status: 'reversed', points: 20 });
+    expect(connection.commit).toHaveBeenCalledTimes(1);
+    expect(connection.release).toHaveBeenCalledTimes(1);
+    expect(mockSyncConfiguredCustomer).not.toHaveBeenCalled();
+  });
+
+  it('replays a completed reversal without writing points or acquiring a connection', async () => {
+    mockGetMutation.mockResolvedValueOnce({ transactionId: 9, accountId: 2, balanceAfter: 0, duplicate: true });
+    await expect(ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', channelInstanceId: 'instance-2',
+      shopifyOrderId: '1001', shopifyRefundId: '7001', eligibleRefundSpend: 20,
+      deferMetafieldSync: true,
+    })).resolves.toMatchObject({ status: 'reversed', mutation: { duplicate: true } });
+    expect(mockApplyTransaction).not.toHaveBeenCalled();
+    expect(mockGetIMSPool).not.toHaveBeenCalled();
+    expect(mockSyncConfiguredCustomer).not.toHaveBeenCalled();
+  });
+
+  it('does not roll back a released connection if the legacy post-commit projection throws', async () => {
+    const connection = setupConnection([
+      [[{ id: 1, account_id: 2, contact_id: 42, points_delta: 95, eligible_spend_cents: 9500 }]],
+      [[]],
+    ]);
+    mockSyncConfiguredCustomer.mockRejectedValueOnce(new Error('Projection failed'));
+    await expect(ShopifyLoyaltyService.reverseRefund({
+      businessId: 'business-1', shopifyOrderId: '1001', shopifyRefundId: '7001', eligibleRefundSpend: 20,
+    })).rejects.toThrow('Projection failed');
+    expect(connection.rollback).not.toHaveBeenCalled();
+    expect(connection.release).toHaveBeenCalledTimes(1);
+    expect(mockReportRuntimeIssue).toHaveBeenCalledWith(expect.objectContaining({ operation: 'reverse_refund' }));
   });
 });

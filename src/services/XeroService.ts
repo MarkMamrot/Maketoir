@@ -242,7 +242,10 @@ export async function xeroApiFetch(
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Xero API ${options.method ?? 'GET'} ${path} failed (${res.status}): ${text}`);
+    throw Object.assign(
+      new Error(`Xero API ${options.method ?? 'GET'} ${path} failed (${res.status}): ${text}`),
+      { status: res.status, retryAfter: res.headers.get('Retry-After') },
+    );
   }
   return res.json();
 }

@@ -1,5 +1,5 @@
 ---
-{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Settings > Integrations > Xero / Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs"],"contextSections":{"xero":"Step-by-step","settings-xero":"Connection and sync preferences","activity-cogs":"Review and recover COGS postings"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-16","owner":"integrations","quickSections":["Main operations","At a glance"],"navigation":{"category":"finances","label":"Review Xero sync and reconciliation"}}
+{"id":"ims-xero-reconciliation","title":"Xero Sync and Reconciliation","audiences":["ims"],"capability":"integrations","screen":"Settings > Integrations > Xero / Finances > Xero Integration","product":"ims","format":"task","parentId":"ims-xero-shopify","contexts":["xero","settings-xero","activity-cogs","online-sales-daily-accounting"],"contextSections":{"xero":"Step-by-step","settings-xero":"Connection and sync preferences","activity-cogs":"Review and recover COGS postings","online-sales-daily-accounting":"Online daily posting and order readiness"},"relatedTopics":["ims-xero-shopify","ims-operational-reports","ims-customer-orders","ims-purchase-orders"],"order":91,"summary":"Configure Xero posting, distinguish IMS success from accounting failure, and retry safely.","lastReviewed":"2026-10-17","owner":"integrations","quickSections":["Main operations","At a glance"],"navigation":{"category":"finances","label":"Review Xero sync and reconciliation"}}
 ---
 # Xero Sync and Reconciliation
 
@@ -26,9 +26,19 @@ Use Xero setup and activity views to configure supported accounting work, invest
 
 Sync access does not permit editing sales or inventory, completing operational records, issuing refunds, voiding documents, dismissing queued work, changing sync policies, renaming invoices, overriding valuation checks, or planning and repairing payouts. Account mapping access remains a separate permission.
 
-Advisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an authorised operator to refresh Shopify orders before syncing when the saved orders may be incomplete.
+Advisor online-sales sync uses the orders already saved in Solvantis and does not run a Shopify order import. Ask an Admin or SuperAdmin to check **Sales > Sales Channels > Online sales recovery** or the existing store synchronization controls when saved orders may be incomplete. Accounting-sync permission never grants order recovery retry, pause or resume access.
 
 With sync access disabled, Advisors cannot trigger these posting or retry actions. Read-only payout access alone does not permit posting payouts.
+
+## Online daily posting and order readiness
+
+Online order reconciliation and daily accounting are independent. Webhooks prompt order updates; after verified cutover, bounded scheduled reconciliation handles missed changes without opening POS or IMS to trigger catch-up. Before rollout, current runtime behaviour remains unchanged; validation alone does not mean catch-up has switched over.
+
+Review **Sales > Sales Channels > Online sales recovery** for the initial baseline, incremental coverage, queued or failed work and order references needing review. Manual posting stays blocked until baseline and catch-up readiness checks pass, even for Advisors allowed to trigger Xero syncs. There is no posting override or force-ready action. Retrying recovery does not clear review of non-refund late changes to an already posted day.
+
+When scheduled recovery is active, manual daily-sales requests in **Online Sales** and **Sync History** can show **Xero queued**. This means scheduled accounting work was accepted, not that posting finished. Refresh the owning view later to check the final result. **Xero blocked** shows the readiness reason, such as incomplete baseline, ongoing catch-up or an order requiring review; resolve that cause rather than bypassing the check. Before rollout, confirmed direct posting retains its existing completed result.
+
+Recovered refunds repair the local order and linked credit note, then automatically use the existing Xero flow when eligible. They never charge or refund the customer again. Do not issue a second customer refund or repeat the operational transaction to resolve an accounting delay. Pausing order recovery does not restore old historical scans and does not change the accounting posting preference.
 
 ## Connection and sync preferences
 

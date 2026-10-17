@@ -1,5 +1,8 @@
 import { randomUUID } from 'crypto';
-import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import { imsQuery } from '@/services/IMSMySQLService';
+import type { PoolConnection } from 'mysql2/promise';
+import { localTransactionQueries } from './ims/localTransactionQueries';
+import { lockInventoryCostState } from './ims/costing/fifoCostingService';
 
 const SETTING_KEY = 'shopify_fallback_variant_id';
 const FALLBACK_SKU = 'SHOPIFY-MISC';
@@ -11,23 +14,23 @@ function lockKeyForBusiness(businessId: string): string {
   return `${LOCK_PREFIX}:${businessId}`;
 }
 
-async function getSetting(businessId: string, key: string): Promise<string | null> {
-  const rows = await imsQuery<{ value: string }>(
+async function getSetting(businessId: string, key: string, connection?: PoolConnection): Promise<string | null> {
+  const rows = await localTransactionQueries(connection).query<{ value: string }>(
     'SELECT value FROM ims_settings WHERE business_id = ? AND `key` = ? LIMIT 1',
     [businessId, key],
   );
   return rows[0]?.value ?? null;
 }
 
-async function setSetting(businessId: string, key: string, value: string): Promise<void> {
-  await imsExecute(
+async function setSetting(businessId: string, key: string, value: string, connection?: PoolConnection): Promise<void> {
+  await localTransactionQueries(connection).execute(
     'INSERT INTO ims_settings (business_id, `key`, value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value = VALUES(value)',
     [businessId, key, value],
   );
 }
 
-async function findVariantById(businessId: string, variantId: string): Promise<string | null> {
-  const rows = await imsQuery<{ variant_id: string }>(
+async function findVariantById(businessId: string, variantId: string, connection?: PoolConnection): Promise<string | null> {
+  const rows = await localTransactionQueries(connection).query<{ variant_id: string }>(
     `SELECT v.variant_id
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
@@ -38,8 +41,8 @@ async function findVariantById(businessId: string, variantId: string): Promise<s
   return rows[0]?.variant_id ?? null;
 }
 
-async function findVariantBySku(businessId: string, sku: string): Promise<string | null> {
-  const rows = await imsQuery<{ variant_id: string }>(
+async function findVariantBySku(businessId: string, sku: string, connection?: PoolConnection): Promise<string | null> {
+  const rows = await localTransactionQueries(connection).query<{ variant_id: string }>(
     `SELECT v.variant_id
        FROM ims_product_variants v
        JOIN ims_products p ON p.product_id = v.product_id
@@ -51,8 +54,8 @@ async function findVariantBySku(businessId: string, sku: string): Promise<string
   return rows[0]?.variant_id ?? null;
 }
 
-async function findFallbackProductIdBySku(businessId: string, sku: string): Promise<string | null> {
-  const rows = await imsQuery<{ product_id: string }>(
+async function findFallbackProductIdBySku(businessId: string, sku: string, connection?: PoolConnection): Promise<string | null> {
+  const rows = await localTransactionQueries(connection).query<{ product_id: string }>(
     `SELECT product_id
        FROM ims_products
       WHERE business_id = ? AND LOWER(COALESCE(base_sku, '')) = LOWER(?)
@@ -63,8 +66,8 @@ async function findFallbackProductIdBySku(businessId: string, sku: string): Prom
   return rows[0]?.product_id ?? null;
 }
 
-async function markFallbackProductNonStock(businessId: string, variantId: string): Promise<void> {
-  await imsExecute(
+async function markFallbackProductNonStock(businessId: string, variantId: string, connection?: PoolConnection): Promise<void> {
+  await localTransactionQueries(connection).execute(
     `UPDATE ims_products p
        JOIN ims_product_variants v ON v.product_id = p.product_id
         SET p.is_stock_item = 0
@@ -73,8 +76,8 @@ async function markFallbackProductNonStock(businessId: string, variantId: string
   );
 }
 
-async function insertFallbackVariant(businessId: string, productId: string, variantId: string): Promise<void> {
-  await imsExecute(
+async function insertFallbackVariant(businessId: string, productId: string, variantId: string, connection?: PoolConnection): Promise<void> {
+  await localTransactionQueries(connection).execute(
     `INSERT INTO ims_product_variants
        (business_id, variant_id, product_id, sku, option1_name, option1_value, cost_aud, price_rrp, price_wholesale, is_active)
      VALUES (?, ?, ?, ?, 'Type', 'Fallback', 0, 0, 0, 1)`,
@@ -130,9 +133,10 @@ export function isReservedShopifyFallbackSku(sku: unknown): boolean {
   return sku.trim().toUpperCase() === FALLBACK_SKU;
 }
 
-export async function getOrCreateShopifyFallbackVariantId(businessId: string): Promise<string> {
+export async function getOrCreateShopifyFallbackVariantId(businessId: string, connection?: PoolConnection): Promise<string> {
+  if (connection) await lockInventoryCostState(connection, businessId);
   const lockKey = lockKeyForBusiness(businessId);
-  const locked = await acquireNamedLock(lockKey, 10);
+  const locked = connection ? true : await acquireNamedLock(lockKey, 10);
   if (!locked) {
     throw new Error('Failed to acquire Shopify fallback lock');
   }
@@ -140,35 +144,35 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
   try {
     // Re-check inside the lock to prevent duplicate creations across concurrent
     // webhooks/import workers.
-    const configuredVariant = await getSetting(businessId, SETTING_KEY);
+    const configuredVariant = await getSetting(businessId, SETTING_KEY, connection);
     if (configuredVariant) {
-      const existing = await findVariantById(businessId, configuredVariant);
+      const existing = await findVariantById(businessId, configuredVariant, connection);
       if (existing) {
-        await markFallbackProductNonStock(businessId, existing);
+        await markFallbackProductNonStock(businessId, existing, connection);
         return existing;
       }
     }
 
-    const existingBySku = await findVariantBySku(businessId, FALLBACK_SKU);
+    const existingBySku = await findVariantBySku(businessId, FALLBACK_SKU, connection);
     if (existingBySku) {
-      await markFallbackProductNonStock(businessId, existingBySku);
-      await setSetting(businessId, SETTING_KEY, existingBySku);
+      await markFallbackProductNonStock(businessId, existingBySku, connection);
+      await setSetting(businessId, SETTING_KEY, existingBySku, connection);
       return existingBySku;
     }
 
-    const existingProductId = await findFallbackProductIdBySku(businessId, FALLBACK_SKU);
+    const existingProductId = await findFallbackProductIdBySku(businessId, FALLBACK_SKU, connection);
     if (existingProductId) {
       const variantId = randomUUID();
-      await insertFallbackVariant(businessId, existingProductId, variantId);
-      await markFallbackProductNonStock(businessId, variantId);
-      await setSetting(businessId, SETTING_KEY, variantId);
+      await insertFallbackVariant(businessId, existingProductId, variantId, connection);
+      await markFallbackProductNonStock(businessId, variantId, connection);
+      await setSetting(businessId, SETTING_KEY, variantId, connection);
       return variantId;
     }
 
     const productId = randomUUID();
     const variantId = randomUUID();
 
-    await imsExecute(
+    await localTransactionQueries(connection).execute(
       `INSERT INTO ims_products
          (business_id, product_id, name, description, product_type, category, base_sku, is_online, is_active, is_stock_item)
        VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, 0)`,
@@ -183,12 +187,12 @@ export async function getOrCreateShopifyFallbackVariantId(businessId: string): P
       ],
     );
 
-    await insertFallbackVariant(businessId, productId, variantId);
+    await insertFallbackVariant(businessId, productId, variantId, connection);
 
-    await setSetting(businessId, SETTING_KEY, variantId);
+    await setSetting(businessId, SETTING_KEY, variantId, connection);
     return variantId;
   } finally {
-    await releaseNamedLock(lockKey);
+    if (!connection) await releaseNamedLock(lockKey);
   }
 }
 

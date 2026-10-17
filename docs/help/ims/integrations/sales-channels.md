@@ -1,5 +1,5 @@
 ---
-{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Sales > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels"],"contextSections":{"sales-channels":"Review channel instances"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify","ims-business-operations-pos-settings"],"order":91,"summary":"Review Point of Sale, the B2B Wholesale Portal and each connected online storefront.","lastReviewed":"2026-10-14","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"sales","label":"Configure sales channels"}}
+{"id":"ims-sales-channels","title":"Sales Channels","audiences":["ims"],"capability":"integrations","screen":"Sales > Sales Channels","product":"ims","format":"overview","parentId":"ims-xero-shopify","contexts":["sales-channels","online-sales-recovery"],"contextSections":{"sales-channels":"Review channel instances","online-sales-recovery":"Online sales recovery"},"relatedTopics":["ims-shopify-sync","ims-online-shop","ims-xero-shopify","ims-business-operations-pos-settings"],"order":91,"summary":"Review Point of Sale, the B2B Wholesale Portal, each online storefront and available online order recovery status.","lastReviewed":"2026-10-17","owner":"integrations","quickSections":["Main operations"],"navigation":{"category":"sales","label":"Configure sales channels"}}
 ---
 # Sales Channels
 
@@ -16,6 +16,43 @@ Open **Sales > Sales Channels** from the sidebar. The storefront icon identifies
 - Review the external account identity and last successful synchronization time.
 - Compare the operations supported by each provider.
 - Choose **Configure** on a channel row to open that exact storefront or seller account. Shopify and Amazon open dedicated channel details; the Solvantis Online Store opens its existing setup area.
+- Check **Online sales recovery** for baseline completion, incremental coverage, queued or failed work and orders needing review. Admins and SuperAdmins can use the recovery controls when available.
+
+## Online sales recovery
+
+Open **Sales > Sales Channels > Online sales recovery**. Use **Refresh recovery status** to read current status; this does not import orders or post accounting.
+
+Availability is shown explicitly:
+
+- **Unavailable until rollout:** current order synchronization continues unchanged. This status does not activate recovery or grant access to it.
+- **Validation:** recovery is being checked while existing catch-up behaviour remains in place. Do not assume that opening POS or IMS has stopped triggering catch-up.
+- **Cutover:** bounded scheduled order reconciliation is active. Only after verified cutover does opening POS or IMS no longer trigger order catch-up.
+
+Webhooks prompt order updates. Scheduled reconciliation checks bounded periods for missed changes; daily accounting runs independently. A complete baseline confirms initial order coverage only: it does not confirm that later changes, gift card work or accounting work are complete, including for the Solvantis Online Store.
+
+Each exact storefront shows:
+
+| Status | Meaning |
+|---|---|
+| Baseline | Whether the initial order coverage is complete |
+| Incremental coverage through | The latest confirmed recovery coverage, not the time a page was opened |
+| Next scheduled check | When the next recovery check is expected; it is not a completion guarantee |
+| Queued work / Failed work | Work still waiting or needing a recovery retry |
+| Orders needing review | The total number needing investigation; the displayed references may be a limited selection |
+
+When the review list is limited, **Showing** states how many references are displayed out of the total. This is not the full review list; do not assume that orders absent from the displayed selection need no review.
+
+Admins and SuperAdmins can choose **Retry recovery for** the affected storefront. A retry requests unfinished work; it does not mean processing is already complete. Refresh status afterwards to inspect the result. Other users, including Advisors with accounting-sync access, can review status but cannot retry, pause or resume order recovery.
+
+When scheduled recovery is active, **Import Orders from Shopify** reports **queued for scheduled recovery**, not a completed import or an imported-order count. Check recovery progress before assuming that the order is ready. Before rollout, the existing direct import still reports its completed counts.
+
+Missing gift card permissions or genuine gift card discrepancies remain failed until an explicit retry. Correct the provider permissions or investigate the discrepancy first, then ask an Admin or SuperAdmin to retry. Retrying creates recovery work but never clears an order's review requirement.
+
+**Pause recovery** and **Resume recovery** apply to scheduled order recovery across channels. Pausing does not restore old historical scans and is not an accounting posting switch. Resume recovery before requesting a retry.
+
+Manual daily posting remains blocked until baseline and catch-up readiness checks pass. There is no posting override, force-ready action or clear-review bypass. Retry does not clear review for a previously posted day. Investigate non-refund late changes to an already posted day in **Online Sales** before treating the accounting as reconciled.
+
+Recovered refunds repair local orders and linked credit notes and automatically use the existing Xero flow when eligible. They never charge or refund the customer again. Do not repeat the original customer refund to repair local or accounting records.
 
 ## Publishing and provider operations
 
@@ -222,3 +259,11 @@ Choose **Deactivate** to stop that channel from entering any automatic Amazon sy
 ### Review two Shopify stores
 
 A retailer operates separate Australian retail and wholesale Shopify stores. **Sales Channels** shows two Shopify rows with different store domains. Staff use the domain to choose the correct instance before investigating a stale order or product mapping.
+
+### A retry does not clear posted-day review
+
+The retail store has a complete baseline, two failed recovery items and one order needing review because a non-refund change arrived after the day was posted. An Admin chooses **Retry recovery for** that store and refreshes status. The failed work can recover, but the order still needs review; the retry is not permission to repost that day.
+
+### Recover an already settled refund
+
+A customer refund completed at the online provider while order updates were interrupted. Recovery repairs the local order and linked credit note and automatically follows the existing Xero flow when eligible. Staff check the recovered records and accounting status rather than issuing the customer another refund.

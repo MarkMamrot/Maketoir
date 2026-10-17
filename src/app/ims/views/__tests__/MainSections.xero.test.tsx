@@ -33,6 +33,20 @@ describe('Xero advisor permissions', () => {
   });
 
   describe('Sales Channels settings navigation', () => {
+    it.each([
+      ['Admin', true],
+      ['SuperAdmin', true],
+      ['Advisor', false],
+      ['User', false],
+    ])('grants recovery management only to operational administrators: %s', (userTier, canManage) => {
+      vi.mocked(SalesChannelsView).mockClear();
+      const props = {
+        view: 'sales-channels', userTier, isAdvisor: userTier === 'Advisor', advisorSyncEnabled: true,
+      } as React.ComponentProps<typeof MainSections>;
+      renderToStaticMarkup(<MainSections {...props} />);
+      expect(vi.mocked(SalesChannelsView).mock.calls[0][0].canManage).toBe(canManage);
+    });
+
     it('opens the existing POS and wholesale settings and locations workspace', () => {
       vi.mocked(SalesChannelsView).mockClear();
       const setSettingsSection = vi.fn();

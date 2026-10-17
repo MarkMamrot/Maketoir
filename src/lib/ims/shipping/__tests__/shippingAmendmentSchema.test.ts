@@ -21,7 +21,20 @@ describe('tenant-safe amendment schema', () => {
   it('supports per-shipment shared PDF rows and idempotently corrects the old index for each tenant', () => {
     expect(table('ims_shipping_labels')).toContain('UNIQUE KEY uq_shipping_label_request (business_id, shipment_id, provider_request_id)');
     expect(migration).toContain('information_schema.STATISTICS');
-    expect(migration).toContain("if (!requestedTable || requestedTable === 'ims_shipping_labels') await ensureShippingLabelRequestIndex(schema)");
+    expect(migration).toMatch(/if \((.+)\) await ensureShippingLabelRequestIndex\(schema\);/);
+  });
+
+  it.each([
+    [undefined, false, true],
+    ['ims_shipping_labels', false, true],
+    ['ims_shipping_shipments', false, false],
+    [undefined, true, false],
+    ['ims_shipping_labels', true, false],
+  ])('scopes label-index repair for table %s and consignment mode %s', (requestedTable, consignmentOnly, expected) => {
+    const condition = migration.match(/if \((.+)\) await ensureShippingLabelRequestIndex\(schema\);/)?.[1];
+    if (!condition) throw new Error('Shipping label index migration guard not found.');
+    const shouldMigrate = new Function('requestedTable', 'consignmentOnly', `return (${condition});`);
+    expect(shouldMigrate(requestedTable, consignmentOnly)).toBe(expected);
   });
 
   it.each([

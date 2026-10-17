@@ -27,6 +27,7 @@ import {
   type SOStatus,
 } from './orderLifecyclePolicy';
 import { OrderAmendmentConflict, planStockRebalance, reconcileOrderLines } from './orderAmendmentPlan';
+import { ShopifyOrderReviewRequiredError } from './shopifyOrderReview';
 import { assessPurchaseOrderUndo, OrderCorrectionConflict } from './orderCorrectionPolicy';
 import { assertAllowedInventoryDocumentAction } from './inventoryDocumentLifecycle';
 import { assertExpectedInventoryDocumentRevision } from './creditNoteStatusCommands';
@@ -2920,6 +2921,36 @@ export const ImsPORepo = {
 // Sales Orders
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type ShopifyRefundOptions = {
+  soId: number;
+  channelInstanceId?: string;
+  shopifyRefundId: string;
+  shopifyReturnId?: string | null;
+  gateway?: string | null;
+  amount: number;
+  taxAmount?: number;
+  note?: string;
+  restockLines: {
+    externalOrderItemId?: string;
+    shopifyVariantId: string;
+    quantity: number;
+    restock: boolean;
+    unitPrice?: number;
+    taxAmount?: number;
+    name?: string | null;
+    sku?: string | null;
+  }[];
+};
+
+export type ShopifyRefundProcessingResult = {
+  processed: boolean;
+  restocked: number;
+  creditNoteId: number | null;
+};
+
+export type SalesOrderUpdateData = Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'delivery_address' | 'delivery_address2' | 'delivery_suburb' | 'delivery_city' | 'delivery_state' | 'delivery_postcode' | 'delivery_country' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>;
+export type SalesOrderUpdateItem = Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'> & { id?: number };
+
 export const ImsSORepo = {
   async getSOColumns(): Promise<Set<string>> {
     const rows = await imsQuery<{ Field: string }>('SHOW COLUMNS FROM ims_sales_orders');
@@ -3366,11 +3397,13 @@ export const ImsSORepo = {
 
   async update(
     id: number,
-    data: Partial<Pick<ImsSO, 'customer_id' | 'customer_po_number' | 'location_id' | 'order_date' | 'expected_date' | 'delivery_address' | 'delivery_address2' | 'delivery_suburb' | 'delivery_city' | 'delivery_state' | 'delivery_postcode' | 'delivery_country' | 'notes' | 'payment_terms' | 'price_tier' | 'tax_treatment' | 'tax_code' | 'freight' | 'discount'>>,
-    items?: (Omit<ImsSOItem, 'id' | 'so_id' | 'qty_fulfilled' | 'unit_cost' | 'sku' | 'product_name' | 'variant_label'> & { id?: number })[],
+    data: SalesOrderUpdateData,
+    items?: SalesOrderUpdateItem[],
     amendmentContext?: OrderAmendmentContext,
+    connection?: PoolConnection,
+    businessId?: string,
   ): Promise<void> {
-    await this.ensureTaxTreatmentColumn();
+    if (!connection) await this.ensureTaxTreatmentColumn();
     const fields = ['customer_id','customer_po_number','location_id','order_date','expected_date','delivery_address','delivery_address2','delivery_suburb','delivery_city','delivery_state','delivery_postcode','delivery_country','notes','payment_terms','price_tier','tax_treatment','tax_code','freight','discount'];
     const sets: string[] = [];
     const vals: any[] = [];
@@ -3381,10 +3414,13 @@ export const ImsSORepo = {
       }
     }
 
-    const pool = getIMSPool();
-    const conn = await pool.getConnection();
+    const conn = connection ?? await getIMSPool().getConnection();
     try {
-      await conn.beginTransaction();
+      if (!connection) await conn.beginTransaction();
+      if (connection) {
+        if (!businessId) throw new Error('Business identity is required for transactional sales order updates.');
+        await lockInventoryCostState(conn, businessId);
+      }
 
       // Snapshot BEFORE any change. When the order is already 'confirmed', its
       // qty_committed reflects the OLD lines at the OLD location; replacing the
@@ -3393,9 +3429,11 @@ export const ImsSORepo = {
         `SELECT status, location_id, business_id, customer_id, order_date, payment_terms,
            delivery_address, delivery_address2, delivery_suburb, delivery_city, delivery_state, delivery_postcode, delivery_country,
            price_tier, tax_treatment, tax_code, freight, discount, so_type, updated_at
-           FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
+           FROM ims_sales_orders WHERE id = ?${connection ? ' AND business_id = ?' : ''} FOR UPDATE`,
+        connection ? [id, businessId!] : [id],
       );
       if (!preEdit) throw new Error('Sales order not found');
+      if (businessId && String(preEdit.business_id) !== businessId) throw new Error('Sales order not found');
        assertExpectedOrderRevision(preEdit.updated_at, amendmentContext?.expectedUpdatedAt);
       if (items && preEdit?.status === 'backordered') {
         throw new OrderAmendmentConflict('Release this customer backorder before changing its quantities.');
@@ -3409,12 +3447,41 @@ export const ImsSORepo = {
              FROM ims_sales_order_items WHERE so_id = ? ORDER BY id FOR UPDATE`,
           [id],
         );
-        await assertNoActiveStockAllocations(conn, {
+        await assertNoActiveStockAllocations({ execute: (sql, params) => conn.execute(sql, params as Parameters<PoolConnection['execute']>[1]) }, {
           businessId: String(preEdit.business_id ?? ''), orderKind: 'sales_order', orderId: id,
           operation: locationChanged ? 'changing the location or lines on' : 'changing the lines on',
         });
       }
       let replacementItems = items;
+      if (connection && items) {
+        const [credits] = await conn.execute<RowDataPacket[]>(
+          `SELECT id FROM ims_credit_notes WHERE business_id = ? AND so_id = ?
+            AND status IN ('complete', 'reversed') LIMIT 1 FOR UPDATE`, [businessId!, id],
+        );
+        const [costEvidence] = await conn.execute<RowDataPacket[]>(
+          `SELECT movement.id FROM ims_stock_movements movement
+            WHERE movement.business_id = ? AND movement.reference_type = 'sales_order' AND movement.reference_id = ?
+              AND (movement.movement_type = 'so_fulfilled' OR EXISTS (
+                SELECT 1 FROM ims_fifo_cost_allocations allocation
+                 WHERE allocation.business_id = movement.business_id AND allocation.stock_movement_id = movement.id))
+            LIMIT 1 FOR UPDATE`, [businessId!, id],
+        );
+        if (credits.length || costEvidence.length || existingItems.some(item => Number(item.qty_fulfilled) > 0)) {
+          const unchanged = existingItems.length === items.length && existingItems.every(existingItem => {
+            const nextItem = items.find(item => Number(item.id) === Number(existingItem.id));
+            return nextItem && String(nextItem.variant_id) === String(existingItem.variant_id)
+              && String(nextItem.external_order_item_id ?? '') === String(existingItem.external_order_item_id ?? '')
+              && ['qty_ordered', 'unit_price', 'discount_pct', 'tax_rate'].every(field =>
+                Math.abs(Number(nextItem[field as keyof typeof nextItem] ?? 0) - Number(existingItem[field] ?? 0)) < 0.00005);
+          });
+          if (!unchanged || locationChanged) {
+            throw new ShopifyOrderReviewRequiredError(
+              'source_provenance_conflict', 'Shopify source lines with fulfilment, completed credit or FIFO evidence require reconciliation; normal updates cannot replace their provenance.',
+            );
+          }
+          replacementItems = undefined;
+        }
+      }
       if (['partially_fulfilled', 'fulfilled'].includes(String(preEdit?.status))) {
         const lockedFields = ['customer_id', 'location_id', 'order_date', 'delivery_address', 'delivery_address2', 'delivery_suburb', 'delivery_city', 'delivery_state', 'delivery_postcode', 'delivery_country', 'payment_terms', 'price_tier', 'tax_treatment', 'tax_code', 'freight', 'discount'] as const;
         const changedLockedField = lockedFields.find(field => data[field] !== undefined
@@ -3448,7 +3515,7 @@ export const ImsSORepo = {
         orderStatus: String(preEdit.status), beforeHeader: preEdit,
       });
       if (amendment.replayed) {
-        await conn.commit();
+        if (!connection) await conn.commit();
         return;
       }
       const amendmentLines: Array<{ sourceLineId: number | null; resultLineId: number | null; movedFloor: number; beforeLine: unknown; afterLine: unknown }> = [];
@@ -3499,7 +3566,7 @@ export const ImsSORepo = {
             `INSERT INTO ims_sales_order_items
                (business_id,so_id,shopify_line_item_id,external_order_item_id,variant_id,qty_ordered,unit_price,discount_pct,tax_rate,line_total,notes)
              VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-            newItem.values,
+            newItem.values as Parameters<PoolConnection['execute']>[1],
           );
           amendmentLines[newItem.amendmentIndex].resultLineId = Number(insertResult.insertId);
         }
@@ -3580,13 +3647,23 @@ export const ImsSORepo = {
         );
       }
       await completeOrderAmendment(conn, String(preEdit.business_id ?? ''), amendment.amendmentId, data, amendmentLines);
-      await conn.commit();
+      if (!connection) await conn.commit();
     } catch (err) {
-      await conn.rollback();
+      if (!connection) await conn.rollback();
       throw err;
     } finally {
-      conn.release();
+      if (!connection) conn.release();
     }
+  },
+
+  async updateInTransaction(
+    connection: PoolConnection,
+    businessId: string,
+    id: number,
+    data: SalesOrderUpdateData,
+    items?: SalesOrderUpdateItem[],
+  ): Promise<void> {
+    await this.update(id, data, items, undefined, connection, businessId);
   },
 
   async changeStatus(
@@ -3594,16 +3671,23 @@ export const ImsSORepo = {
     newStatus: SOStatus,
     expectedUpdatedAt?: string | null,
     operationContext?: OrderAmendmentContext,
+    connection?: PoolConnection,
+    businessId?: string,
   ): Promise<void> {
-    const pool = getIMSPool();
-    const conn = await pool.getConnection();
+    const conn = connection ?? await getIMSPool().getConnection();
     try {
-      await conn.beginTransaction();
+      if (!connection) await conn.beginTransaction();
+      if (connection) {
+        if (!businessId) throw new Error('Business identity is required for transactional sales order status changes.');
+        await lockInventoryCostState(conn, businessId);
+      }
 
       const [[so]] = await conn.execute<any[]>(
-        `SELECT * FROM ims_sales_orders WHERE id = ? FOR UPDATE`, [id]
+        `SELECT * FROM ims_sales_orders WHERE id = ?${connection ? ' AND business_id = ?' : ''} FOR UPDATE`,
+        connection ? [id, businessId!] : [id],
       );
       if (!so) throw new Error('Sales order not found');
+      if (businessId && String(so.business_id) !== businessId) throw new Error('Sales order not found');
       if (so.is_historical) throw new Error('Cannot modify a historical Cin7 record');
       if (so.is_staff_preview_test && newStatus !== so.status) {
         throw new Error('Staff preview test orders cannot progress beyond Draft. Delete the test order when inspection is complete.');
@@ -3613,12 +3697,12 @@ export const ImsSORepo = {
         orderStatus: String(so.status), beforeHeader: so,
       });
       if (amendment.replayed) {
-        await conn.commit();
+        if (!connection) await conn.commit();
         return;
       }
       assertExpectedOrderRevision(so.updated_at, expectedUpdatedAt);
 
-      const [items] = await conn.execute<ImsSOItem[]>(
+      const [items] = await conn.execute<(ImsSOItem & RowDataPacket)[]>(
         `SELECT * FROM ims_sales_order_items WHERE so_id = ? FOR UPDATE`, [id]
       );
       const variantIds = items.map(item => item.variant_id).filter((variantId): variantId is string => Boolean(variantId));
@@ -3641,7 +3725,7 @@ export const ImsSORepo = {
       const to   = newStatus;
       assertAllowedSOStatusTransition(from, to);
       if (from !== to && (to === 'cancelled' || (from === 'confirmed' && to === 'draft'))) {
-        await assertNoActiveStockAllocations(conn, {
+        await assertNoActiveStockAllocations({ execute: (sql, params) => conn.execute(sql, params as Parameters<PoolConnection['execute']>[1]) }, {
           businessId: String(so.business_id ?? ''), orderKind: 'sales_order', orderId: id,
           operation: to === 'cancelled' ? 'cancelling' : 'reverting',
         });
@@ -3659,7 +3743,7 @@ export const ImsSORepo = {
         await completeOrderAmendment(
           conn, String(so.business_id ?? ''), amendment.amendmentId, { ...so, status: to }, [],
         );
-        await conn.commit();
+        if (!connection) await conn.commit();
         return;
       }
       if (to === 'backordered') {
@@ -3852,13 +3936,22 @@ export const ImsSORepo = {
       await completeOrderAmendment(
         conn, String(so.business_id ?? ''), amendment.amendmentId, { ...so, status: to }, [],
       );
-      await conn.commit();
+      if (!connection) await conn.commit();
     } catch (err) {
-      await conn.rollback();
+      if (!connection) await conn.rollback();
       throw err;
     } finally {
-      conn.release();
+      if (!connection) conn.release();
     }
+  },
+
+  async changeStatusInTransaction(
+    connection: PoolConnection,
+    businessId: string,
+    id: number,
+    newStatus: SOStatus,
+  ): Promise<void> {
+    await this.changeStatus(id, newStatus, undefined, undefined, connection, businessId);
   },
 
   async delete(id: number, businessId: string): Promise<void> {
@@ -3882,43 +3975,37 @@ export const ImsSORepo = {
    */
   async processShopifyRefund(
     businessId: string,
-    opts: {
-      soId: number;
-      channelInstanceId?: string;
-      shopifyRefundId: string;
-      shopifyReturnId?: string | null;  // if present, complete an existing awaiting_product CN
-      gateway?: string | null;
-      amount: number;
-      taxAmount?: number;
-      note?: string;
-      restockLines: {
-        externalOrderItemId?: string;
-        shopifyVariantId: string;
-        quantity: number;
-        restock: boolean;
-        unitPrice?: number;
-        taxAmount?: number;
-        name?: string | null;
-        sku?: string | null;
-      }[];
-    },
-  ): Promise<{ processed: boolean; restocked: number; creditNoteId: number | null }> {
-    // A Shopify refund becomes a source='shopify', status='complete' credit note
-    // linked to the sales order. Exact callers use channel_instance_id plus external_refund_id.
-    // Xero posting is triggered by webhook/import orchestrators after this write,
-    // so the DB transaction here stays focused on inventory and source-of-truth data.
-    const pool = getIMSPool();
-    const conn = await pool.getConnection();
+    opts: ShopifyRefundOptions,
+  ): Promise<ShopifyRefundProcessingResult> {
+    const conn = await getIMSPool().getConnection();
     try {
       await conn.beginTransaction();
+      const result = await this.processShopifyRefundInTransaction(conn, businessId, opts);
+      if (result.processed) await conn.commit();
+      else await conn.rollback();
+      return result;
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
+  },
+
+  // The caller owns the transaction; CN completion remains the sole refund/stock owner.
+  async processShopifyRefundInTransaction(
+    conn: PoolConnection,
+    businessId: string,
+    opts: ShopifyRefundOptions,
+  ): Promise<ShopifyRefundProcessingResult> {
       const costingState = await lockInventoryCostState(conn, businessId);
 
       const [[so]] = await conn.execute<any[]>(
         `SELECT id, location_id, so_type, so_number, customer_id, sales_channel, channel_instance_id
-           FROM ims_sales_orders WHERE id = ? AND business_id = ?`,
+           FROM ims_sales_orders WHERE id = ? AND business_id = ? FOR UPDATE`,
         [opts.soId, businessId],
       );
-      if (!so) { await conn.rollback(); return { processed: false, restocked: 0, creditNoteId: null }; }
+      if (!so) return { processed: false, restocked: 0, creditNoteId: null };
       const ownedChannelInstanceId = String(so.channel_instance_id ?? '').trim();
       if (opts.channelInstanceId && (
         so.sales_channel !== 'shopify' || ownedChannelInstanceId !== opts.channelInstanceId
@@ -4050,7 +4137,6 @@ export const ImsSORepo = {
             `UPDATE ims_sales_orders SET refunded_amount = COALESCE(refunded_amount,0)+?, returned_at = CASE WHEN ?> 0 THEN NOW() ELSE returned_at END WHERE id = ?`,
             [total, restocked, opts.soId],
           );
-          await conn.commit();
           return { processed: true, restocked, creditNoteId: Number(existingCn.id) };
         }
       }
@@ -4071,7 +4157,6 @@ export const ImsSORepo = {
         [businessId, channelInstanceId, String(opts.shopifyRefundId), String(opts.shopifyRefundId)],
       );
       if ((existingRefunds as any[]).length) {
-        await conn.rollback();
         return { processed: false, restocked: 0, creditNoteId: Number((existingRefunds as any[])[0].id) };
       }
       const [ins] = await conn.execute<any>(
@@ -4092,7 +4177,6 @@ export const ImsSORepo = {
             WHERE business_id = ? AND channel_instance_id = ? AND external_refund_id = ? LIMIT 1`,
           [businessId, channelInstanceId, String(opts.shopifyRefundId)],
         );
-        await conn.rollback();
         return { processed: false, restocked: 0, creditNoteId: Number((concurrent as any[])[0]?.id ?? 0) || null };
       }
       const cnId = ins.insertId;
@@ -4125,14 +4209,7 @@ export const ImsSORepo = {
         [total, restocked, opts.soId],
       );
 
-      await conn.commit();
       return { processed: true, restocked, creditNoteId: Number(cnId) };
-    } catch (err) {
-      await conn.rollback();
-      throw err;
-    } finally {
-      conn.release();
-    }
   },
 };
 

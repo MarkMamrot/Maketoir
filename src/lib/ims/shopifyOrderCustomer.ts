@@ -1,4 +1,6 @@
 import { imsExecute, imsQuery } from '@/services/IMSMySQLService';
+import type { PoolConnection } from 'mysql2/promise';
+import { localTransactionQueries } from './localTransactionQueries';
 
 type ShopifyOrderCustomer = {
   id: string;
@@ -119,7 +121,8 @@ export async function resolveShopifyOrderCustomerId(
   return Number(result.insertId);
 }
 
-export async function getOrCreateOnlineCustomerId(businessId: string): Promise<number> {
+export async function getOrCreateOnlineCustomerId(businessId: string, connection?: PoolConnection): Promise<number> {
+  const { query: imsQuery, execute: imsExecute } = localTransactionQueries(connection);
   const configured = await imsQuery<{ id: number }>(
     `SELECT c.id
        FROM ims_settings s

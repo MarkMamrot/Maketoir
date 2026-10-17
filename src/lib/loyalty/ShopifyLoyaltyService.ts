@@ -60,6 +60,8 @@ export const ShopifyLoyaltyService = {
     shopifyOrderId: string;
     paidDate: string;
     eligibleSpend: number;
+    deferMetafieldSync?: boolean;
+    allowRefundedOrder?: boolean;
   }): Promise<ShopifyLoyaltyAwardResult> {
     const sourceOrderId = input.channelInstanceId
       ? `${input.channelInstanceId}:${input.shopifyOrderId}`
@@ -96,7 +98,9 @@ export const ShopifyLoyaltyService = {
         await connection.commit();
         return { status: 'skipped', reason: 'order_not_found' };
       }
-      if (String(order.financial_status ?? '').toLowerCase() !== 'paid') {
+      const financialStatus = String(order.financial_status ?? '').toLowerCase();
+      if (financialStatus !== 'paid'
+        && !(input.allowRefundedOrder && ['partially_refunded', 'refunded'].includes(financialStatus))) {
         await connection.commit();
         return { status: 'skipped', reason: 'not_paid' };
       }
@@ -154,14 +158,16 @@ export const ShopifyLoyaltyService = {
       await connection.commit();
       connection.release();
       released = true;
-      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
-        businessId: input.businessId,
-        contactId,
-        ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
-      });
+      if (!input.deferMetafieldSync) {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: input.businessId,
+          contactId,
+          ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
+        });
+      }
       return { status: 'awarded', points, mutation };
     } catch (error) {
-      await connection.rollback();
+      if (!released) await connection.rollback();
       if (error instanceof LoyaltyValidationError) {
         return { status: 'skipped', reason: 'customer_not_enrolled' };
       }
@@ -186,6 +192,7 @@ export const ShopifyLoyaltyService = {
     shopifyOrderId: string;
     shopifyRefundId: string;
     eligibleRefundSpend: number;
+    deferMetafieldSync?: boolean;
   }): Promise<ShopifyLoyaltyRefundResult> {
     const sourceOrderId = input.channelInstanceId
       ? `${input.channelInstanceId}:${input.shopifyOrderId}`
@@ -295,14 +302,16 @@ export const ShopifyLoyaltyService = {
       await connection.commit();
       connection.release();
       released = true;
-      await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
-        businessId: input.businessId,
-        contactId: Number(earn.contact_id),
-        ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
-      });
+      if (!input.deferMetafieldSync) {
+        await ShopifyLoyaltyMetafieldService.syncConfiguredCustomer({
+          businessId: input.businessId,
+          contactId: Number(earn.contact_id),
+          ...(input.channelInstanceId ? { channelInstanceId: input.channelInstanceId } : {}),
+        });
+      }
       return { status: 'reversed', points, mutation };
     } catch (error) {
-      await connection.rollback();
+      if (!released) await connection.rollback();
       await reportRuntimeIssue({
         businessId: input.businessId,
         source: 'shopify_loyalty',

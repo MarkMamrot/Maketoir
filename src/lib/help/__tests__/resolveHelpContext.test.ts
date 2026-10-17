@@ -4,6 +4,34 @@ import { getHelpTopic, listHelpLibraryTopics, listHelpTopics, resolveHelpContext
 import { searchHelpTopics } from '../searchHelpTopics';
 
 describe('resolveHelpContext', () => {
+  it.each([true, false])('opens online recovery guidance independently of accounting enabled=%s', xero => {
+    const result = resolveHelpContext({
+      audience: 'ims', product: 'ims', context: 'online-sales-recovery', availableCapabilities: { xero },
+    });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'ims-sales-channels' } });
+    expect(result?.topic.sections.find(section => section.id === result.sectionId)?.heading).toBe('Online sales recovery');
+    const content = result?.topic.sections.find(section => section.id === result.sectionId)?.content;
+    expect(content).toContain('Unavailable until rollout');
+    expect(content).toContain('Only after verified cutover');
+    expect(content).toContain('no posting override');
+    expect(content).toContain('This is not the full review list');
+    expect(content).toContain('does not confirm that later changes, gift card work or accounting work are complete');
+    expect(content).toContain('remain failed until an explicit retry');
+    expect(content).toContain('queued for scheduled recovery');
+  });
+  it('maps queued daily-accounting feedback to posting readiness Help', () => {
+    const result = resolveHelpContext({
+      audience: 'ims', product: 'ims', context: 'online-sales-daily-accounting', availableCapabilities: { xero: true },
+    });
+    expect(result).toMatchObject({ exact: true, topic: { id: 'ims-xero-reconciliation' } });
+    const section = result?.topic.sections.find(candidate => candidate.id === result.sectionId);
+    expect(section?.heading).toBe('Online daily posting and order readiness');
+    expect(section?.content).toContain('Xero queued');
+    expect(section?.content).toContain('not that posting finished');
+    expect(resolveHelpContext({
+      audience: 'ims', product: 'ims', context: 'online-sales-daily-accounting', availableCapabilities: { xero: false },
+    })?.exact).toBe(false);
+  });
   it.each([
     ['report-consignment-activity', 'Consignment Activity'],
     ['consignment-statements', 'Consignment Statements'],
